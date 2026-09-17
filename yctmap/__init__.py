@@ -1,0 +1,1 @@
+"""YCT Map Django project."""

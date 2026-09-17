@@ -1,0 +1,21 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f4f4ec">
+    <meta name="description" content="YCT Map — a lightweight campus navigation experience for Yaba College of Technology.">
+    <title>{% block title %}YCT Map{% endblock %}</title>
+    <link rel="icon" href="{% static 'yct_map/favicon.svg' %}" type="image/svg+xml">
+    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
+    <link rel="preconnect" href="https://unpkg.com" crossorigin>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@{{ maplibre_version }}/dist/maplibre-gl.css">
+    <link rel="stylesheet" href="{% static 'yct_map/css/app.css' %}">
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to map content</a>
+    {% block body %}{% endblock %}
+  </body>
+</html>

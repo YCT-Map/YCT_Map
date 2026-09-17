@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PRE-BUILD / FOUNDATION
-Implementation:    NOT STARTED
+Current phase:     PHASE 1 — FOUNDATION & MAP EXPERIENCE
+Implementation:    PUBLIC LOCATION COLLECTION IMPLEMENTED
 ```
 
 This document will describe all API endpoints once the backend is implemented.
@@ -52,7 +52,26 @@ The following groups are expected based on the product specification. Exact rout
 
 ## Current API
 
-No endpoints exist yet.
+### `GET /api/locations/`
+
+Public, unauthenticated, read-only location collection.
+
+Optional query parameters:
+
+- `q` — case-insensitive partial match against destination names and aliases; maximum 100 characters
+- `category` — controlled category value
+
+The response is an explicit GeoJSON `FeatureCollection`. Each feature exposes only:
+
+- ID
+- point coordinates
+- name
+- controlled category value and label
+- description
+- verification value and label
+- aliases
+
+Inactive locations are excluded. Unknown categories and overlong queries return HTTP 400. Non-GET methods return HTTP 405.
 
 ---
 

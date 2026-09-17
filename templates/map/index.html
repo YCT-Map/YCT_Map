@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}YCT Map — Find your way around campus{% endblock %}
+
+{% block body %}
+  <main
+    id="main-content"
+    class="map-shell"
+    data-locations-url="{% url 'locations:collection' %}"
+    data-map-style-url="{{ map_style_url }}"
+    data-maplibre-module-url="https://unpkg.com/maplibre-gl@{{ maplibre_version }}/dist/maplibre-gl.mjs"
+    data-centre-longitude="{{ map_centre.longitude }}"
+    data-centre-latitude="{{ map_centre.latitude }}"
+  >
+    <div id="map" class="map-canvas" aria-label="Interactive demonstration map of the YabaTech area"></div>
+
+    <header class="app-header" aria-label="YCT Map header">
+      <a class="brand" href="/" aria-label="YCT Map home">
+        <span class="brand-mark" aria-hidden="true">Y</span>
+        <span class="brand-copy">
+          <strong>YCT Map</strong>
+          <small>Campus discovery</small>
+        </span>
+      </a>
+      <span class="dataset-badge">DEMO DATA</span>
+    </header>
+
+    <section class="discovery" aria-label="Find a demonstration destination">
+      <form id="search-form" class="search-form" role="search" novalidate>
+        <label class="visually-hidden" for="location-search">Search demonstration destinations</label>
+        <span class="search-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="m20 20-3.5-3.5"></path>
+          </svg>
+        </span>
+        <input
+          id="location-search"
+          name="q"
+          type="search"
+          inputmode="search"
+          autocomplete="off"
+          placeholder="Where do you want to go?"
+          aria-controls="search-results"
+          aria-expanded="false"
+        >
+        <button id="clear-search" class="clear-search" type="button" aria-label="Clear search" hidden>×</button>
+      </form>
+
+      <div id="category-list" class="category-list" aria-label="Filter by category">
+        <button class="category-chip is-active" type="button" data-category="" aria-pressed="true">All</button>
+        {% for value, label in categories %}
+          <button class="category-chip" type="button" data-category="{{ value }}" aria-pressed="false">{{ label }}</button>
+        {% endfor %}
+      </div>
+
+      <div id="search-results" class="search-results" role="region" aria-label="Search results" hidden>
+        <div class="results-heading">
+          <p id="results-summary">Demonstration destinations</p>
+          <span id="results-count" aria-hidden="true"></span>
+        </div>
+        <div id="results-list" class="results-list"></div>
+      </div>
+    </section>
+
+    <div id="map-status" class="map-status" role="status" aria-live="polite">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span>Loading map and demo destinations…</span>
+    </div>
+
+    <aside id="map-error" class="map-error" role="alert" hidden>
+      <strong>The map could not load.</strong>
+      <span>You can still search and inspect all demonstration destinations.</span>
+    </aside>
+
+    <section
+      id="destination-panel"
+      class="destination-panel"
+      aria-labelledby="destination-name"
+      aria-live="polite"
+      hidden
+    >
+      <div class="panel-handle" aria-hidden="true"></div>
+      <button id="close-panel" class="panel-close" type="button" aria-label="Close destination details">×</button>
+      <div class="destination-meta">
+        <span id="destination-category" class="category-label"></span>
+        <span class="demo-label">DEMO</span>
+      </div>
+      <h1 id="destination-name"></h1>
+      <p id="destination-description"></p>
+      <p class="demo-notice">
+        <span aria-hidden="true">ⓘ</span>
+        Synthetic information for product demonstration only. This is not a verified real campus location.
+      </p>
+    </section>
+
+    <noscript>
+      <div class="noscript-message">YCT Map needs JavaScript to display and search the interactive map.</div>
+    </noscript>
+  </main>
+
+  <script type="module" src="{% static 'yct_map/js/app.js' %}"></script>
+{% endblock %}

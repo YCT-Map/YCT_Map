@@ -3,13 +3,11 @@
 ## Status
 
 ```
-Current phase:     PRE-BUILD / FOUNDATION
-Implementation:    NOT STARTED
+Current phase:     PHASE 1 — FOUNDATION & MAP EXPERIENCE
+Implementation:    LOCAL DEVELOPMENT CONTRACT ACTIVE
 ```
 
-Environment variables will be documented here as the stack is decided and implemented.
-
-A `.env.example` file must be maintained at the repository root once the backend is set up.
+The repository includes `.env.example`. Local development works without copying it; non-local environments must supply their own private secret.
 
 ---
 
@@ -26,16 +24,16 @@ A `.env.example` file must be maintained at the repository root once the backend
 
 ## Known / Expected Environment Variables
 
-These are indicative based on the planned architecture. Actual variables will be confirmed during implementation.
+Current and planned variables:
 
 | Name | Purpose | Environment | Classification |
 |------|---------|-------------|----------------|
-| `DATABASE_URL` | Database connection string | Server | SERVER-PRIVATE |
+| `DATABASE_URL` | Future PostgreSQL connection string; not consumed in Sprint 001 | Server | SERVER-PRIVATE |
 | `DJANGO_SECRET_KEY` | Django cryptographic signing secret | Server | SERVER-PRIVATE |
-| `DJANGO_SETTINGS_MODULE` | Django settings module selection | Server | PUBLIC |
-| `APP_ENV` | Environment name (development, production) | Server | PUBLIC |
+| `DJANGO_SETTINGS_MODULE` | Django settings module; defaults to `yctmap.settings` | Server | PUBLIC |
+| `APP_ENV` | Environment name; defaults to `development` | Server | PUBLIC |
 
-OpenFreeMap's approved Liberty style URL does not currently require an application API key. All variable names remain indicative until the Django foundation is implemented and `.env.example` is created.
+OpenFreeMap's approved Liberty style URL does not require an application API key. Sprint 001 uses local SQLite at `db.sqlite3`, which is Git-ignored.
 
 ---
 

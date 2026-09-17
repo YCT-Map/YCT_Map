@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PRE-BUILD / FOUNDATION
-Implementation:    NOT STARTED
+Current phase:     PHASE 1 — FOUNDATION & MAP EXPERIENCE
+Implementation:    FOUNDATIONAL SUITE ACTIVE
 ```
 
 This document defines the intended testing approach for YCT Map.
@@ -71,12 +71,12 @@ Tests must not depend on invented real YabaTech coordinates being accurate.
 
 ## Framework
 
-Django's test facilities are the approved backend baseline. Any additional test runner, browser-testing tool, formatter or static-analysis tool is a Sprint 001 implementation detail and must be recorded after selection.
-
-This section will be updated once the backend and frontend stacks are confirmed.
+Django's built-in test framework is the current automated baseline. JavaScript syntax is checked with Node's built-in `--check`; browser behavior is verified against the running application in Chromium/Chrome.
 
 ---
 
 ## Current Test Totals
 
-No tests exist yet. This section will record pass/fail totals after the first test suite is established.
+Sprint 001: 12 Django tests passing.
+
+Coverage includes model validation, aliases, DEMO fixture integrity, map-page configuration, explicit GeoJSON serialization, partial/case-insensitive name search, alias search, category filtering, empty results, invalid input and read-only endpoint behavior.

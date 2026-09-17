@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:         PRE-BUILD / FOUNDATION
-Application code:      NOT STARTED
+Current phase:         PHASE 1 — FOUNDATION & MAP EXPERIENCE
+Application code:      SPRINT 001 OWNER VERIFIED / ACCEPTED
 ```
 
 This document records approved architectural decisions and expected system design.
@@ -19,17 +19,17 @@ YCT Map is a web-based application consisting of:
 
 | Layer | Description | Status |
 |-------|-------------|--------|
-| Frontend | Mobile-first web application; map-first interface | PLANNED |
-| Backend API | Serves campus data, handles contributions, editor management | PLANNED |
-| Database | Stores locations, paths, contributions, editor accounts | PLANNED |
-| Authentication | Editors and administrators only; normal users are unauthenticated | PLANNED |
-| Map tiles | Base geographic tiles from an external provider | PLANNED |
+| Frontend | Django templates, CSS and modular JavaScript; map-first interface | CURRENT — Phase 1 |
+| Backend API | Public location/search GeoJSON endpoint | CURRENT — Phase 1 subset |
+| Database | SQLite locally; `Location` and `LocationAlias` models | CURRENT — Phase 1 subset |
+| Authentication | Django auth installed; editor workflows not implemented | FOUNDATION ONLY |
+| Map tiles | OpenFreeMap Liberty rendered with MapLibre GL JS | CURRENT |
 
 ---
 
 ## Frontend
 
-**Status: NOT STARTED**
+**Status: CURRENT — PHASE 1 SPRINT 001**
 
 **APPROVED direction:**
 - Mobile-first web application
@@ -42,22 +42,26 @@ YCT Map is a web-based application consisting of:
 
 **APPROVED decision (DEC-T01):** Responsive HTML5, CSS, and modular JavaScript with MapLibre GL JS for interactive map rendering.
 
+**CURRENT implementation:** Django-rendered HTML, mobile-first CSS and native ES modules. MapLibre GL JS `6.10.0` is loaded from a pinned CDN URL. Search remains usable when map initialization fails.
+
 ---
 
 ## Backend
 
-**Status: NOT STARTED**
+**Status: CURRENT — PHASE 1 SUBSET**
 
 **APPROVED direction:**
 - Backend API serving campus data, routing, contributions and editor management
 
 **APPROVED decision (DEC-T02):** Python / Django for business logic, REST APIs, and administrative/editor capabilities.
 
+**CURRENT implementation:** Django `5.2.17` LTS serves the public map and an explicit read-only GeoJSON location collection. Routing, contributions and editor endpoints remain planned.
+
 ---
 
 ## Database
 
-**Status: NOT STARTED**
+**Status: CURRENT — LOCAL PHASE 1 SUBSET**
 
 **APPROVED direction:**
 - Persistent storage for campus locations, walkable paths, public contributions, editor accounts
@@ -66,11 +70,13 @@ YCT Map is a web-based application consisting of:
 
 **APPROVED decision (DEC-T03):** Managed PostgreSQL (Neon preferred; Supabase compatible alternative).
 
+**CURRENT implementation:** SQLite is used only for Sprint 001 local development. Portable Django ORM fields preserve a clean PostgreSQL migration path. No production database infrastructure exists.
+
 ---
 
 ## Authentication
 
-**Status: NOT STARTED**
+**Status: FOUNDATION PRESENT; EDITOR ACCESS NOT IMPLEMENTED**
 
 **APPROVED:**
 - Normal users require **no account** for navigation, search or contributions
@@ -82,7 +88,7 @@ YCT Map is a web-based application consisting of:
 
 ## Map Tiles
 
-**Status: NOT STARTED**
+**Status: CURRENT**
 
 **APPROVED:**
 - OpenStreetMap-derived tiles as the base geographic context
@@ -90,6 +96,8 @@ YCT Map is a web-based application consisting of:
 - YCT Map maintains its own campus data layer independent of OSM
 
 **APPROVED decision (DEC-T04, DEC-T11):** OpenStreetMap-derived tiles via MapLibre GL JS, initially using OpenFreeMap's official Liberty style. The base-map provider must remain reasonably replaceable.
+
+The style URL and MapLibre module URL are passed to the frontend as explicit configuration rather than coupled to campus records.
 
 ---
 
@@ -138,7 +146,7 @@ No file storage requirements identified for V1 (no location photographs in V1).
 [Database]   [Auth Service]
 ```
 
-This represents planned architecture. None of these layers are currently implemented.
+The browser, Phase 1 frontend, public location endpoint, local database and external map-style connection are implemented. Authentication workflows, routing and production infrastructure remain planned.
 
 ---
 
@@ -163,4 +171,4 @@ This represents planned architecture. None of these layers are currently impleme
 
 ## Conflicts / Open Questions
 
-No unresolved pre-build architecture decisions currently block Phase 1. Implementation-specific details must be recorded as the application is built.
+No unresolved Sprint 001 architecture decision remains. The exact future spatial/PostGIS representation is deliberately deferred until routing/path requirements require it.

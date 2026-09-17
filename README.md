@@ -8,12 +8,31 @@ The map is the primary interface. Students, staff and visitors can search campus
 
 ## Project Status
 
-**Phase:** PRE-BUILD / FOUNDATION
-**Application implementation:** NOT STARTED
+**Phase:** PHASE 1 — FOUNDATION & MAP EXPERIENCE (IN PROGRESS)
+**Application implementation:** SPRINT 001 OWNER VERIFIED / ACCEPTED
 **Product definition:** SUBSTANTIALLY COMPLETE
 **Documentation / governance:** IN PROGRESS
 **Campus production dataset:** NOT YET POPULATED
 **Deployment:** NOT STARTED
+
+---
+
+## Local Development
+
+Requires Python 3.11 or newer.
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py loaddata demo_locations
+python manage.py runserver 127.0.0.1:8000
+```
+
+Open `http://127.0.0.1:8000/`.
+
+The Phase 1 map uses pinned MapLibre GL JS assets and OpenFreeMap Liberty over the network. All included destinations are synthetic records explicitly marked `DEMO`.
 
 ---
 

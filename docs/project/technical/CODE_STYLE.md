@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PRE-BUILD / FOUNDATION
-Implementation:    NOT STARTED
+Current phase:     PHASE 1 — FOUNDATION & MAP EXPERIENCE
+Implementation:    CONVENTIONS ESTABLISHED
 ```
 
 Code style conventions will be established during the foundation build phase using Python/Django and modular JavaScript idioms.
@@ -32,16 +32,18 @@ See `docs/project/technical/API_CONTRACT.md`.
 
 ## Linting and Formatting
 
-Automated linting and formatting are required.
-
-Specific formatting, linting and static-analysis tools are ordinary Sprint 001 implementation details. Record the selected tools and commands here once established.
+Current baseline checks are Django system checks, migration drift checks, Python compilation and Node JavaScript syntax checks. A dedicated formatter/linter may be introduced when justified by repository size; none is required to run the current application.
 
 ---
 
 ## Naming Conventions
 
-To be recorded after the first code sprint. Conventions should match the chosen language and framework idioms.
+- Python modules and functions use `snake_case`; classes use `PascalCase`.
+- Django models use controlled `TextChoices` for project-owned enumerations.
+- Public API serialization is explicit; model objects are never serialized wholesale.
+- Frontend JavaScript uses small native ES modules with named exports.
+- CSS uses component-oriented class names and shared custom-property tokens.
 
 ---
 
-> Update this document after Sprint 001 with the actual conventions observed in the repository.
+> These conventions reflect the accepted Sprint 001 implementation and should evolve deliberately with later accepted work.

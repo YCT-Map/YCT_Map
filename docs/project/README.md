@@ -2,6 +2,12 @@
 
 This directory contains all project documentation for YCT Map.
 
+## Learning Record
+
+| Document | Purpose |
+|----------|---------|
+| [`BUILD_JOURNAL.md`](BUILD_JOURNAL.md) | Student-facing explanation of how accepted sprint work was built, how it functions, and why technical decisions were made |
+
 ---
 
 ## Documentation Authority Model

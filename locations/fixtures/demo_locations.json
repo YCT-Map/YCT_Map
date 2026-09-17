@@ -1,0 +1,124 @@
+[
+  {
+    "model": "locations.location",
+    "pk": "10000000-0000-4000-8000-000000000001",
+    "fields": {
+      "name": "DEMO — School Building",
+      "category": "building",
+      "description": "Synthetic teaching-space destination used to demonstrate YCT Map search and selection.",
+      "entrance_latitude": "6.519180",
+      "entrance_longitude": "3.373620",
+      "verification_state": "DEMO",
+      "is_active": true,
+      "created_at": "2026-09-17T00:00:00Z",
+      "updated_at": "2026-09-17T00:00:00Z"
+    }
+  },
+  {
+    "model": "locations.location",
+    "pk": "10000000-0000-4000-8000-000000000002",
+    "fields": {
+      "name": "DEMO — Library",
+      "category": "library",
+      "description": "Synthetic library destination. This record is not a verified real campus location.",
+      "entrance_latitude": "6.518720",
+      "entrance_longitude": "3.374110",
+      "verification_state": "DEMO",
+      "is_active": true,
+      "created_at": "2026-09-17T00:00:00Z",
+      "updated_at": "2026-09-17T00:00:00Z"
+    }
+  },
+  {
+    "model": "locations.location",
+    "pk": "10000000-0000-4000-8000-000000000003",
+    "fields": {
+      "name": "DEMO — Café",
+      "category": "food",
+      "description": "Synthetic food destination included only to exercise category-driven discovery.",
+      "entrance_latitude": "6.518300",
+      "entrance_longitude": "3.374780",
+      "verification_state": "DEMO",
+      "is_active": true,
+      "created_at": "2026-09-17T00:00:00Z",
+      "updated_at": "2026-09-17T00:00:00Z"
+    }
+  },
+  {
+    "model": "locations.location",
+    "pk": "10000000-0000-4000-8000-000000000004",
+    "fields": {
+      "name": "DEMO — Administration",
+      "category": "office",
+      "description": "Synthetic administrative destination for interface testing.",
+      "entrance_latitude": "6.517910",
+      "entrance_longitude": "3.373850",
+      "verification_state": "DEMO",
+      "is_active": true,
+      "created_at": "2026-09-17T00:00:00Z",
+      "updated_at": "2026-09-17T00:00:00Z"
+    }
+  },
+  {
+    "model": "locations.location",
+    "pk": "10000000-0000-4000-8000-000000000005",
+    "fields": {
+      "name": "DEMO — Hostel",
+      "category": "hostel",
+      "description": "Synthetic accommodation destination; it does not identify a real hostel.",
+      "entrance_latitude": "6.518950",
+      "entrance_longitude": "3.375100",
+      "verification_state": "DEMO",
+      "is_active": true,
+      "created_at": "2026-09-17T00:00:00Z",
+      "updated_at": "2026-09-17T00:00:00Z"
+    }
+  },
+  {
+    "model": "locations.location",
+    "pk": "10000000-0000-4000-8000-000000000006",
+    "fields": {
+      "name": "DEMO — Medical Centre",
+      "category": "health",
+      "description": "Synthetic health destination used to demonstrate location details.",
+      "entrance_latitude": "6.517620",
+      "entrance_longitude": "3.374530",
+      "verification_state": "DEMO",
+      "is_active": true,
+      "created_at": "2026-09-17T00:00:00Z",
+      "updated_at": "2026-09-17T00:00:00Z"
+    }
+  },
+  {
+    "model": "locations.locationalias",
+    "pk": 1,
+    "fields": {
+      "location": "10000000-0000-4000-8000-000000000001",
+      "name": "DEMO — Lecture Block"
+    }
+  },
+  {
+    "model": "locations.locationalias",
+    "pk": 2,
+    "fields": {
+      "location": "10000000-0000-4000-8000-000000000002",
+      "name": "DEMO — Reading Room"
+    }
+  },
+  {
+    "model": "locations.locationalias",
+    "pk": 3,
+    "fields": {
+      "location": "10000000-0000-4000-8000-000000000003",
+      "name": "DEMO — Canteen"
+    }
+  },
+  {
+    "model": "locations.locationalias",
+    "pk": 4,
+    "fields": {
+      "location": "10000000-0000-4000-8000-000000000004",
+      "name": "DEMO — Admin Office"
+    }
+  }
+]

@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PRE-BUILD / FOUNDATION
-Implementation:    NOT STARTED
+Current phase:     PHASE 1 — FOUNDATION & MAP EXPERIENCE
+Implementation:    LOCATION + LOCATION ALIAS SUBSET IMPLEMENTED
 ```
 
 This document describes the expected data model based on approved product decisions.
@@ -12,6 +12,14 @@ This document describes the expected data model based on approved product decisi
 Nothing here is implemented. This is design intent to be validated when the build phase begins.
 
 All field names and types are indicative — actual implementation may differ.
+
+## Current Sprint 001 Implementation
+
+`Location` currently implements UUID identity, name, controlled category, short description, decimal entrance latitude/longitude, controlled verification state, active state and timestamps.
+
+`LocationAlias` provides a one-to-many alias relationship with a per-location uniqueness constraint.
+
+Building geometry, floors, internal locations, paths, contributions and verification-user relationships remain planned and were intentionally not created during Sprint 001.
 
 ---
 
@@ -132,7 +140,7 @@ Promotion from UNVERIFIED to FIELD_VERIFIED requires deliberate editor action af
 
 ## Migrations
 
-No migrations exist yet. This section must be updated when the first migration is written.
+`locations/migrations/0001_initial.py` creates the minimal `Location` and `LocationAlias` tables. Synthetic demo records are not embedded in the migration; they are loaded explicitly from `locations/fixtures/demo_locations.json`.
 
 Never rewrite an already-applied migration. Correct data issues through new migrations.
 
@@ -141,6 +149,6 @@ Never rewrite an already-applied migration. Correct data issues through new migr
 ## Open Questions
 
 - Exact PostgreSQL spatial representation or extension to use for each geographic field
-- Exact seed-loading mechanism for synthetic demonstration data
+- Exact PostgreSQL migration and spatial-extension timing
 
-These are implementation details to resolve within the approved architecture. Regardless of mechanism, demo records must use the explicit `DEMO` state and remain removable without changing the production data model.
+Demo seed loading is resolved for Sprint 001 through an explicit fixture. Demo records use the `DEMO` state and remain removable without changing the production data model.
