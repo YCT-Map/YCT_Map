@@ -554,3 +554,409 @@ The system does not yet calculate or display routes. No campus location or path 
 ### Transition to Phase 2
 
 Phase 2 will introduce YCT Map’s own synthetic walkable network, geometry-derived distance calculation, graph construction and later A* routing. Base-map roads will remain contextual and will not automatically become routable YCT Map paths.
+
+## Phase 2 — Sprint 001: Walkable Network & Routing Foundation
+
+**Recorded status:** OWNER VERIFIED / ACCEPTED on 2026-09-17.
+
+### Purpose
+
+Sprint 001 created the data and service foundation that a route-finding algorithm needs. It represented walkable topology as project-owned nodes and segments, derived cost from geographic geometry, and converted persisted records into an in-memory graph. It deliberately stopped before choosing routes.
+
+The sprint also closed Phase 1's cosmetic carryover by replacing polygon-based campus-label placement with one deterministic point label without changing the accepted campus boundary, camera behavior or base-map configuration.
+
+### User Outcome
+
+In development mode, a project member can display the complete synthetic walkable network as dashed purple segments and junction points, hide or show it, and see an explicit “no route calculated” message. This makes the new topology inspectable without pretending that navigation already exists.
+
+Search, categories, destination selection and campus orientation continue to work as they did in accepted Phase 1.
+
+### Starting State
+
+Phase 1 milestone commit `602a0be` provided a searchable map, synthetic destinations, a reviewed campus boundary and responsive destination details. It did not contain routing nodes, walkable segments, graph construction or segment-length calculation.
+
+The accepted design required persistent but minimal routing models, GeoJSON path geometry, geometry-derived distance, bidirectional and future one-way traversal, an in-memory graph boundary, synthetic fixtures, focused validation and development-only inspection. A* selection, route results, distance totals, ETA and final navigation UI were excluded.
+
+### What We Built
+
+- A `routing` Django application with its own migration, models, fixture, services, endpoint and tests.
+- `WalkableNode` records for graph junctions.
+- `WalkableSegment` records connecting two nodes through a GeoJSON `LineString`.
+- Stable UUID identifiers, controlled verification state, active state and directionality.
+- Haversine distance calculation over every consecutive pair of LineString coordinates.
+- An in-memory adjacency graph containing directed traversal arcs.
+- Reverse arcs with reversed geometry for bidirectional segments.
+- Diagnostics for malformed geometry, zero length, self-edges and duplicate/reverse-duplicate segments.
+- Five synthetic DEMO nodes and five synthetic DEMO segments in a removable fixture.
+- A DEBUG-only GeoJSON inspection endpoint and dashed purple map overlay.
+- A deterministic single campus-label point.
+
+### Technical Concepts Introduced
+
+**Graph topology.** A node represents a position where traversal can begin, end, branch or continue. An edge represents a permitted connection between two nodes. In YCT Map, persisted `WalkableSegment` records are the edge data; the graph builder turns them into directed in-memory arcs.
+
+**Project routing data versus base-map data.** OpenFreeMap supplies visual context such as roads, buildings and labels. It does not automatically define what YCT Map considers safely walkable. YCT Map's routing network is stored separately so its provenance, direction and verification state can be controlled.
+
+**Polyline geometry.** A GeoJSON `LineString` stores an ordered list of `[longitude, latitude]` coordinates. Intermediate vertices allow a segment to follow a bend. Drawing or measuring only the endpoints would incorrectly replace a curved path with a straight shortcut.
+
+**Geometry-derived cost.** Each consecutive coordinate pair is measured with the Haversine formula, and those leg lengths are summed. The result becomes the segment's traversal cost. Distance is therefore derived from the actual stored polyline rather than typed into a separate authoritative field.
+
+**Persistence-to-computation boundary.** Django models are useful for validation, editing and persistence, but graph algorithms need a compact adjacency structure. The graph builder reads active records and produces immutable nodes and arcs for computation without making algorithms query the database at every step.
+
+**Directionality.** One stored bidirectional segment produces two graph arcs: start to end and end to start. The reverse arc uses reversed coordinate order so later route geometry follows the direction of travel. A one-way segment produces only its allowed forward arc.
+
+### How It Works Internally
+
+`WalkableNode` stores one graph junction's stable identity and geographic position. A node is not a destination or building; it is routing topology.
+
+`WalkableSegment` references a start and end node and stores the geographic line between them. Model validation rejects self-connections, invalid geometry, zero-length geometry and lines whose endpoints do not match the selected nodes within the allowed tolerance.
+
+The canonical geometry utility validates longitude/latitude bounds and calculates each segment's length. `build_graph()` selects active nodes and active segments whose endpoints are active. It adds a forward `GraphArc`; for a bidirectional segment it also adds a reverse arc with reversed geometry.
+
+The DEBUG endpoint serializes active DEMO nodes and segments into a deliberately small GeoJSON contract. The browser draws all segment features as dashed purple lines and nodes as small junction circles. This is a topology view, not algorithm output: it displays the complete available network rather than a selected origin-to-destination subset.
+
+### Architecture / Components Involved
+
+```text
+SQLite
+  |-- WalkableNode rows
+  `-- WalkableSegment rows + GeoJSON LineStrings
+                  |
+                  v
+             build_graph()
+                  |
+                  v
+        RoutingGraph adjacency map
+          node -> directed GraphArc(s)
+
+DEBUG inspection path:
+
+database -> narrow GeoJSON endpoint -> dashed complete-network overlay
+
+OpenFreeMap Liberty ----------------> visual geographic context
+YCT Map routing data ---------------> project-controlled topology
+```
+
+### Important Files
+
+- `routing/models.py` — persisted nodes, segments, verification state and model validation.
+- `routing/migrations/0001_initial.py` — routing schema.
+- `routing/geometry.py` — LineString validation and Haversine length calculation.
+- `routing/graph.py` — immutable arc/result structures and database-to-adjacency conversion.
+- `routing/validators.py` — network-level diagnostics.
+- `routing/views.py` and `routing/urls.py` — DEBUG-only inspection contract.
+- `routing/fixtures/demo_walkable_network.json` — removable synthetic topology.
+- `routing/tests/test_routing.py` — geometry, graph, validation and endpoint tests.
+- `static/yct_map/js/map.js` — inspection layers, toggle and deterministic campus label.
+- `templates/map/index.html` — explicit inspection legend and no-route message.
+
+### Data Flow
+
+```text
+1. Explicit fixture load creates DEMO nodes and segments.
+2. Segment geometry is stored as an ordered GeoJSON LineString.
+3. Geometry utility sums Haversine distance across every leg.
+4. Graph builder reads active database rows.
+5. Each valid segment becomes a forward arc.
+6. A bidirectional segment also becomes a reverse arc.
+7. DEBUG endpoint serializes topology for visual inspection.
+8. MapLibre draws the entire network; no route is selected.
+```
+
+The future A* service will consume the graph produced at step 6. It will not need to know how Django stores model rows.
+
+### Decisions and Trade-offs
+
+**Ordinary Django fields and JSONField instead of PostGIS.** Sprint 001 needs persistence and geometry traversal, not spatial database queries. JSONField keeps setup small and PostgreSQL-compatible. More advanced spatial needs can be reconsidered when evidence justifies them.
+
+**Dynamic length instead of a manually maintained distance column.** Calculation costs a small amount of CPU, but prevents geometry and distance from disagreeing. The campus graph is small enough that correctness is more valuable than premature caching.
+
+**Stable UUIDs.** A stable segment identity lets future route results, editor changes, audit records and Path Survey Mode refer to a particular path independently of labels or array order. Survey observations can later attach to a segment without making one raw GPS trace trusted automatically.
+
+**Boolean directionality.** `is_bidirectional` expresses the required current cases clearly. Rich restriction modelling is deferred until an actual requirement exists.
+
+**Development-only visualization.** Inspectability is valuable, but presenting the complete network as a public route would be misleading. Keeping the endpoint and overlay under DEBUG protects that distinction.
+
+**Disconnected topology as a diagnosable condition.** A network may contain separate components during development. The foundation exposes this safely rather than inventing connections. A later algorithm must return no-route when components cannot connect.
+
+### Problems Encountered
+
+- The accepted polygon-based campus symbol could repeat its label at close zoom.
+- The preferred integrated browser connection was unavailable during implementation verification.
+- The isolated verification browser could render the application shell but did not complete the external OpenFreeMap style load.
+- Owner inspection confirmed that some synthetic segments do not match real campus walkways and some DEMO destination positions are inaccurate.
+
+The last point is not a routing-engine failure: Sprint 001 intentionally used synthetic replaceable coordinates to prove architecture.
+
+### How We Solved Them
+
+- The campus boundary remained unchanged, while its symbol source became one deterministic point at the approved orientation centre.
+- Automated checks, a locally running Django application and isolated desktop/mobile browser passes verified the implementation; final successful visual verification was completed by the owner in the normal environment.
+- A regression comparison against Phase 1 milestone `602a0be` confirmed that MapLibre version, Liberty style URL, camera settings, campus opacity and base-map behavior were unchanged.
+- The documentation explicitly retains the DEMO limitation. Real paths and positions will be populated and physically verified later rather than retroactively treating fixture coordinates as truth.
+
+### Testing and Verification
+
+All 23 Django tests passed at acceptance, including all 13 Phase 1 regressions. Routing tests cover:
+
+- fixture records remaining explicitly `DEMO`;
+- curved geometry measuring longer than its straight endpoint chord;
+- zero-length rejection;
+- self-edge rejection;
+- segment geometry anchored to its nodes;
+- reverse arcs for bidirectional segments;
+- inactive-segment exclusion;
+- reverse-duplicate detection;
+- explicit DEBUG endpoint metadata; and
+- absence of that endpoint when DEBUG is disabled.
+
+Django system checks, migration-drift checks, JavaScript syntax checks and `git diff --check` passed. The owner verified the complete network overlay, junction rendering, toggle, explicit no-route state, single campus label, search, categories and destination selection.
+
+### Current Limitations
+
+- The purple network is synthetic and geographically unverified.
+- Some DEMO segments do not correspond to actual campus walkways.
+- Some DEMO destination positions are inaccurate.
+- There is no A*, Dijkstra or other route selection yet.
+- There is no calculated route geometry, total route distance or ETA.
+- Locations are not yet anchored to routing nodes.
+- There is no GPS, progress tracking, rerouting or final navigation interface.
+- The DEBUG overlay is a technical inspection aid, not production navigation.
+- Real path safety, accessibility and physical existence remain unverified.
+
+### Evidence
+
+- **`P2-S1-A-demo-walkable-network.png`** demonstrates the complete dashed purple DEMO topology and junction nodes over the map. It proves that stored network data reaches the browser and remains visually distinct from base geography.
+- **`P2-S1-B-routing-foundation.png`** demonstrates the development inspection state, including the toggle and explicit statement that no route has been calculated. It records the boundary between network foundation and future route selection.
+
+These images demonstrate software behavior, not real-campus path accuracy.
+
+### What Students Should Understand
+
+Students should distinguish three concepts that may occupy the same screen:
+
+1. The base map provides visual context.
+2. The complete purple network represents all currently available DEMO graph edges.
+3. A future calculated route will be only the ordered subset selected by an algorithm.
+
+They should be able to explain that nodes describe connectivity, while LineString segments describe both connectivity and geographic shape. Haversine measures the earth-surface distance between consecutive longitude/latitude pairs; summing those legs retains bends. They should also explain why persisted Django objects are converted into adjacency arcs before running graph algorithms.
+
+Most importantly, students must not confuse mathematical consistency with geographic truth. The software can correctly validate, measure and traverse synthetic geometry even when that geometry does not describe a real walkway. Field verification is a separate data-quality process.
+
+### Presentation / Defence Notes
+
+- **Why not route on OpenFreeMap roads directly?** Visible cartography is not automatically a verified, campus-specific walkability dataset under YCT Map's control.
+- **Why nodes and segments?** Routing needs explicit connectivity. Coordinates alone do not say which places can be traversed between.
+- **Why retain intermediate LineString points?** They preserve curved path shape and produce a more faithful distance.
+- **Why two arcs for a bidirectional segment?** Algorithms operate on directed choices. Two arcs express travel in both directions while sharing one persisted segment identity.
+- **Is the purple line a route?** No. It is the entire synthetic network. No origin, destination or shortest-path selection exists yet.
+- **Are the purple paths real?** No. They are deliberately synthetic DEMO data and cannot support claims about actual campus walkability.
+- **What does Sprint 001 enable?** A* can now receive stable nodes, directed arcs, geometry and distance costs without depending directly on Django models.
+
+### Next Sprint
+
+Phase 2 Sprint 002 — A* Route Calculation, Distance & Baseline ETA — will consume this graph foundation. It will choose the lowest-distance reachable sequence of arcs, reconstruct ordered route geometry, total geometry-derived distance, and calculate an approximate ETA using the approved `1.35 m/s` fallback.
+
+Sprint 002 remains a separate planning/build cycle. No Sprint 002 implementation is part of this accepted milestone.
+
+## Phase 2 — Sprint 001: Walkable Network & Routing Foundation
+
+**Recorded status:** OWNER VERIFIED / ACCEPTED on 2026-09-17.
+
+### Purpose
+
+Sprint 001 established the data and service foundation required before YCT Map can calculate routes. It introduced a project-owned walkable network, geometry-derived segment distance and an in-memory graph representation while deliberately excluding route selection. It also closed Phase 1’s cosmetic label carryover without changing the accepted base-map configuration or camera behavior.
+
+### User Outcome
+
+In development mode, a reviewer can inspect a purple dashed DEMO network and its junction nodes over the map, hide or show it, and see an explicit statement that no route has been calculated. Existing search, category browsing and destination selection continue to work.
+
+This is a technical inspection outcome, not yet a directions feature. A user cannot choose endpoints or receive a route, total distance or ETA in this sprint.
+
+### Starting State
+
+Phase 1 was owner accepted at commit `602a0be` with a searchable map, six synthetic destinations, campus orientation and responsive destination details. It had no project-owned walkable-network tables, no graph and no routing service.
+
+One accepted cosmetic carryover remained: the polygon-based `YabaTech Campus` symbol could repeat at close zoom. The owner required its correction as the first Phase 2 action. The owner also approved a persistent DEMO network using ordinary Django models and GeoJSON, with no GeoDjango/PostGIS requirement and no A* implementation in Sprint 001.
+
+### What We Built
+
+- `WalkableNode` and `WalkableSegment` Django models with UUID identities, controlled verification state and active state.
+- Start/end node relationships, bidirectional direction state and GeoJSON `LineString` geometry for every segment.
+- Geometry validation, endpoint anchoring and dynamic Haversine length calculation.
+- A service that converts active database records into an immutable adjacency graph.
+- Reverse graph arcs with reversed geometry for bidirectional segments.
+- Diagnostics for malformed geometry, zero length, self-edges and exact duplicate or reverse-duplicate segments.
+- An explicit fixture containing five synthetic DEMO nodes and five synthetic DEMO segments.
+- A DEBUG-only GeoJSON inspection endpoint and dashed purple network layer with node circles and a visibility toggle.
+- A deterministic point source for the single `YabaTech Campus` label while retaining the accepted polygon boundary and camera behavior.
+
+### Technical Concepts Introduced
+
+**Graph nodes and edges.** A graph represents a network as nodes connected by edges. In YCT Map, a node is a junction or endpoint where movement can begin, end or change direction. An edge is a walkable segment connecting two nodes. This structure lets a later algorithm compare possible sequences of connected segments.
+
+**Persistence versus computation.** Django models store the editable network definition in the database. Routing algorithms should not repeatedly query relational rows while exploring paths, so the application converts those rows into an in-memory adjacency graph optimized for traversal.
+
+**LineString geometry.** A GeoJSON `LineString` is an ordered list of `[longitude, latitude]` coordinate pairs. Two coordinates describe a straight line. Three or more can follow a bend or curve as a series of short straight legs.
+
+**Geometry-derived weight.** Each graph edge needs a cost. Sprint 001 uses metres derived from the segment’s coordinates rather than a manually entered distance. This keeps the routing weight tied to the represented path.
+
+**Directed arcs.** A persisted segment is one physical record, but graph traversal has direction. A bidirectional segment becomes one forward arc and one reverse arc. A future one-way segment will create only its allowed arc.
+
+**Stable identity.** Node and segment UUIDs remain stable even when labels or geometry are edited. Future Path Survey Mode can associate observations, review history or replacement geometry with a specific segment without relying on a mutable name or list position.
+
+### How It Works Internally
+
+`WalkableNode` represents a network junction or endpoint with a coordinate. `WalkableSegment` references one start node and one end node and stores the detailed geometry between them. Model validation rejects a segment that connects a node to itself, has invalid or zero-length geometry, or does not begin and end at its selected nodes.
+
+Distance calculation validates the LineString, then applies the Haversine formula to every consecutive pair. Haversine estimates the surface distance between two longitude/latitude coordinates on Earth. The individual leg distances are summed:
+
+```text
+[A, bend 1, bend 2, B]
+
+distance = H(A, bend 1)
+         + H(bend 1, bend 2)
+         + H(bend 2, B)
+```
+
+Using only `H(A, B)` would cut across bends and underestimate a curved walking path.
+
+The graph builder queries active nodes and active segments whose endpoints are also active. It creates an adjacency entry for every node. A segment from A to B produces an arc in A’s adjacency list containing the segment ID, B’s ID, calculated metres and ordered geometry. If it is bidirectional, B receives a second arc back to A with the same distance and reversed coordinate order.
+
+### Architecture / Components Involved
+
+```text
+SQLite / Django ORM
+        |
+        | WalkableNode + WalkableSegment rows
+        v
+geometry validation -----> Haversine metres
+        |
+        v
+graph builder ------------> adjacency graph in memory
+        |                    A -> [B, D]
+        |                    B -> [A, C]
+        |
+        `-> DEBUG GeoJSON endpoint -> dashed inspection layer
+
+OpenFreeMap Liberty ----------------> geographic background only
+YCT Map routing network ------------> project-owned traversal data
+```
+
+The base map and routing network are separate by design. OpenFreeMap supplies visual context such as streets, buildings and labels. YCT Map does not automatically treat visible base-map roads as walkable. Only project-owned `WalkableSegment` records enter the routing graph, because they can carry project verification state and later field evidence.
+
+### Important Files
+
+- `routing/models.py` — persisted nodes, segments, choices and model validation.
+- `routing/geometry.py` — LineString validation, Haversine calculation and total length.
+- `routing/graph.py` — immutable graph arcs and database-to-adjacency conversion.
+- `routing/validators.py` — network diagnostics such as duplicate segments.
+- `routing/views.py` and `routing/urls.py` — DEBUG-only inspection contract.
+- `routing/migrations/0001_initial.py` — routing schema.
+- `routing/fixtures/demo_walkable_network.json` — replaceable synthetic topology.
+- `routing/tests/test_routing.py` — routing-foundation tests.
+- `static/yct_map/js/map.js` — inspection layers, toggle behavior and deterministic campus label.
+- `templates/map/index.html` and `static/yct_map/css/app.css` — inspection notice and presentation.
+
+### Data Flow
+
+```text
+1. Fixture loads DEMO nodes and segments into SQLite.
+2. Django ORM reads active network records.
+3. Geometry service validates coordinates and derives metres.
+4. Graph builder creates adjacency arcs for algorithm use.
+5. DEBUG endpoint serializes active DEMO geometry for inspection.
+6. Browser adds dashed segment and junction layers above the base map.
+7. Toggle changes only inspection-layer visibility.
+```
+
+The purple network is the complete stored DEMO topology being inspected. It is not the output of a route algorithm. A calculated route would be a selected subset of segments connecting a requested origin and destination; Sprint 001 has no origin, destination or selection algorithm.
+
+### Decisions and Trade-offs
+
+**JSONField instead of GeoDjango/PostGIS.** GeoJSON is sufficient for a small foundation and keeps local SQLite setup simple. It does not provide spatial indexing or database-native geometry operations, which can be reconsidered when actual scale or queries justify them.
+
+**Dynamic distance instead of a stored length column.** Recalculation prevents stale distance when geometry changes. It costs some computation, but the current DEMO network is small and correctness is more important than premature caching.
+
+**One segment record, potentially two graph arcs.** This avoids duplicating persisted geometry for ordinary two-way paths while still giving the algorithm explicit traversal directions.
+
+**DEBUG-only visualization.** Developers need to inspect topology, but presenting the purple network as a public route would be misleading. The endpoint is unavailable outside DEBUG and the interface explicitly says no route was calculated.
+
+**Base map kept independent.** Automatically routing over every visible base-map path would bypass YCT Map’s verification rules. Separation costs later data-population work but preserves provenance and safety.
+
+### Problems Encountered
+
+- The accepted polygon label could repeat because symbol placement operated over polygon geometry.
+- The integrated browser connection was unavailable during implementation verification, and the isolated browser did not complete the external OpenFreeMap style load.
+- Owner review raised a concern that the current map might look less detailed than the accepted Phase 1 view.
+
+No routing-model or graph defect was found in the accepted sprint.
+
+### How We Solved Them
+
+- The campus label was moved to one deterministic point source. The polygon remains responsible for boundary fill, outline and `fitBounds()`.
+- Automated tests, local endpoint checks and isolated desktop/mobile rendering were completed; the owner later performed the required normal-browser visual verification.
+- A read-only comparison against Phase 1 commit `602a0be` confirmed that the MapLibre version, Liberty style URL, zoom limits, camera fitting, boundary opacity and base-map CSS had not changed. The perceived detail difference was not caused by a Phase 2 base-map regression.
+
+### Testing and Verification
+
+All 23 Django tests passed at acceptance, including the 13 Phase 1 regression tests. Routing tests cover:
+
+- DEMO-only fixture integrity;
+- curved LineString length using every geometry leg;
+- zero-length rejection;
+- self-edge rejection;
+- geometry endpoint anchoring;
+- forward and reverse arcs for a bidirectional segment;
+- exclusion of inactive segments;
+- reverse-duplicate diagnostics;
+- the explicit DEBUG endpoint contract; and
+- endpoint absence when DEBUG is disabled.
+
+Django system checks, migration drift checks, JavaScript syntax checks and Git whitespace checks passed. The owner visually verified the network, junction rendering, toggle, “no route calculated” notice, corrected single campus label, search, categories and destination selection.
+
+### Current Limitations
+
+- The purple network is synthetic and geographically unverified. Some segments do not follow actual campus walkways.
+- Some DEMO destination positions are inaccurate. These are dataset limitations, not routing-engine defects.
+- No path or destination in this fixture is evidence of real-world walkability, access or safety.
+- There is no A*, Dijkstra, origin selection, destination snapping, calculated route, total distance, ETA, GPS or rerouting.
+- Disconnected-network analysis is not yet a user-facing routing error flow.
+- JSONField geometry has no spatial database index.
+- Real pathways and locations must be populated and field-verified later before trustworthy campus navigation.
+
+### Evidence
+
+- **`P2-S1-A-demo-walkable-network.png`** demonstrates that persisted DEMO segment geometry and junction nodes can be inspected over the campus viewport, with an unmistakable DEMO presentation.
+- **`P2-S1-B-routing-foundation.png`** demonstrates the routing-foundation state: the inspection control, explicit “no route calculated” message and preserved map/search interface.
+
+These images prove the implementation and review state. They do not prove that the synthetic coordinates match real campus walkways.
+
+### What Students Should Understand
+
+Students should distinguish five related ideas:
+
+1. The base map is visual context, not automatically trusted routing data.
+2. Persisted nodes and segments describe YCT Map’s own candidate network.
+3. LineString geometry supplies shape; Haversine summation supplies edge weight.
+4. The adjacency graph reorganizes persisted data for efficient traversal.
+5. A route is a future algorithm-selected sequence of arcs, not the complete purple network.
+
+They should also understand that technically correct graph construction does not make synthetic coordinates geographically correct. Software correctness and data truth are separate verification responsibilities.
+
+### Presentation / Defence Notes
+
+- **What is a node?** A point where a path starts, ends or connects to another path.
+- **What is an edge?** A walkable segment between two nodes; in memory it becomes one or more directed arcs.
+- **Why calculate distance?** Geometry can change, so deriving metres prevents a manually stored value from disagreeing with the visible path.
+- **Why reverse the geometry?** Guidance along B-to-A must follow coordinate order B-to-A, not reuse A-to-B ordering.
+- **Why stable UUIDs?** Future surveys and audit records need to refer to the same segment across edits.
+- **Is the purple network a route?** No. It shows all active DEMO topology for inspection.
+- **Does it represent real YabaTech paths?** No. It is synthetic test data awaiting later replacement and field verification.
+- **What did the regression review prove?** Phase 2 did not alter the accepted base-map provider, style, camera or campus-overlay configuration.
+
+### Next Sprint
+
+Phase 2 Sprint 002 will use this accepted adjacency graph as the input to A* route calculation and route-result behavior. It must select a connected sequence of arcs, reconstruct ordered geometry and handle invalid or unreachable requests without confusing the full network with the chosen route.
+
+Sprint 002 implementation requires separate authorization under the Build Control Protocol. No Sprint 002 code is included in this milestone.

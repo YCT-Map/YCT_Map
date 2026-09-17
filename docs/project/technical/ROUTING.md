@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PRE-BUILD / FOUNDATION
-Implementation:    NOT STARTED
+Current phase:     PHASE 2 / SPRINT 001
+Implementation:    SPRINT 001 OWNER ACCEPTED; ROUTE SELECTION DEFERRED
 ```
 
 This document records the approved routing behavior for YCT Map.
@@ -62,6 +62,18 @@ Routing remains outside Phase 1 Sprint 001.
 The routing system must work correctly against demonstration data before real campus paths are field-verified.
 
 Demo paths must be clearly labelled DEMO in the data model.
+
+The current purple network is synthetic and geographically unverified. Some segments do not correspond to real campus walkways. This is a known fixture limitation, not a claim about campus access and not a routing-engine defect. Real paths must be populated and field-verified later.
+
+## Sprint 001 Foundation
+
+- `WalkableNode` persists junction coordinates, active state and controlled verification state.
+- `WalkableSegment` persists endpoint references, directionality and GeoJSON `LineString` geometry.
+- Length is calculated dynamically across every geometry leg; it is never manually stored.
+- `build_graph()` converts active records into immutable adjacency arcs and reverses bidirectional geometry.
+- Diagnostics detect malformed geometry, self-edges and exact duplicate/reverse-duplicate segments.
+- A DEBUG-only endpoint and dashed overlay expose DEMO topology for inspection, not as a calculated route.
+- A* route selection, destination snapping, route results, distance totals and ETA remain deferred.
 
 ---
 

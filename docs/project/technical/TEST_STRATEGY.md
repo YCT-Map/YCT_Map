@@ -3,7 +3,7 @@
 ## Status
 
 ```
-Current phase:     PHASE 2 — ROUTING & NAVIGATION (planning)
+Current phase:     PHASE 2 — ROUTING & NAVIGATION
 Implementation:    FOUNDATIONAL SUITE ACTIVE
 ```
 
@@ -17,10 +17,10 @@ Specific test and static-analysis tools will be recorded when the Django and fro
 
 | Category | Purpose | Status |
 |----------|---------|--------|
-| Unit tests | Test individual functions and components in isolation | NOT STARTED |
-| Integration tests | Test interactions between components and with the database | NOT STARTED |
-| End-to-end tests | Test full user flows against a running application | NOT STARTED |
-| Regression tests | Prevent previously fixed issues from recurring | NOT STARTED |
+| Unit tests | Test individual functions and components in isolation | ACTIVE |
+| Integration tests | Test interactions between components and with the database | ACTIVE |
+| End-to-end tests | Test full user flows against a running application | MANUAL BROWSER BASELINE |
+| Regression tests | Prevent previously fixed issues from recurring | ACTIVE |
 | Production smoke tests | Verify a deployment is alive and serving correctly | NOT STARTED |
 
 ---
@@ -80,5 +80,7 @@ Django's built-in test framework is the current automated baseline. JavaScript s
 Sprint 001: 12 Django tests passed at acceptance.
 
 Sprint 002: 13 Django tests passing, including validation of the approved OSM campus-orientation asset and its page configuration. Live browser checks cover campus framing, the return-to-campus control, category browsing, selection, mobile layout, keyboard focus, reduced motion, touch targets and graceful degradation when either the map module or style is unavailable.
+
+Phase 2 Sprint 001: 23 Django tests passed at acceptance. Routing coverage includes DEMO fixture integrity, curved LineString length, zero-length rejection, self-edge rejection, endpoint anchoring, bidirectional reverse arcs, inactive-segment exclusion, reverse-duplicate diagnostics, the DEBUG inspection contract and its production exclusion. Owner verification covered node/segment rendering, the toggle, the “no route calculated” state, the corrected campus label and Phase 1 discovery regressions.
 
 Coverage includes model validation, aliases, DEMO fixture integrity, map-page configuration, explicit GeoJSON serialization, partial/case-insensitive name search, alias search, category filtering, empty results, invalid input and read-only endpoint behavior.

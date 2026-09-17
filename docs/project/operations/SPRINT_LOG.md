@@ -241,3 +241,43 @@ This addendum preserves the implementation-time record above and records the lat
 - The fix must retain the trusted boundary, geometry-derived framing, surrounding-road context and return-to-campus control, and must not change real or DEMO location data.
 - Approved Phase 1 milestone commit message: `feat: complete Phase 1 campus orientation and UX refinement`.
 - Phase 2 Sprint 001 — Walkable Network & Routing Foundation — is the next approved sprint. Implementation still requires the standalone `BUILD` command.
+
+---
+
+## Phase 2 — Sprint 001: Walkable Network & Routing Foundation
+
+**Date:** 2026-09-17
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+
+### Objective and Result
+
+Established a persistent, geometry-based DEMO walkable network and database-to-graph boundary without calculating or presenting routes. The Phase 1 repeated-label carryover was resolved first with one deterministic point label while preserving the campus polygon and viewport framing.
+
+### What Was Built
+
+- Minimal `WalkableNode` and `WalkableSegment` models with controlled verification state, active state, directionality and GeoJSON geometry.
+- Geometry validation and dynamic Haversine length over every LineString leg.
+- Immutable in-memory adjacency graph with reverse arcs for bidirectional segments.
+- Diagnostics for malformed geometry, zero length, self-edges and duplicate/reverse-duplicate segments.
+- Replaceable fixture with 5 explicitly labelled DEMO nodes and 5 DEMO segments.
+- DEBUG-only GeoJSON inspection endpoint and dashed DEMO overlay with a hide/show control and “no route calculated” notice.
+
+### Verification and Boundary
+
+Django system check passed and all 23 automated tests passed, including the 13 Phase 1 regressions. No A*/Dijkstra selection, calculated route, ETA, GPS, real path, field verification or editor feature was built. `BUILD_JOURNAL.md` remains unchanged until acceptance.
+
+Required owner evidence: `P2-S1-A-demo-walkable-network.png`, `P2-S1-B-routing-foundation.png`, and replacement `P1-S2-B-phase1-final-ux-fixed.png`.
+
+**Commit:** Not committed — owner review required.
+
+### Acceptance Addendum — 2026-09-17
+
+This addendum preserves the implementation-time record above and records the later owner decision without rewriting sprint history.
+
+- Phase 2 Sprint 001 was formally OWNER ACCEPTED.
+- The owner verified the DEBUG-only DEMO network, node rendering, inspection toggle, explicit “no route calculated” state, corrected single campus label, and preserved Phase 1 discovery flow.
+- A separate regression review found no Phase 2 change to the accepted OpenFreeMap configuration or Phase 1 camera behavior.
+- The purple network and DEMO destinations remain synthetic and geographically unverified. Observed mismatches with real walkways or destination positions are demonstration-data limitations, not evidence of a routing-engine defect.
+- Real pathways and destination positions remain subject to later population and field verification.
+- Approved milestone commit message: `feat: establish walkable network and routing foundation`.
+- Phase 2 Sprint 002 — A* Route Calculation and Route Results — is next. No Sprint 002 implementation is included in this milestone.

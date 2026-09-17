@@ -1,6 +1,7 @@
 """Public Phase 1 map and location endpoints."""
 
 from django.db.models import Q
+from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
@@ -23,6 +24,7 @@ def map_view(request):
             "map_style_url": MAP_STYLE_URL,
             "maplibre_version": MAPLIBRE_VERSION,
             "categories": Location.Category.choices,
+            "debug_network_url": "/api/debug/walkable-network/" if settings.DEBUG else "",
         },
     )
 

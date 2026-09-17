@@ -3,9 +3,13 @@ const CIRCLE_LAYER_ID = "demo-destination-circles";
 const SELECTED_LAYER_ID = "demo-destination-selected";
 const LABEL_LAYER_ID = "demo-destination-labels";
 const CAMPUS_SOURCE_ID = "yabatech-campus-orientation";
+const CAMPUS_LABEL_SOURCE_ID = "yabatech-campus-label-point";
 const CAMPUS_FILL_LAYER_ID = "yabatech-campus-fill";
 const CAMPUS_LINE_LAYER_ID = "yabatech-campus-outline";
 const CAMPUS_LABEL_LAYER_ID = "yabatech-campus-label";
+const NETWORK_SOURCE_ID = "demo-walkable-network";
+const NETWORK_LINE_LAYER_ID = "demo-walkable-network-lines";
+const NETWORK_NODE_LAYER_ID = "demo-walkable-network-nodes";
 
 async function loadCampusBoundary(url) {
   try {
@@ -76,9 +80,10 @@ class CampusFocusControl {
 }
 
 export async function createMap({ container, config, features, onSelect, onReady, onError }) {
-  const [maplibregl, campusBoundary] = await Promise.all([
+  const [maplibregl, campusBoundary, demoNetwork] = await Promise.all([
     import(config.moduleUrl),
     loadCampusBoundary(config.campusBoundaryUrl),
+    config.debugNetworkUrl ? fetch(config.debugNetworkUrl).then((response) => response.ok ? response.json() : null).catch(() => null) : null,
   ]);
   const featureIndex = new Map(features.map((feature) => [String(feature.id), feature]));
   const campusBounds = campusBoundary ? boundsFor(campusBoundary) : null;
@@ -128,22 +133,27 @@ export async function createMap({ container, config, features, onSelect, onReady
           "line-width": ["interpolate", ["linear"], ["zoom"], 13, 1.5, 17, 2.5],
         },
       });
-      map.addLayer({
-        id: CAMPUS_LABEL_LAYER_ID,
-        type: "symbol",
-        source: CAMPUS_SOURCE_ID,
-        minzoom: 13,
-        layout: {
-          "text-field": ["get", "name"],
-          "text-size": ["interpolate", ["linear"], ["zoom"], 13, 13, 17, 17],
-          "text-font": ["Noto Sans Regular"],
-          "text-letter-spacing": 0.04,
-        },
-        paint: {
-          "text-color": "#0d442a",
-          "text-halo-color": "rgba(255, 255, 252, 0.96)",
-          "text-halo-width": 2,
-        },
+      map.addSource(CAMPUS_LABEL_SOURCE_ID, { type: "geojson", data: {
+        type: "Feature", geometry: { type: "Point", coordinates: config.centre },
+        properties: { name: "YabaTech Campus" },
+      }});
+    }
+
+    if (demoNetwork?.features?.length) {
+      map.addSource(NETWORK_SOURCE_ID, { type: "geojson", data: demoNetwork });
+      map.addLayer({ id: NETWORK_LINE_LAYER_ID, type: "line", source: NETWORK_SOURCE_ID,
+        filter: ["==", ["get", "feature_type"], "segment"],
+        paint: { "line-color": "#6a4bbc", "line-width": 3, "line-opacity": 0.72, "line-dasharray": [2, 2] } });
+      map.addLayer({ id: NETWORK_NODE_LAYER_ID, type: "circle", source: NETWORK_SOURCE_ID,
+        filter: ["==", ["get", "feature_type"], "node"],
+        paint: { "circle-radius": 4, "circle-color": "#6a4bbc", "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 } });
+      const inspector = document.querySelector("#network-inspector");
+      const toggle = document.querySelector("#toggle-demo-network");
+      inspector.hidden = false;
+      toggle.addEventListener("click", () => {
+        const visible = toggle.getAttribute("aria-pressed") !== "true";
+        toggle.setAttribute("aria-pressed", String(visible));
+        for (const layer of [NETWORK_LINE_LAYER_ID, NETWORK_NODE_LAYER_ID]) map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
       });
     }
 
@@ -202,6 +212,11 @@ export async function createMap({ container, config, features, onSelect, onReady
         "text-halo-width": 1.5,
       },
     });
+    if (campusBoundary) {
+      map.addLayer({ id: CAMPUS_LABEL_LAYER_ID, type: "symbol", source: CAMPUS_LABEL_SOURCE_ID, minzoom: 13,
+        layout: { "text-field": ["get", "name"], "text-size": ["interpolate", ["linear"], ["zoom"], 13, 13, 17, 17], "text-font": ["Noto Sans Regular"], "text-letter-spacing": 0.04 },
+        paint: { "text-color": "#0d442a", "text-halo-color": "rgba(255, 255, 252, 0.96)", "text-halo-width": 2 } });
+    }
 
     for (const layerId of [CIRCLE_LAYER_ID, LABEL_LAYER_ID]) {
       map.on("click", layerId, (event) => {

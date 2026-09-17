@@ -11,6 +11,7 @@
     data-map-style-url="{{ map_style_url }}"
     data-maplibre-module-url="https://unpkg.com/maplibre-gl@{{ maplibre_version }}/dist/maplibre-gl.mjs"
     data-campus-boundary-url="{% static 'yct_map/data/yabatech-campus-boundary.geojson' %}"
+    data-debug-network-url="{{ debug_network_url }}"
     data-centre-longitude="{{ map_centre.longitude }}"
     data-centre-latitude="{{ map_centre.latitude }}"
   >
@@ -73,6 +74,14 @@
     <aside id="map-error" class="map-error" role="alert" hidden>
       <strong>The map could not load.</strong>
       <span>You can still search and inspect all demonstration destinations.</span>
+    </aside>
+
+    <aside id="network-inspector" class="network-inspector" aria-label="Demonstration network inspection" hidden>
+      <button id="toggle-demo-network" type="button" aria-pressed="true">
+        <span class="network-swatch" aria-hidden="true"></span>
+        DEMO walkable network
+      </button>
+      <small>Inspection only — no route calculated</small>
     </aside>
 
     <section

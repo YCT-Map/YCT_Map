@@ -10,13 +10,13 @@ There is no other authoritative pipeline document. Do not create competing pipel
 
 ```
 Phase 1 — Foundation & Map Experience          ACCEPTED
-Phase 2 — Routing & Navigation                 NOT STARTED
+Phase 2 — Routing & Navigation                 IN PROGRESS
 Phase 3 — Live Navigation & Core Product       NOT STARTED
 Phase 4 — Editor & Mapping Tools               NOT STARTED
 Phase 5 — Real YabaTech Data, Verification & Launch   NOT STARTED
 
-Current:            PHASE 2 — ROUTING & NAVIGATION (planning)
-Next expected:      Phase 2 Sprint 001 standalone BUILD authorization
+Current:            PHASE 2 — SPRINT 001 OWNER ACCEPTED
+Next expected:      Phase 2 Sprint 002 planning / authorization
 ```
 
 Status values in use: `NOT STARTED` `IN PROGRESS` `BLOCKED` `COMPLETE` `ACCEPTED`
@@ -225,7 +225,7 @@ Do not build during Phase 1:
 
 ## Phase 2 — Routing & Navigation
 
-**Status: NOT STARTED — Sprint 001 approved; standalone BUILD required**
+**Status: IN PROGRESS — Sprint 001 OWNER ACCEPTED; Sprint 002 next**
 **Depends on:** Phase 1 ACCEPTED
 
 ### Primary Goal

@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PHASE 1 — FOUNDATION & MAP EXPERIENCE
-Implementation:    LOCATION + LOCATION ALIAS SUBSET IMPLEMENTED
+Current phase:     PHASE 2 — ROUTING & NAVIGATION
+Implementation:    LOCATION, ALIAS, WALKABLE NODE + WALKABLE SEGMENT SUBSET IMPLEMENTED
 ```
 
 This document describes the expected data model based on approved product decisions.
@@ -20,6 +20,14 @@ All field names and types are indicative — actual implementation may differ.
 `LocationAlias` provides a one-to-many alias relationship with a per-location uniqueness constraint.
 
 Building geometry, floors, internal locations, paths, contributions and verification-user relationships remain planned and were intentionally not created during Sprint 001.
+
+## Current Phase 2 Sprint 001 Implementation
+
+`WalkableNode` stores a stable UUID, optional label, decimal longitude/latitude, controlled verification state, active state and timestamps.
+
+`WalkableSegment` stores a stable UUID, optional label, start/end node foreign keys, GeoJSON `LineString`, bidirectional flag, controlled verification state, active state and timestamps. Distance is derived from geometry rather than stored manually.
+
+The current routing fixture contains synthetic `DEMO` topology only. Its coordinates do not verify real campus paths or destination positions.
 
 ---
 
@@ -75,7 +83,9 @@ Represents a walkable path segment within campus.
 | Field | Type | Notes |
 |-------|------|-------|
 | id | UUID | Primary key |
+| start_node / end_node | ref:WalkableNode | Graph endpoints |
 | geometry | linestring | Geographic path (lat/lng sequence) |
+| is_bidirectional | boolean | Whether graph traversal is allowed in both directions |
 | surface_type | enum | Optional — paved, unpaved, steps, etc. |
 | is_accessible | boolean | Optional |
 | verification_state | enum | DEMO, UNVERIFIED, FIELD_VERIFIED |
@@ -140,7 +150,7 @@ Promotion from UNVERIFIED to FIELD_VERIFIED requires deliberate editor action af
 
 ## Migrations
 
-`locations/migrations/0001_initial.py` creates the minimal `Location` and `LocationAlias` tables. Synthetic demo records are not embedded in the migration; they are loaded explicitly from `locations/fixtures/demo_locations.json`.
+`locations/migrations/0001_initial.py` creates `Location` and `LocationAlias`. `routing/migrations/0001_initial.py` creates `WalkableNode` and `WalkableSegment`. Synthetic records are loaded from explicit fixtures rather than embedded in migrations.
 
 Never rewrite an already-applied migration. Correct data issues through new migrations.
 
