@@ -11,9 +11,9 @@
 |-------|-------|
 | **Date** | 2026-09-17 |
 | **Branch** | `main` |
-| **Current Phase** | PHASE 1 — FOUNDATION & MAP EXPERIENCE |
-| **Pipeline Phase** | Sprint 001 OWNER VERIFIED / ACCEPTED; Sprint 002 approved for discussion/planning |
-| **Latest Meaningful Commit** | Sprint 001 milestone (`feat: complete Phase 1 Sprint 001 map foundation`) |
+| **Current Phase** | PHASE 2 — ROUTING & NAVIGATION (planning) |
+| **Pipeline Phase** | Phase 1 OWNER ACCEPTED; Phase 2 Sprint 001 awaiting standalone `BUILD` |
+| **Latest Meaningful Commit** | Phase 1 milestone (`feat: complete Phase 1 campus orientation and UX refinement`) |
 
 ---
 
@@ -21,16 +21,16 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | SPRINT 001 OWNER VERIFIED / ACCEPTED |
+| Application implementation | PHASE 1 OWNER ACCEPTED; PHASE 2 NOT STARTED |
 | Product definition | SUBSTANTIALLY COMPLETE |
 | Documentation / governance | SUBSTANTIALLY COMPLETE |
 | Build pipeline | SUBSTANTIALLY COMPLETE |
-| Tech stack & architecture decisions | RESOLVED (DEC-T01–DEC-T14 accepted) |
+| Tech stack & architecture decisions | RESOLVED THROUGH PHASE 1 (DEC-T01–DEC-T15 accepted) |
 | Campus production dataset | NOT YET POPULATED |
 | Demo dataset | 6 SYNTHETIC DEMO LOCATIONS — local fixture |
 | Field verification | NOT STARTED |
 | Deployment | NOT STARTED |
-| Test suite | 12 TESTS PASSING |
+| Test suite | 13 TESTS PASSING |
 
 ---
 
@@ -39,8 +39,8 @@
 See `docs/project/operations/BUILD_PIPELINE.md` for the full 5-phase plan.
 
 ```
-Phase 1 — Foundation & Map Experience          IN PROGRESS
-Phase 2 — Routing & Navigation                 NOT STARTED
+Phase 1 — Foundation & Map Experience          ACCEPTED
+Phase 2 — Routing & Navigation                 READY FOR BUILD AUTHORIZATION
 Phase 3 — Live Navigation & Core Product       NOT STARTED
 Phase 4 — Editor & Mapping Tools               NOT STARTED
 Phase 5 — Real YabaTech Data & Launch          NOT STARTED
@@ -70,23 +70,32 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 - Name/partial/alias search, category filtering, marker selection and destination panel
 - 12 automated tests plus desktop/mobile browser verification
 
+**Phase 1 / Sprint 002 — OWNER VERIFIED / ACCEPTED**
+- OSM way `671850885` retained as a reviewed, orientation-only GeoJSON boundary
+- Subtle campus fill, outline and persistent YabaTech campus label
+- Geometry-derived initial framing with surrounding streets retained
+- Accessible return-to-campus control
+- Selected-marker halo, category-browse result reveal and 44 px touch-target refinements
+- Search and textual details verified under both map-module and map-style failure
+- 13 automated tests plus desktop/mobile/failure-path browser verification
+
 ---
 
 ## Active Work
 
-Sprint 001 is owner verified and accepted. Its dedicated milestone commit contains the accepted application foundation, documentation and student-facing build journal.
+Phase 1 is owner accepted. Phase 2 Sprint 001 — Walkable Network & Routing Foundation — is approved as the next task, but implementation has not started.
 
 ---
 
 ## Known Blockers
 
-No implementation blocker. Sprint 002 implementation still requires the standalone `BUILD` command under the Build Control Protocol.
+No implementation blocker. The repeated `YabaTech Campus` label at close zoom is a LOW-severity cosmetic carryover approved for correction as the first Phase 2 Sprint 001 implementation action.
 
 ---
 
 ## Next Approved Task
 
-Phase 1 Sprint 002 — Campus Orientation, UX Refinement & Phase 1 Completion. Discussion/planning is approved; do not begin implementation until the standalone `BUILD` command.
+Phase 2 Sprint 001 — Walkable Network & Routing Foundation. Begin implementation only after the standalone `BUILD` command.
 
 ---
 

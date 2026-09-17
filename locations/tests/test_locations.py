@@ -1,5 +1,7 @@
+import json
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.test import TestCase
@@ -142,7 +144,26 @@ class MapPageTests(TestCase):
         self.assertContains(response, "https://tiles.openfreemap.org/styles/liberty")
         self.assertContains(response, 'data-centre-longitude="3.37424"')
         self.assertContains(response, 'data-centre-latitude="6.51857"')
+        self.assertContains(response, "yct_map/data/yabatech-campus-boundary.geojson")
         self.assertContains(response, "DEMO DATA")
+
+    def test_campus_orientation_boundary_is_the_approved_osm_polygon(self):
+        boundary_path = settings.BASE_DIR / "static/yct_map/data/yabatech-campus-boundary.geojson"
+        boundary = json.loads(boundary_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(boundary["type"], "FeatureCollection")
+        self.assertEqual(boundary["metadata"]["osm_type"], "way")
+        self.assertEqual(boundary["metadata"]["osm_id"], 671850885)
+        self.assertEqual(boundary["features"][0]["geometry"]["type"], "Polygon")
+        self.assertEqual(
+            boundary["features"][0]["properties"]["data_role"],
+            "orientation_boundary",
+        )
+
+        ring = boundary["features"][0]["geometry"]["coordinates"][0]
+        self.assertEqual(ring[0], ring[-1])
+        self.assertGreaterEqual(len(ring), 4)
+        self.assertNotIn("verification_state", boundary["features"][0]["properties"])
 
 
 class DemoFixtureTests(TestCase):

@@ -8,8 +8,8 @@ The map is the primary interface. Students, staff and visitors can search campus
 
 ## Project Status
 
-**Phase:** PHASE 1 — FOUNDATION & MAP EXPERIENCE (IN PROGRESS)
-**Application implementation:** SPRINT 001 OWNER VERIFIED / ACCEPTED
+**Phase:** PHASE 1 — FOUNDATION & MAP EXPERIENCE (OWNER ACCEPTED)
+**Application implementation:** PHASE 1 COMPLETE; PHASE 2 NOT STARTED
 **Product definition:** SUBSTANTIALLY COMPLETE
 **Documentation / governance:** IN PROGRESS
 **Campus production dataset:** NOT YET POPULATED

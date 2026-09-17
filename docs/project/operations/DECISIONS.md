@@ -348,3 +348,18 @@ Reason:      The owner selected 1.35 m/s as the current default assumption.
 Consequences: ETA must be presented as approximate. This routing assumption does not add routing to Phase 1 scope.
 Alternatives considered: Retaining 1.2 m/s (superseded by owner decision).
 ```
+
+---
+
+## DEC-T15
+
+```
+ID:          DEC-T15
+Date:        2026-09-17
+Status:      ACCEPTED
+Decision:    YCT Map maintains its own campus-specific application data layer. Changes inside YCT Map do not automatically modify or synchronize back to OpenStreetMap.
+Context:     The base map and the approved campus-orientation outline use published OpenStreetMap geography, while destinations, aliases, entrances, internal locations, walkable paths, verification states and editor corrections belong to YCT Map.
+Reason:      Automatic write-back would blur data ownership, bypass deliberate verification and create an unsafe dependency between local editor actions and a public geographic database.
+Consequences: YCT Map may deliberately review and refresh OSM-derived reference geometry, but any contribution of verified public geography to OpenStreetMap must be a separate, intentional OSM editing workflow. No automatic OSM write-back or synchronization is permitted.
+Alternatives considered: Automatic two-way synchronization (rejected — unsafe and outside project scope), treating all visible base-map features as YCT Map-verified data (rejected — violates verification rules).
+```

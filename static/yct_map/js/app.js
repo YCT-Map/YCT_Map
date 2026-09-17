@@ -12,6 +12,7 @@ const config = {
   locationsUrl: shell.dataset.locationsUrl,
   styleUrl: shell.dataset.mapStyleUrl,
   moduleUrl: shell.dataset.maplibreModuleUrl,
+  campusBoundaryUrl: shell.dataset.campusBoundaryUrl,
   centre: [Number(shell.dataset.centreLongitude), Number(shell.dataset.centreLatitude)],
 };
 

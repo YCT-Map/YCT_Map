@@ -106,7 +106,7 @@ export function createSearch({ features, onSelect, onFilter }) {
         candidate.classList.toggle("is-active", isActive);
         candidate.setAttribute("aria-pressed", String(isActive));
       }
-      render({ reveal: document.activeElement === input || !results.hidden });
+      render({ reveal: true });
     });
   }
 

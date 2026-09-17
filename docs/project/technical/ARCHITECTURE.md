@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:         PHASE 1 — FOUNDATION & MAP EXPERIENCE
-Application code:      SPRINT 001 OWNER VERIFIED / ACCEPTED
+Current phase:         PHASE 2 — ROUTING & NAVIGATION (planning)
+Application code:      PHASE 1 OWNER ACCEPTED; PHASE 2 NOT STARTED
 ```
 
 This document records approved architectural decisions and expected system design.
@@ -29,7 +29,7 @@ YCT Map is a web-based application consisting of:
 
 ## Frontend
 
-**Status: CURRENT — PHASE 1 SPRINT 001**
+**Status: CURRENT — PHASE 1 ACCEPTED**
 
 **APPROVED direction:**
 - Mobile-first web application
@@ -98,6 +98,10 @@ YCT Map is a web-based application consisting of:
 **APPROVED decision (DEC-T04, DEC-T11):** OpenStreetMap-derived tiles via MapLibre GL JS, initially using OpenFreeMap's official Liberty style. The base-map provider must remain reasonably replaceable.
 
 The style URL and MapLibre module URL are passed to the frontend as explicit configuration rather than coupled to campus records.
+
+Sprint 002 adds a version-controlled orientation-only GeoJSON snapshot derived from OpenStreetMap way `671850885`. It provides a subtle campus fill, outline, label and geometry-derived framing. Its source metadata is retained with the file. It does not verify individual buildings, entrances, paths or destinations.
+
+YCT Map data and OpenStreetMap remain separate systems. Local destination, alias, entrance, internal-location, path, verification and editor changes do not write back to OSM. Any future OSM contribution requires a separate deliberate editing workflow (DEC-T15).
 
 ---
 

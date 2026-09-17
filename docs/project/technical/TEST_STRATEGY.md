@@ -3,7 +3,7 @@
 ## Status
 
 ```
-Current phase:     PHASE 1 — FOUNDATION & MAP EXPERIENCE
+Current phase:     PHASE 2 — ROUTING & NAVIGATION (planning)
 Implementation:    FOUNDATIONAL SUITE ACTIVE
 ```
 
@@ -77,6 +77,8 @@ Django's built-in test framework is the current automated baseline. JavaScript s
 
 ## Current Test Totals
 
-Sprint 001: 12 Django tests passing.
+Sprint 001: 12 Django tests passed at acceptance.
+
+Sprint 002: 13 Django tests passing, including validation of the approved OSM campus-orientation asset and its page configuration. Live browser checks cover campus framing, the return-to-campus control, category browsing, selection, mobile layout, keyboard focus, reduced motion, touch targets and graceful degradation when either the map module or style is unavailable.
 
 Coverage includes model validation, aliases, DEMO fixture integrity, map-page configuration, explicit GeoJSON serialization, partial/case-insensitive name search, alias search, category filtering, empty results, invalid input and read-only endpoint behavior.

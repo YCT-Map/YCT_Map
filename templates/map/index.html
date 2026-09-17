@@ -10,6 +10,7 @@
     data-locations-url="{% url 'locations:collection' %}"
     data-map-style-url="{{ map_style_url }}"
     data-maplibre-module-url="https://unpkg.com/maplibre-gl@{{ maplibre_version }}/dist/maplibre-gl.mjs"
+    data-campus-boundary-url="{% static 'yct_map/data/yabatech-campus-boundary.geojson' %}"
     data-centre-longitude="{{ map_centre.longitude }}"
     data-centre-latitude="{{ map_centre.latitude }}"
   >

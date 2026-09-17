@@ -9,14 +9,14 @@ There is no other authoritative pipeline document. Do not create competing pipel
 ## Pipeline Status Summary
 
 ```
-Phase 1 — Foundation & Map Experience          IN PROGRESS
+Phase 1 — Foundation & Map Experience          ACCEPTED
 Phase 2 — Routing & Navigation                 NOT STARTED
 Phase 3 — Live Navigation & Core Product       NOT STARTED
 Phase 4 — Editor & Mapping Tools               NOT STARTED
 Phase 5 — Real YabaTech Data, Verification & Launch   NOT STARTED
 
-Current:            PHASE 1 — FOUNDATION & MAP EXPERIENCE
-Next expected:      Sprint 002 BUILD authorization and implementation
+Current:            PHASE 2 — ROUTING & NAVIGATION (planning)
+Next expected:      Phase 2 Sprint 001 standalone BUILD authorization
 ```
 
 Status values in use: `NOT STARTED` `IN PROGRESS` `BLOCKED` `COMPLETE` `ACCEPTED`
@@ -140,7 +140,7 @@ Do not automatically begin the next phase.
 
 ## Phase 1 — Foundation & Map Experience
 
-**Status: IN PROGRESS — Sprint 001 OWNER VERIFIED / ACCEPTED; Sprint 002 planned**
+**Status: ACCEPTED — Sprint 002 owner accepted with one documented cosmetic carryover**
 
 ### Primary Goal
 
@@ -209,23 +209,23 @@ Do not build during Phase 1:
 
 ### Phase 1 Exit Criteria
 
-- [ ] Map loads reliably
-- [ ] Demonstration locations display correctly
-- [ ] Search works and returns relevant results
-- [ ] Location selection works
-- [ ] Location detail UI works
-- [ ] Mobile layout is usable
-- [ ] Desktop layout is acceptable
-- [ ] Relevant tests and type-checks pass
-- [ ] Owner personally verifies the main user flow
-- [ ] Two screenshots captured
-- [ ] Sprint / phase evidence captured in `SPRINT_LOG.md`
+- [x] Map loads reliably
+- [x] Demonstration locations display correctly
+- [x] Search works and returns relevant results
+- [x] Location selection works
+- [x] Location detail UI works
+- [x] Mobile layout is usable
+- [x] Desktop layout is acceptable
+- [x] Relevant tests and type-checks pass
+- [x] Owner personally verifies the main user flow
+- [x] Two screenshots captured
+- [x] Sprint / phase evidence captured in `SPRINT_LOG.md`
 
 ---
 
 ## Phase 2 — Routing & Navigation
 
-**Status: NOT STARTED**
+**Status: NOT STARTED — Sprint 001 approved; standalone BUILD required**
 **Depends on:** Phase 1 ACCEPTED
 
 ### Primary Goal
@@ -408,6 +408,7 @@ Phase 4 builds the tools the team will use during the real campus population pha
 - Missing-location representation
 - Irregular building geometry support where needed (polygon points, not assumed rectangular)
 - Walkable path add / edit / delete
+- Editor-only Path Survey Mode foundation: GPS breadcrumb capture, map matching, confidence handling and explicit review; one raw trace must never create `FIELD_VERIFIED` status
 - Contribution review queue:
   - Approve
   - Edit and approve
@@ -491,6 +492,8 @@ This is the phase where serious campus information work occurs.
 
 #### Field Verification
 
+- Use the reviewed Path Survey Mode during campus field work where it reduces manual tracking effort
+- Keep unwalked path-network sections identifiable and review missing-path observations before changing trusted data
 - Representative route walking on campus
 - Correction of inaccessible paths (crossing walls, fences, restricted areas)
 - Correction of inaccurate entrances

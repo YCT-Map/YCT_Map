@@ -143,3 +143,101 @@ This addendum preserves the original implementation-time record above and record
 - All six demonstration destinations remain explicitly synthetic and use the `DEMO` verification state.
 - Sprint acceptance does not convert demonstration, recognizable-looking base-map, contribution or unverified data into `FIELD_VERIFIED` campus information.
 - Sprint 002 is the next approved discussion/planning task. Its implementation requires a separate standalone `BUILD` command.
+
+---
+
+## SPRINT 002 — CAMPUS ORIENTATION, UX REFINEMENT & PHASE 1 COMPLETION
+
+```
+Sprint ID:      SPRINT-002
+Date:           2026-09-17
+Phase:          Phase 1 — Foundation & Map Experience
+Status:         IMPLEMENTED / TESTED / OWNER REVIEW REQUIRED
+```
+
+### Objective
+
+Make the YabaTech campus immediately identifiable while retaining useful surrounding streets, refine a small number of proven Sprint 001 interactions, and prepare Phase 1 for owner acceptance.
+
+### Starting State / Owner Observation
+
+Sprint 001 was owner verified and accepted. During that verification, surrounding streets and road geometry helped identify the wider area and some base-map buildings appeared visually recognizable. Individual building accuracy was not verified. At wider views, the campus itself was not immediately clear. Recognizable-looking base-map geometry therefore remained contextual information and was not promoted to `FIELD_VERIFIED` YCT Map data.
+
+### Approved Scope Implemented
+
+- Reviewed GeoJSON snapshot derived from OpenStreetMap way `671850885`, with source, version, retrieval and orientation-only metadata
+- Subtle campus fill and outline that preserve base-map detail
+- Project-controlled `YabaTech Campus` label visible at wider zooms
+- Geometry-derived initial `fitBounds()` framing with space for surrounding roads
+- Accessible 44 px return-to-campus control with reduced-motion-safe camera behavior
+- Selected-destination marker halo
+- Category selection now reveals its matching result list for direct browsing
+- Category and destination-close controls raised to reliable 44 px touch targets
+- OSM/YCT Map ownership rule recorded: local application changes never write back automatically to OSM
+- Future editor-only Path Survey Mode recorded for Phase 4 tooling and Phase 5 field use; raw GPS never creates `FIELD_VERIFIED` status
+
+### Verification
+
+- Django system check: passed
+- Migration drift check: passed; no model change
+- Python compilation: passed
+- JavaScript syntax checks: passed
+- Campus GeoJSON parsing: passed
+- Django tests: 13 passed
+- Desktop live map: campus outline, label, surrounding streets, controls and DEMO markers visible
+- Return-to-campus control: present, accessible and exercised without runtime error
+- Category browse: selected category reveals the matching results
+- Destination selection: selected-marker halo and destination details visible
+- Mobile browser flow at 390 × 844: passed with no horizontal overflow
+- Minimum interactive target checks: category, close and campus controls measured 44 px
+- Keyboard result focus and visible focus outline: passed
+- Reduced-motion preference detection: passed
+- Forced MapLibre-module failure: search, result display and textual destination details remained usable
+- Forced OpenFreeMap-style failure: search, result display and textual destination details remained usable
+- Browser console/runtime errors: none in the successful external-map pass
+
+### Problems Encountered
+
+- The standard PowerShell HTTP client could not resolve the official OSM API host in the restricted environment.
+- An older Sprint 001 Django process was initially still serving port 8000, so the first visual probe did not contain Sprint 002 template configuration.
+- The preferred in-app browser connection was unavailable, and the sandboxed browser pass blocked external map resources.
+
+### Resolution
+
+- The approved way was retrieved read-only from the official OSM API using the alternate permitted network client; its closed node sequence was converted directly to GeoJSON without estimating coordinates.
+- The exact stale local Django process was identified and replaced with the current server.
+- Browser verification used an isolated hidden Chrome profile. The failure-mode pass was retained as graceful-degradation evidence, then the successful map path was rerun with approved network access and software WebGL.
+
+### Data Integrity
+
+- The boundary is an OSM-derived orientation reference, not YCT Map field verification.
+- All six destinations remain synthetic `DEMO` records.
+- No visible building, gate, path or destination was converted to `FIELD_VERIFIED`.
+- No OSM write-back, automatic synchronization, routing, distance, ETA, GPS, editor or contribution feature was implemented.
+
+### Evidence Required for Acceptance
+
+- `P1-S2-A-campus-orientation.png`
+- `P1-S2-B-phase1-final-ux.png`
+- One short Phase 1 recording: open app → orient on campus → search/browse → select destination → inspect destination card
+
+### Ending State
+
+Sprint 002 is implemented and technically verified. Phase 1 remains IN PROGRESS until the owner completes the acceptance flow and explicitly accepts Sprint 002 and Phase 1.
+
+### Commit
+
+Not committed — owner review required.
+
+### Acceptance Addendum — 2026-09-17
+
+This addendum preserves the implementation-time record above and records the later owner decision without rewriting sprint history.
+
+- Phase 1 Sprint 002 was formally OWNER ACCEPTED.
+- Phase 1 was formally OWNER ACCEPTED.
+- Campus orientation, boundary, surrounding-road context, return-to-campus behavior, search, category discovery, destination selection, responsive details and graceful degradation passed automated and owner verification.
+- One LOW-severity cosmetic carryover remains: `YabaTech Campus` text may repeat at close zoom because the label is placed from polygon geometry.
+- The carryover does not affect data integrity or field-verification status and is approved for correction as the first Phase 2 Sprint 001 implementation action.
+- The fix must retain the trusted boundary, geometry-derived framing, surrounding-road context and return-to-campus control, and must not change real or DEMO location data.
+- Approved Phase 1 milestone commit message: `feat: complete Phase 1 campus orientation and UX refinement`.
+- Phase 2 Sprint 001 — Walkable Network & Routing Foundation — is the next approved sprint. Implementation still requires the standalone `BUILD` command.

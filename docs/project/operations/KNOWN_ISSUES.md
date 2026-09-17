@@ -8,7 +8,7 @@ Updated as issues are discovered. Do not list speculative concerns as confirmed 
 
 ## Current Phase
 
-PHASE 1 — FOUNDATION & MAP EXPERIENCE. Sprint 001 is OWNER VERIFIED / ACCEPTED; Sprint 002 implementation has not started.
+PHASE 1 is OWNER ACCEPTED. Phase 2 Sprint 001 is the next approved task and has not started.
 
 ---
 
@@ -27,7 +27,16 @@ Resolution:   Planned fix or UNKNOWN
 
 ## Open Issues
 
-No issues recorded yet.
+### KI-001
+
+```
+ID:           KI-001
+Severity:     LOW
+Type:         BUG / PRESENTATION
+Impact:       At close map zoom levels, the polygon-based `YabaTech Campus` text may be placed repeatedly. Campus orientation and data integrity are unaffected.
+Workaround:   Use the boundary, surrounding roads and return-to-campus control for orientation.
+Resolution:   Replace polygon symbol placement with one deterministic point label as the first Phase 2 Sprint 001 implementation action.
+```
 
 ---
 

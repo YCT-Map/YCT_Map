@@ -108,4 +108,27 @@ Status:     OPEN
 
 ---
 
+### BL-007
+
+```
+ID:         BL-007
+Idea:       Editor-only Path Survey Mode using browser GPS breadcrumb traces and map matching against YCT Map's walkable-path network.
+Reason:     Survey tooling can help the team identify walked, unwalked and potentially missing path sections during later campus verification without treating noisy raw GPS as trusted geometry.
+Priority:   HIGH
+Dependency: Phase 2 walkable-path network and Phase 4 authenticated editor tooling
+Release:    Phase 4 tooling; Phase 5 field use
+Status:     APPROVED / DEFERRED
+```
+
+Required safeguards:
+
+- tolerate GPS noise;
+- compare recorded movement with the existing YCT Map path network;
+- keep unwalked network sections visually identifiable;
+- allow editors to flag an observed missing path;
+- never promote one raw GPS trace directly to `FIELD_VERIFIED`;
+- require editor review, map matching and confidence rules before survey status changes.
+
+---
+
 > Add items here when they arise during sprints. Do not implement them without approval.
