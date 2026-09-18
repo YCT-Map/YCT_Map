@@ -33,3 +33,14 @@ test("dynamic ETA uses a filtered plausible walking pace", () => {
   assert.equal(result.etaSource, "live");
   assert.equal(formatEta(70), "~2 min");
 });
+
+test("route replacement resets progress while preserving trustworthy walking pace", () => {
+  const tracker = createLiveRouteTracker(route, 134);
+  for (const [longitude, timestamp] of [[3.3740, 1_000], [3.37405, 5_000], [3.37410, 9_000], [3.37415, 13_000]]) {
+    tracker.update({ longitude, latitude: 6.5180, accuracyMetres: 5, timestamp });
+  }
+  tracker.replaceRoute([[3.37415, 6.5180], [3.3750, 6.5180]], 94);
+  const result = tracker.update({ longitude: 3.37415, latitude: 6.5180, accuracyMetres: 5, timestamp: 17_000 });
+  assert.equal(result.progressMetres, 0);
+  assert.equal(result.etaSource, "live");
+});

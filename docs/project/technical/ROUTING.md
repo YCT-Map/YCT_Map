@@ -123,6 +123,16 @@ The measured blue position and the hollow network-match marker are deliberately 
 
 Sprint 002 is OWNER ACCEPTED as `SIMULATED LIVE NAVIGATION VERIFIED`. Owner review covered safe/unsafe snapping, live-origin routing, route progress, remaining distance and personal-pace ETA. Stationary and arrival transitions are verified by deterministic tests only. Physical-device navigation, off-route detection and automatic rerouting remain unverified or unimplemented.
 
+## Sprint 003 Off-Route Detection and Controlled Rerouting
+
+The browser now evaluates location quality separately from route-match quality. Accuracy worse than 25 m creates an uncertain state and cannot contribute off-route evidence. For reliable positions, an accuracy-aware route corridor classifies samples as following, uncertain or displaced. Three consecutive displaced samples spanning at least eight seconds, with credible movement or twelve seconds of sustained displacement, confirm departure.
+
+Confirmed departure reuses the protected live-origin POST contract once. Django repeats safe network matching, creates an ephemeral origin and runs A* to the unchanged destination. A successful replacement resets route-specific progress, stationary and arrival state while retaining valid personal walking-pace samples. A ten-second stabilization window, 30-second cooldown and 20 m movement gate prevent request storms. Failure retains the previous route as faded reference and offers an explicit retry.
+
+Arrival takes precedence, backtracking inside the corridor remains on-route, and poor GPS freezes trustworthy progress rather than producing a false reroute. Physical-device rerouting and the OSM-derived graph remain unverified.
+
+Sprint 003 is OWNER ACCEPTED as `SIMULATED REROUTING VERIFIED`. Owner review covered the checking state, controlled route replacement, destination preservation, continued navigation progress and non-hijacking camera behavior. The detailed timing, cooldown, poor-GPS, failure and arrival branches retain deterministic automated-test verification rather than being described as manually owner-verified.
+
 ---
 
 ## Not In V1

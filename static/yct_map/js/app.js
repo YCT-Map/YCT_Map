@@ -1,10 +1,10 @@
-import { fetchLocations } from "./api.js?v=p3s2-live-route-1";
-import { createDestinationPanel } from "./destination-panel.js?v=p3s2-live-route-1";
-import { createMap } from "./map.js?v=p3s2-live-route-1";
-import { createSearch } from "./search.js?v=p3s2-live-route-1";
-import { createRouteInspector } from "./route-inspector.js?v=p3s2-live-route-1";
-import { createUserLocation } from "./user-location.js?v=p3s2-live-route-1";
-import { createUserNavigation } from "./user-navigation.js?v=p3s2-live-route-1";
+import { fetchLocations } from "./api.js?v=p3s3-rerouting-1";
+import { createDestinationPanel } from "./destination-panel.js?v=p3s3-rerouting-1";
+import { createMap } from "./map.js?v=p3s3-rerouting-1";
+import { createSearch } from "./search.js?v=p3s3-rerouting-1";
+import { createRouteInspector } from "./route-inspector.js?v=p3s3-rerouting-1";
+import { createUserLocation } from "./user-location.js?v=p3s3-rerouting-1";
+import { createUserNavigation } from "./user-navigation.js?v=p3s3-rerouting-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -62,6 +62,7 @@ async function start() {
       liveRouteUrl: config.liveRouteUrl,
       onRoute: (route, origin, destination, options) => mapController?.showUserRoute(route, origin, destination, options),
       onClear: () => mapController?.clearUserRoute(),
+      onRouteStale: (stale) => mapController?.setUserRouteStale(stale),
       onBrowse: () => document.querySelector("#location-search")?.focus(),
       onStateChange: setInterfaceState,
       onCancel: (feature) => {

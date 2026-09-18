@@ -478,3 +478,31 @@ This addendum records the owner decision without rewriting the implementation-ti
 - Physical-phone GPS/navigation is not verified. The active OSM-derived routing graph remains `UNVERIFIED` and is not field-verified guidance.
 - Primary evidence is `P3-S2-A-live-origin-route.png` and `P3-S2-B-dynamic-eta-progress.png`; the rejected-snap image is supporting evidence.
 - Phase 3 Sprint 003 is next for discussion/planning only. No Sprint 003 implementation is included.
+
+## Phase 3 — Sprint 003: Off-Route Detection & Controlled Rerouting
+
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+**Date:** 2026-09-18
+
+### Implementation Record
+
+- Added a deterministic client-side off-route state machine separating location quality, active-route distance and confirmed deviation.
+- Added a bounded accuracy-aware corridor. Accuracy worse than 25 m produces uncertainty and cannot count as off-route evidence.
+- Added three-sample/eight-second confirmation with credible-movement requirements; one anomaly, recovery, backtracking and arrival do not reroute.
+- Reused the Sprint 002 CSRF-protected live-origin endpoint only after confirmed deviation; Django remains authoritative for safe graph matching and A*.
+- Added one-request locking, ten-second new-route stabilization, a 30-second cooldown and a 20 m post-reroute movement gate.
+- Successful reroutes retain destination and personal pace, replace route geometry without hijacking the camera, and reset route-specific progress/stationary/arrival state.
+- Failed reroutes retain a faded previous route, present restrained failure copy and expose a retry action.
+- Added deterministic active-graph-derived deviation and poor-accuracy traces for automated and owner verification.
+- All 60 Django tests and 23 JavaScript tests pass before owner review.
+- `BUILD_JOURNAL.md` remains unchanged until owner acceptance. Physical-device rerouting is not verified and no commit has been created.
+
+### Acceptance Addendum — 2026-09-18
+
+- Phase 3 Sprint 003 was formally OWNER ACCEPTED with the label `SIMULATED REROUTING VERIFIED`.
+- The owner visually verified the checking state, controlled reroute, route replacement, unchanged `DEMO — Hostel` destination, continued live-position updates, decreasing post-reroute distance and camera preservation.
+- Observed remaining distance after replacement included approximately 39 m, 31 m and 25 m.
+- Deterministic automated tests—not owner observation—verify the exact three-sample/eight-second rule, single-anomaly recovery, poor-GPS uncertainty, valid backtracking, request locking, stabilization, cooldown, movement gate, failure handling, pace preservation and arrival precedence.
+- Physical-device rerouting is not verified. OSM-derived graph geometry remains `UNVERIFIED`; no field verification has occurred.
+- Primary evidence is `P3-S3-A-off-route-detected.png` and `P3-S3-B-rerouted-navigation.png`, both using simulated coordinates.
+- Phase 3 Sprint 004 is next for discussion/planning only. No Sprint 004 implementation is included.

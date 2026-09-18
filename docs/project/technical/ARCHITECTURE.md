@@ -158,7 +158,7 @@ No file storage requirements identified for V1 (no location photographs in V1).
 [Database]   [Auth Service]
 ```
 
-The browser frontend, public location and route endpoints, local database, routing services, transient live-location pipeline, live-route progress and external map-style connection are implemented. Rerouting, contribution/editor workflows and production infrastructure remain planned.
+The browser frontend, public location and route endpoints, local database, routing services, transient live-location pipeline, live-route progress, controlled rerouting and external map-style connection are implemented. Contribution/editor workflows and production infrastructure remain planned.
 
 ---
 

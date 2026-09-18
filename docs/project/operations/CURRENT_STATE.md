@@ -12,8 +12,8 @@
 | **Date** | 2026-09-18 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 3 — LIVE NAVIGATION & CORE PRODUCT SYSTEMS |
-| **Pipeline Phase** | Phase 3 Sprint 002 OWNER ACCEPTED |
-| **Latest Meaningful Commit** | Phase 3 Sprint 002 milestone (`feat: add live route progress and dynamic ETA`) |
+| **Pipeline Phase** | Phase 3 Sprint 003 OWNER ACCEPTED |
+| **Latest Meaningful Commit** | Phase 3 Sprint 003 milestone (`feat: add controlled off-route rerouting`) |
 
 ---
 
@@ -21,7 +21,7 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | PHASE 3 SPRINT 002 OWNER ACCEPTED |
+| Application implementation | PHASE 3 SPRINT 003 OWNER ACCEPTED |
 | Product definition | SUBSTANTIALLY COMPLETE |
 | Documentation / governance | SUBSTANTIALLY COMPLETE |
 | Build pipeline | SUBSTANTIALLY COMPLETE |
@@ -30,7 +30,7 @@
 | Demo/development dataset | 6 DEMO locations; 47 OSM-derived UNVERIFIED nodes, 54 segments and 6 UNVERIFIED anchors |
 | Field verification | NOT STARTED |
 | Deployment | NOT STARTED |
-| Test suite | 60 DJANGO + 12 JAVASCRIPT TESTS PASSING |
+| Test suite | 60 DJANGO + 23 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -123,21 +123,31 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ---
 
+**Phase 3 / Sprint 003 — OWNER VERIFIED / ACCEPTED**
+- Accuracy-aware off-route checking and repeated-evidence confirmation
+- Controlled automatic rerouting with destination and pace preservation
+- Request locking, stabilization, cooldown and post-reroute movement gates
+- Graceful stale-route retention and retry behavior
+- SIMULATED REROUTING VERIFIED; detailed safety branches remain deterministic automated verification
+- 60 Django tests and 23 JavaScript tests passing at acceptance
+
+---
+
 ## Active Work
 
-No implementation is active. Phase 3 Sprint 002 is OWNER ACCEPTED. No Sprint 003 work has started.
+No implementation is active. Phase 3 Sprint 003 is OWNER ACCEPTED. Sprint 004 has not started.
 
 ---
 
 ## Known Blockers
 
-Physical-phone GPS remains unverified because no owner-approved HTTPS test origin exists. Live-route verification currently depends on deterministic simulated campus traces. Off-route detection and rerouting remain deferred to Sprint 003.
+Physical-phone GPS/navigation/rerouting remains unverified because no owner-approved HTTPS test origin exists. The OSM-derived graph remains `UNVERIFIED`, and full outside-campus product behavior is deferred.
 
 ---
 
 ## Next Approved Task
 
-Phase 3 Sprint 003 discussion/planning. Implementation requires explicit approval and a standalone `BUILD` command.
+Phase 3 Sprint 004 discussion/planning. Do not begin implementation without explicit approval and a standalone `BUILD` command.
 
 ---
 

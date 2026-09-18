@@ -375,10 +375,11 @@ export async function createMap({ container, config, features, onSelect, onReady
     );
   }
 
-  function showUserRoute(routeFeature, origin, destination, { originType = "manual" } = {}) {
+  function showUserRoute(routeFeature, origin, destination, { originType = "manual", replacement = false } = {}) {
     if (!loaded || routeFeature.geometry.type !== "LineString") return;
     const coordinates = routeFeature.geometry.coordinates;
     map.getSource(USER_ROUTE_SOURCE_ID).setData({ type: "FeatureCollection", features: [routeFeature] });
+    setUserRouteStale(false);
     map.getSource(USER_ENDPOINT_SOURCE_ID).setData({ type: "FeatureCollection", features: [
       { type: "Feature", geometry: { type: "Point", coordinates: coordinates[0] }, properties: {
         role: originType === "live" ? "matched" : "start", name: originType === "live" ? "Matched route start" : origin.properties.name,
@@ -387,13 +388,21 @@ export async function createMap({ container, config, features, onSelect, onReady
     ] });
     const longitudes = coordinates.map(([longitude]) => longitude);
     const latitudes = coordinates.map(([, latitude]) => latitude);
-    map.fitBounds([[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]],
-      { padding: routePadding(), maxZoom: 17.5, duration: 700, essential: false });
+    if (!replacement) {
+      map.fitBounds([[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]],
+        { padding: routePadding(), maxZoom: 17.5, duration: 700, essential: false });
+    }
   }
 
   function clearUserRoute() {
     map.getSource(USER_ROUTE_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
     map.getSource(USER_ENDPOINT_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
+  }
+
+  function setUserRouteStale(stale) {
+    if (!loaded) return;
+    map.setPaintProperty(USER_ROUTE_LAYER_ID, "line-opacity", stale ? 0.38 : 0.96);
+    map.setPaintProperty(USER_ROUTE_CASING_LAYER_ID, "line-opacity", stale ? 0.45 : 1);
   }
 
   function showUserLocation(position, { focus: shouldFocus = false } = {}) {
@@ -422,6 +431,6 @@ export async function createMap({ container, config, features, onSelect, onReady
     map.getSource(USER_ACCURACY_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
   }
 
-  return { focus, focusCampus, setVisibleFeatures, showRoute, showUserRoute, clearUserRoute,
+  return { focus, focusCampus, setVisibleFeatures, showRoute, showUserRoute, clearUserRoute, setUserRouteStale,
     showUserLocation, recenterUserLocation, clearUserLocation, map };
 }

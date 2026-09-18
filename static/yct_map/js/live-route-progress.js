@@ -56,7 +56,7 @@ export function createLiveRouteTracker(coordinates, totalDistanceMetres) {
     update(position) {
       const point = [position.longitude, position.latitude];
       const projection = projectOntoRoute(point, coordinates);
-      const threshold = Math.max(20, Math.min(40, position.accuracyMetres));
+      const threshold = position.accuracyMetres <= 25 ? Math.min(20, Math.max(8, position.accuracyMetres)) : -1;
       let state = "walking";
       if (projection.distance <= threshold) {
         const proposed = projection.along;
@@ -117,6 +117,16 @@ export function createLiveRouteTracker(coordinates, totalDistanceMetres) {
         matchedDistanceMetres: projection.distance,
       };
     },
+    replaceRoute(nextCoordinates, nextTotalDistanceMetres) {
+      coordinates = nextCoordinates;
+      totalDistanceMetres = nextTotalDistanceMetres;
+      progress = 0;
+      previous = null;
+      pendingBackward = null;
+      stationarySince = null;
+      arrivalCandidateAt = null;
+    },
+    getCoordinates: () => coordinates,
   };
 }
 

@@ -150,8 +150,8 @@ class MapPageTests(TestCase):
         self.assertContains(response, 'data-route-url="/api/routes/"')
         self.assertContains(response, 'id="destination-directions"')
         self.assertContains(response, 'id="user-route-panel"')
-        self.assertContains(response, "app.js?v=p3s2-live-route-1")
-        self.assertContains(response, "app.css?v=p3s2-live-route-1")
+        self.assertContains(response, "app.js?v=p3s3-rerouting-1")
+        self.assertContains(response, "app.css?v=p3s3-rerouting-1")
         self.assertContains(response, 'data-live-route-url="/api/routes/from-position/"')
         self.assertContains(response, 'id="user-location-controls"')
         self.assertContains(response, 'id="locate-me"')
@@ -173,13 +173,13 @@ class MapPageTests(TestCase):
             "user-location.js",
             "user-navigation.js",
         ):
-            self.assertIn(f'{module}?v=p3s2-live-route-1', app_source)
+            self.assertIn(f'{module}?v=p3s3-rerouting-1', app_source)
 
         user_location_source = (
             settings.BASE_DIR / "static/yct_map/js/user-location.js"
         ).read_text(encoding="utf-8")
-        self.assertIn("location-filter.js?v=p3s2-live-route-1", user_location_source)
-        self.assertIn("geolocation.js?v=p3s2-live-route-1", user_location_source)
+        self.assertIn("location-filter.js?v=p3s3-rerouting-1", user_location_source)
+        self.assertIn("geolocation.js?v=p3s3-rerouting-1", user_location_source)
 
     def test_campus_orientation_boundary_is_the_approved_osm_polygon(self):
         boundary_path = settings.BASE_DIR / "static/yct_map/data/yabatech-campus-boundary.geojson"

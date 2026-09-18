@@ -8,8 +8,8 @@ The map is the primary interface. Students, staff and visitors can search campus
 
 ## Project Status
 
-**Phase:** PHASE 3 — LIVE NAVIGATION & CORE PRODUCT SYSTEMS (SPRINT 002 OWNER ACCEPTED)
-**Application implementation:** PHASES 1 AND 2 ACCEPTED; PHASE 3 SPRINTS 001 AND 002 ACCEPTED
+**Phase:** PHASE 3 — LIVE NAVIGATION & CORE PRODUCT SYSTEMS (SPRINT 003 OWNER ACCEPTED)
+**Application implementation:** PHASES 1 AND 2 ACCEPTED; PHASE 3 SPRINTS 001–003 ACCEPTED
 **Product definition:** SUBSTANTIALLY COMPLETE
 **Documentation / governance:** IN PROGRESS
 **Campus production dataset:** NOT YET POPULATED
@@ -35,7 +35,7 @@ Open `http://127.0.0.1:8000/`.
 
 The map uses pinned MapLibre GL JS assets and OpenFreeMap Liberty over the network. Destinations remain synthetic `DEMO` records. The development routing graph is YCT Map-owned, OSM-derived and explicitly `UNVERIFIED`; it is not field-verified campus guidance.
 
-Live location is optional and transient. Initial live-origin matching uses a narrow no-store Django request; coordinates are not persisted, logged as history or used for analytics. Continued progress stays client-side. Simulated live navigation is verified; physical-phone GPS/navigation remains pending an approved HTTPS test origin.
+Live location is optional and transient. Initial matching and confirmed rerouting use a narrow no-store Django request; coordinates are not persisted, logged as history or used for analytics. Normal progress and off-route evidence stay client-side. Simulated rerouting is verified; physical-phone GPS/navigation/rerouting remains pending an approved HTTPS test origin.
 
 ---
 

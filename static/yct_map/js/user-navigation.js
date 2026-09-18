@@ -1,17 +1,21 @@
-import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=p3s2-live-route-1";
+import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=p3s3-rerouting-1";
+import { createOffRouteDetector } from "./off-route.js?v=p3s3-rerouting-1";
 
 export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, onRoute, onClear, onBrowse,
-  onCancel, onStateChange, requestRoute = fetch }) {
+  onCancel, onStateChange, onRouteStale, requestRoute = fetch }) {
   const form = panel.querySelector("#user-route-form");
   const originSelect = panel.querySelector("#user-route-origin");
   const destinationName = panel.querySelector("#user-route-destination");
   const submitButton = panel.querySelector("#show-user-route");
+  const retryButton = panel.querySelector("#retry-reroute");
   const error = panel.querySelector("#user-route-error");
   const result = panel.querySelector("#user-route-result");
   const formState = panel.querySelector("#user-route-form-state");
   let destination = null;
   let livePosition = null;
   let activeTracker = null;
+  let offRouteDetector = null;
+  let rerouteRequestActive = false;
 
   const csrfToken = () => document.cookie.split("; ").find((row) => row.startsWith("csrftoken="))?.split("=")[1] || "";
   const liveOption = () => [...originSelect.options].find((option) => option.value === "__live__");
@@ -22,6 +26,13 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     option.textContent = option.disabled ? "Use my location (locate first)" : "Use my live location";
   }
   function resetMessages() { error.hidden = true; result.hidden = true; }
+  function requestLiveRoute(position) {
+    return requestRoute(liveRouteUrl, { method: "POST", headers: {
+      Accept: "application/json", "Content-Type": "application/json", "X-CSRFToken": csrfToken(),
+    }, body: JSON.stringify({ destination: destination.properties.id, position: {
+      latitude: position.latitude, longitude: position.longitude, accuracy_metres: position.accuracyMetres,
+    } }) });
+  }
 
   function begin(feature) {
     if (feature?.properties?.routing_available !== true) return false;
@@ -46,6 +57,7 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     formState.hidden = false;
     panel.hidden = false;
     submitButton.disabled = true;
+    retryButton.hidden = true;
     originSelect.focus();
     onStateChange?.("choosing-origin");
     return true;
@@ -64,13 +76,8 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     const useLive = originSelect.value === "__live__";
     try {
       let response;
-      if (useLive) {
-        response = await requestRoute(liveRouteUrl, { method: "POST", headers: {
-          Accept: "application/json", "Content-Type": "application/json", "X-CSRFToken": csrfToken(),
-        }, body: JSON.stringify({ destination: destination.properties.id, position: {
-          latitude: livePosition.latitude, longitude: livePosition.longitude, accuracy_metres: livePosition.accuracyMetres,
-        } }) });
-      } else {
+      if (useLive) response = await requestLiveRoute(livePosition);
+      else {
         const parameters = new URLSearchParams({ origin: originSelect.value, destination: destination.properties.id });
         response = await requestRoute(`${routeUrl}?${parameters}`, { headers: { Accept: "application/json" } });
       }
@@ -90,6 +97,9 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       formState.hidden = true;
       result.hidden = false;
       activeTracker = useLive ? createLiveRouteTracker(payload.route.geometry.coordinates, totalDistance) : null;
+      offRouteDetector = useLive ? createOffRouteDetector() : null;
+      retryButton.hidden = true;
+      onRouteStale?.(false);
       onRoute(payload.route, origin, destination, { originType: useLive ? "live" : "manual" });
       onStateChange?.("route-available");
     } catch (routeError) {
@@ -104,6 +114,8 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   function reset({ browse = false, notify = true } = {}) {
     destination = null;
     activeTracker = null;
+    offRouteDetector = null;
+    rerouteRequestActive = false;
     panel.hidden = true;
     resetMessages();
     onClear();
@@ -111,19 +123,63 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     if (browse) onBrowse?.();
   }
 
-  function updateLivePosition(position) {
-    livePosition = position;
-    updateLiveOption();
-    if (!activeTracker) return;
-    const progress = activeTracker.update(position);
-    const copy = { walking: "Following live route", stationary: "Stationary · ETA uses your recent pace",
-      "position-uncertain": "Position uncertain · retaining stable route progress", arrived: "You have arrived" };
+  function renderProgress(progress) {
+    const copy = { walking: "Following route", stationary: "Stationary · ETA uses your recent pace",
+      "position-uncertain": "Checking your position…", arrived: "You have arrived" };
     panel.querySelector("#user-route-progress-status").textContent = copy[progress.state];
     panel.querySelector("#user-route-distance").textContent = `${Math.round(progress.remainingDistanceMetres)} m remaining`;
     panel.querySelector("#user-route-eta").textContent = progress.state === "arrived" ? "Arrived" : formatEta(progress.etaSeconds);
     panel.querySelector("#user-route-eta-source").textContent = progress.etaSource === "live"
       ? "ETA from your recent walking pace" : progress.etaSource === "recent"
         ? "ETA from recent pace" : "Approximate ETA at 1.35 m/s";
+  }
+
+  async function performReroute(position, { manualRetry = false } = {}) {
+    if (!activeTracker || !destination || rerouteRequestActive) return false;
+    rerouteRequestActive = true;
+    retryButton.hidden = true;
+    offRouteDetector.markRerouting();
+    panel.querySelector("#user-route-progress-status").textContent = "Finding a new route…";
+    try {
+      const response = await requestLiveRoute(position);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to calculate a replacement route.");
+      const totalDistance = payload.summary.total_distance_metres;
+      activeTracker.replaceRoute(payload.route.geometry.coordinates, totalDistance);
+      offRouteDetector.markSuccess(position.timestamp);
+      onRoute(payload.route, null, destination, { originType: "live", replacement: true });
+      onRouteStale?.(false);
+      panel.querySelector("#user-route-distance").textContent = `${Math.round(totalDistance)} m remaining`;
+      panel.querySelector("#user-route-eta").textContent = payload.summary.eta_label;
+      panel.querySelector("#user-route-progress-status").textContent = "Route updated · following route";
+      return true;
+    } catch (rerouteError) {
+      offRouteDetector.markFailure();
+      onRouteStale?.(true);
+      panel.querySelector("#user-route-progress-status").textContent = "Unable to safely reroute from your current position.";
+      error.textContent = manualRetry ? rerouteError.message : "Your previous route is retained as reference.";
+      error.hidden = false;
+      retryButton.hidden = false;
+      return false;
+    } finally {
+      rerouteRequestActive = false;
+    }
+  }
+
+  function updateLivePosition(position) {
+    livePosition = position;
+    updateLiveOption();
+    if (!activeTracker) return;
+    const progress = activeTracker.update(position);
+    renderProgress(progress);
+    const routeState = offRouteDetector.evaluate(position, activeTracker.getCoordinates(), { arrived: progress.state === "arrived" });
+    if (routeState.state === "checking-position") {
+      panel.querySelector("#user-route-progress-status").textContent = routeState.reason === "location-uncertain"
+        ? "Location uncertain · retaining your last trustworthy route state" : "Checking your position…";
+    } else if (routeState.shouldReroute) {
+      panel.querySelector("#user-route-progress-status").textContent = "You appear to be off route";
+      void performReroute(position);
+    }
   }
   function clearLivePosition() { livePosition = null; updateLiveOption(); }
 
@@ -136,5 +192,10 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   panel.querySelector("#cancel-user-route").addEventListener("click", () => {
     const cancelledDestination = destination; reset({ notify: false }); if (cancelledDestination) onCancel?.(cancelledDestination);
   });
-  return { begin, reset, updateLivePosition, clearLivePosition };
+  retryButton.addEventListener("click", () => {
+    if (!livePosition || !offRouteDetector) return;
+    offRouteDetector.retry();
+    void performReroute(livePosition, { manualRetry: true });
+  });
+  return { begin, reset, updateLivePosition, clearLivePosition, performReroute };
 }

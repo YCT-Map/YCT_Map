@@ -1570,3 +1570,195 @@ They should also understand that speed derived from noisy GPS is a statistical e
 ### Next Sprint
 
 Phase 3 Sprint 003 is next for discussion/planning. Expected future concerns include full off-route evidence and controlled rerouting, but no Sprint 003 implementation has begun or is authorized without a standalone `BUILD` command.
+
+## Phase 3 — Sprint 003: Off-Route Detection & Controlled Rerouting
+
+**Recorded status:** OWNER ACCEPTED on 2026-09-18. **SIMULATED REROUTING VERIFIED. PHYSICAL REROUTING NOT VERIFIED.**
+
+### Purpose
+
+This sprint made live navigation recover when reliable evidence shows that the user is no longer following the active route. The goal was not to react to every GPS fluctuation; it was to distinguish uncertainty from a genuine deviation and request one safe replacement route only when confidence was sufficient.
+
+### User Outcome
+
+During an active live route, suspicious displacement first displays **Checking your position…**. One anomaly does not destroy navigation. Several trustworthy samples away from the route can trigger a controlled reroute to the same destination. Progress and ETA then continue against the replacement route without forcing the camera away from the user’s chosen view.
+
+### Starting State
+
+Sprint 002 could match one accepted coordinate to the graph, calculate a live-origin route and project later samples onto that fixed route. It had no explicit off-route evidence model, replacement-route lifecycle, request lock, cooldown or graceful reroute-failure state.
+
+### What We Built
+
+- A deterministic client-side off-route detector with following, checking, confirmed, rerouting, failure and arrival outcomes.
+- Separate handling for GPS quality and active-route match quality.
+- Bounded accuracy-aware route corridors rather than one fixed tolerance.
+- Three-sample/eight-second confirmation with credible-movement requirements.
+- Recovery from one anomaly and preservation of valid backtracking.
+- Controlled automatic reuse of the live-origin endpoint after confirmation.
+- One-request locking, ten-second route stabilization, a 30-second cooldown and a 20 m movement gate.
+- Route replacement that retains destination and trusted walking pace while resetting route-specific state.
+- Faded retained guidance and a **Try reroute again** action after failure.
+- Deterministic active-graph-derived deviation and poor-accuracy traces.
+
+### Technical Concepts Introduced
+
+**Location quality** asks whether the position itself is trustworthy. **Route-match quality** asks how well that trustworthy point fits the active route. **Network-match quality** is a later server decision about whether the coordinate safely fits the complete walkable graph. **Off-route state** requires accumulated evidence; none of the first three questions alone proves departure.
+
+A **route corridor** is a tolerance band around route geometry. It acknowledges that real GPS points rarely lie exactly on a thin mathematical LineString. The corridor expands with reported uncertainty but remains capped so weak GPS cannot make every point appear valid.
+
+Repeated evidence is a small deterministic confidence model. It uses route distance, accuracy, sample count, elapsed time and credible movement. It is understandable, testable and does not require machine learning.
+
+### How It Works Internally
+
+```text
+accepted GPS sample
+        |
+        v
+is accuracy <= 25 m? ---- no ----> location uncertain
+        |
+       yes
+        v
+project onto active route
+   |          |             |
+ inside     between       outside
+ corridor   thresholds    off-route threshold
+   |          |             |
+following   checking    collect reliable evidence
+                              |
+                    3 samples over >= 8 s
+                              |
+                    confirmed deviation
+                              |
+                 one protected POST request
+                              |
+             server safe match + virtual origin + A*
+                              |
+                       replacement route
+```
+
+The key contrast is:
+
+```text
+single anomaly
+    -> check only
+    -> recovery
+    -> no reroute
+
+several trustworthy samples away from route
+    -> confirmed deviation
+    -> controlled reroute
+    -> replacement route
+```
+
+Arrival is checked before off-route action. Poor accuracy freezes the last trustworthy route state rather than advancing progress or creating evidence.
+
+### Architecture / Components Involved
+
+```text
+user-location.js       accepted position stream
+        |
+        +--> live-route-progress.js   progress / pace / arrival
+        |
+        +--> off-route.js             corridor / evidence / cooldown
+                         |
+                         v
+                user-navigation.js    request lock + state UX
+                         |
+                         v
+             POST /api/routes/from-position/
+                         |
+                 safe graph match + A*
+                         |
+                         v
+                      map.js           route replacement / stale style
+```
+
+The browser performs frequent projection and evidence checks. Django is contacted only after confirmation or an explicit retry.
+
+### Important Files
+
+- `static/yct_map/js/off-route.js` — accuracy-aware thresholds, evidence, state and cooldown.
+- `static/yct_map/js/live-route-progress.js` — progress plus route replacement that preserves pace.
+- `static/yct_map/js/user-navigation.js` — controlled request, route replacement, failure and retry UX.
+- `static/yct_map/js/map.js` — camera-safe replacement and faded stale guidance.
+- `tests/js/phase3-off-route.test.mjs` — deterministic detector behavior.
+- `tests/js/fixtures/p3s3-traces.mjs` — graph-derived owner and automated traces.
+- `tests/js/sprint003-public-navigation.test.mjs` — full controller replacement/failure behavior.
+- `routing/matching.py`, `routing/services.py` and `routing/views.py` — unchanged server authority reused from Sprint 002.
+
+### Data Flow
+
+Normal accepted samples remain in browser memory. They are projected onto the active route and contribute only transient progress, pace and off-route evidence. Once deviation is confirmed, the newest coordinate, its accuracy and the existing destination UUID are sent in a CSRF-protected JSON POST. Django repeats validation and full-network matching; it does not trust the client’s conclusion.
+
+The replacement response contains route geometry and a narrow summary. No coordinate, evidence sequence, reroute history or breadcrumb is persisted.
+
+### Decisions and Trade-offs
+
+**Three samples over eight seconds.** This delays recovery slightly but prevents one noisy sample from causing a request and visual disruption.
+
+**Accuracy-aware thresholds.** Reliable 3 m samples use a tighter corridor than 25 m samples. Accuracy worse than 25 m can express uncertainty but cannot prove departure.
+
+**Backtracking is not departure.** Walking backward still projects close to the same route. Lateral distance—not decreasing progress alone—drives off-route evidence.
+
+**Reuse the endpoint.** Initial live routing and rerouting both mean “route from this transient position to this destination.” Reusing the protected endpoint keeps matching and privacy rules consistent.
+
+**Automatic only after strong confirmation.** The application reroutes without another prompt when evidence is strong. A manual retry appears after failure rather than interrupting normal walking with repeated confirmation dialogs.
+
+**Preserve pace, reset route state.** Rerouting does not change the person’s walking ability, so reliable pace samples remain. Progress, stationary timers, backward evidence and arrival confirmation belong to the old route and are reset.
+
+### Problems Encountered
+
+The owner trace had to exercise both the existing implausible-jump filter and the new off-route detector. Jumping instantly from an early route point to a distant alternate path would be rejected before the detector saw it. The trace therefore uses repository geometry and sufficient timestamp spacing before entering real OSM-derived way `1335008711`.
+
+The automated browser-control connection was unavailable during implementation review. The local server, repository tests and owner’s Edge Sensors run provided verification without creating an external tunnel.
+
+### How We Solved Them
+
+The deterministic trace begins on the active School Building-to-Hostel route, includes one derived lateral anomaly and recovery, then moves to three points on another active mapped branch. Timing keeps the samples acceptable under Sprint 001 filtering while still satisfying Sprint 003 confirmation.
+
+Replacement-route rendering receives an explicit replacement flag, so it updates geometry and endpoints without running the initial fit-bounds camera action. Failure reduces route opacity instead of deleting potentially useful reference guidance.
+
+### Testing and Verification
+
+At acceptance, 60 Django tests and 23 JavaScript tests passed. JavaScript syntax, Django system checks, migration drift and Git whitespace checks also passed.
+
+The owner visually verified the checking state, controlled reroute, route replacement, unchanged `DEMO — Hostel` destination, continued live-position updates, decreasing remaining distance and preserved camera. Observed remaining distances included approximately 39 m, 31 m and 25 m.
+
+Deterministic automated tests verified the exact three-sample/eight-second rule, single-anomaly recovery, poor-GPS uncertainty, backtracking, request locking, stabilization, cooldown, movement gate, failure handling, walking-pace preservation, arrival precedence and regressions. Those detailed branches are not represented as owner-manually verified.
+
+### Current Limitations
+
+- Physical-phone GPS/navigation/rerouting remains unverified.
+- OSM-derived routing geometry and destination anchors remain `UNVERIFIED`.
+- Full outside-campus behavior and city routing are absent.
+- Path Survey Mode and editor GPS recording remain future work.
+- No field verification has occurred.
+- Route alternatives, semantic turn instructions, voice navigation and background GPS are outside this sprint.
+
+### Evidence
+
+- **`P3-S3-A-off-route-detected.png`** demonstrates the active route, displaced simulated live position and restrained **Checking your position…** state.
+- **`P3-S3-B-rerouted-navigation.png`** demonstrates the replacement route, unchanged `DEMO — Hostel` destination, current live position and reduced remaining distance after rerouting.
+
+Both images use simulated coordinates. Supporting failure images may be retained separately but do not replace the two primary records.
+
+### What Students Should Understand
+
+Students should understand that one GPS sample cannot prove departure. A sample may be accurate but laterally displaced, inaccurate but close to the route, or accurate on another network path. These conditions require different responses.
+
+They should be able to explain route corridors, threshold scaling, repeated evidence, the distinction between active-route projection and full-network matching, and why Django repeats safety checks. They should also understand that cooldown is part of correctness: without it, a newly replaced route could immediately trigger another request because of the same GPS uncertainty.
+
+### Presentation / Defence Notes
+
+- **Why not reroute immediately?** One point may be noise; repeated reliable evidence is safer.
+- **Why does poor GPS not mean off-route?** It reduces knowledge of position rather than proving a route departure.
+- **Why is backtracking allowed?** The user remains close to route geometry even when progress decreases.
+- **Why reuse the live-origin endpoint?** It already validates and safely matches transient coordinates before A*.
+- **Why preserve walking pace?** Route geometry changed, not the walker.
+- **Why retain a failed route?** Faded reference is more useful and honest than silently removing all guidance.
+- **Was every safety branch manually tested?** No. The exact timing, cooldown, poor-GPS, failure and arrival rules are deterministic automated-test verification.
+- **Was physical rerouting verified?** No. The accepted label is `SIMULATED REROUTING VERIFIED`.
+
+### Next Sprint
+
+Phase 3 Sprint 004 is next for discussion/planning. Its scope is not yet authorized. Full outside-campus UX, Path Survey Mode, physical-device verification and field verification remain future work unless explicitly approved.

@@ -1,5 +1,5 @@
-import { assessSample } from "./location-filter.js?v=p3s2-live-route-1";
-import { createGeolocationService } from "./geolocation.js?v=p3s2-live-route-1";
+import { assessSample } from "./location-filter.js?v=p3s3-rerouting-1";
+import { createGeolocationService } from "./geolocation.js?v=p3s3-rerouting-1";
 
 const COPY = {
   idle: "Location is optional and stays on this device.",

@@ -120,6 +120,7 @@ test("public navigation opens, excludes destination, renders result, and clears"
     "#clear-user-route",
     "#close-user-route",
     "#cancel-user-route",
+    "#retry-reroute",
   ]);
   const states = [];
   const routeCalls = [];
@@ -182,7 +183,7 @@ test("Cancel restores the selected destination through the application callback"
     "#user-route-error", "#user-route-result", "#user-route-form-state", "#user-route-from",
     "#user-route-to", "#user-route-distance", "#user-route-eta", "#change-route-origin",
     "#user-route-data-notice", "#user-route-progress-status", "#user-route-eta-source",
-    "#change-route-destination", "#clear-user-route", "#close-user-route", "#cancel-user-route",
+    "#change-route-destination", "#clear-user-route", "#close-user-route", "#cancel-user-route", "#retry-reroute",
   ]);
   let cancelled = null;
   const controller = createUserNavigation({
@@ -207,7 +208,7 @@ test("accepted live position is offered and sent through the protected live rout
     "#user-route-error", "#user-route-result", "#user-route-form-state", "#user-route-from", "#user-route-to",
     "#user-route-distance", "#user-route-eta", "#user-route-data-notice", "#user-route-progress-status",
     "#user-route-eta-source", "#change-route-origin", "#change-route-destination", "#clear-user-route",
-    "#close-user-route", "#cancel-user-route"];
+    "#close-user-route", "#cancel-user-route", "#retry-reroute"];
   const harness = createHarness(selectors);
   let request = null;
   const controller = createUserNavigation({
@@ -227,4 +228,71 @@ test("accepted live position is offered and sent through the protected live rout
   assert.equal(request.options.method, "POST");
   assert.equal(request.options.headers["X-CSRFToken"], "test-token");
   assert.deepEqual(JSON.parse(request.options.body).position, { latitude: 6.518, longitude: 3.374, accuracy_metres: 10 });
+});
+
+function navigationSelectors() {
+  return ["#user-route-form", "#user-route-origin", "#user-route-destination", "#show-user-route",
+    "#user-route-error", "#user-route-result", "#user-route-form-state", "#user-route-from", "#user-route-to",
+    "#user-route-distance", "#user-route-eta", "#user-route-data-notice", "#user-route-progress-status",
+    "#user-route-eta-source", "#change-route-origin", "#change-route-destination", "#clear-user-route",
+    "#close-user-route", "#cancel-user-route", "#retry-reroute"];
+}
+
+function routePayload(coordinates = [[3.374, 6.518], [3.375, 6.518]], distance = 110) {
+  return { route: { type: "Feature", geometry: { type: "LineString", coordinates } }, summary: {
+    origin: { name: "Your location" }, destination: { name: destination.properties.name },
+    total_distance_metres: distance, eta_label: "~2 min", verification_state: "UNVERIFIED",
+  } };
+}
+
+test("confirmed deviation performs one controlled route replacement", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  const routeCalls = [];
+  let requests = 0;
+  const controller = createUserNavigation({
+    panel: harness.panel, features: [destination, origin], routeUrl: "/api/routes/",
+    liveRouteUrl: "/api/routes/from-position/", onRoute: (...args) => routeCalls.push(args), onClear() {},
+    requestRoute: async () => ({ ok: true, json: async () => routePayload(
+      requests++ === 0 ? [[3.374, 6.518], [3.375, 6.518]] : [[3.3743, 6.5182], [3.375, 6.518]],
+      requests === 1 ? 110 : 90,
+    ) }),
+  });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 5, timestamp: 1_000 });
+  controller.begin(destination);
+  harness.get("#user-route-origin").value = "__live__";
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+  for (const [longitude, timestamp] of [[3.3741, 5_000], [3.3742, 9_000], [3.3743, 13_000]]) {
+    controller.updateLivePosition({ longitude, latitude: 6.5182, accuracyMetres: 5, timestamp });
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(requests, 2);
+  assert.equal(routeCalls.length, 2);
+  assert.equal(routeCalls[1][3].replacement, true);
+  assert.match(harness.get("#user-route-progress-status").textContent, /Route updated/);
+});
+
+test("failed reroute retains guidance and exposes a retry action", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  const staleStates = [];
+  let requests = 0;
+  const controller = createUserNavigation({
+    panel: harness.panel, features: [destination, origin], routeUrl: "/api/routes/",
+    liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {},
+    onRouteStale: (value) => staleStates.push(value), requestRoute: async () => {
+      requests += 1;
+      if (requests === 1) return { ok: true, json: async () => routePayload() };
+      return { ok: false, json: async () => ({ error: "No safe network match.", code: "NO_SAFE_NETWORK_MATCH" }) };
+    },
+  });
+  const position = { longitude: 3.374, latitude: 6.518, accuracyMetres: 5, timestamp: 1_000 };
+  controller.updateLivePosition(position);
+  controller.begin(destination);
+  harness.get("#user-route-origin").value = "__live__";
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+  assert.equal(await controller.performReroute({ ...position, timestamp: 5_000 }), false);
+  assert.equal(staleStates.at(-1), true);
+  assert.equal(harness.get("#retry-reroute").hidden, false);
+  assert.match(harness.get("#user-route-progress-status").textContent, /Unable to safely reroute/);
 });

@@ -13,7 +13,7 @@ from .models import Location
 MAP_CENTRE = {"longitude": 3.37424, "latitude": 6.51857}
 MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 MAPLIBRE_VERSION = "6.10.0"
-UI_ASSET_VERSION = "p3s2-live-route-1"
+UI_ASSET_VERSION = "p3s3-rerouting-1"
 
 
 @require_GET
