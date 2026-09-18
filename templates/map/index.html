@@ -16,6 +16,7 @@
     data-debug-route-url="{{ debug_route_url }}"
     data-route-url="{{ route_url }}"
     data-live-route-url="{{ live_route_url }}"
+    data-contribution-url="{{ contribution_url }}"
     data-centre-longitude="{{ map_centre.longitude }}"
     data-centre-latitude="{{ map_centre.latitude }}"
   >
@@ -30,6 +31,10 @@
         </span>
       </a>
       <span class="dataset-badge">DEMO DATA</span>
+      <button id="open-contribution" class="report-action" type="button">
+        <span class="report-label-full">Report map issue</span>
+        <span class="report-label-short" aria-hidden="true">Report issue</span>
+      </button>
     </header>
 
     <section class="discovery" aria-label="Find a demonstration destination">
@@ -176,6 +181,65 @@
         </div>
       </div>
       <p id="user-route-data-notice" class="demo-notice">DEMO destinations with unverified route geometry — not field-verified campus navigation.</p>
+    </section>
+
+    <section id="contribution-panel" class="contribution-panel" aria-labelledby="contribution-title" hidden>
+      <div class="panel-handle" aria-hidden="true"></div>
+      <button id="close-contribution" class="panel-close" type="button" aria-label="Close contribution form">×</button>
+      <div id="contribution-form-state">
+        <span class="contribution-label">COMMUNITY INPUT</span>
+        <h2 id="contribution-title">Suggest a map correction</h2>
+        <p class="review-notice">Submissions are reviewed before appearing on YCT Map. No account or contact details are required.</p>
+        <form id="contribution-form" novalidate>
+          <label for="contribution-type">What would you like to report?</label>
+          <select id="contribution-type" required>
+            <option value="">Choose a report type</option>
+            <option value="ADD_LOCATION">Add a missing place</option>
+            <option value="CORRECT_LOCATION">Correct an existing place</option>
+            <option value="REPORT_ACCESS_OR_PATH">Report an access or path issue</option>
+            <option value="ADD_INFORMATION">Add information about a place</option>
+            <option value="OTHER">Other map correction</option>
+          </select>
+          <div id="contribution-target-group" hidden>
+            <label for="contribution-target">Existing place</label>
+            <select id="contribution-target"></select>
+          </div>
+          <div id="contribution-name-group" hidden>
+            <label for="contribution-name">Proposed place name</label>
+            <input id="contribution-name" maxlength="160" autocomplete="off">
+          </div>
+          <div id="contribution-category-group" hidden>
+            <label for="contribution-category">Category <span>(optional)</span></label>
+            <select id="contribution-category">
+              <option value="">Not sure</option>
+              {% for value, label in categories %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <label for="contribution-context">Area or nearby landmark <span>(optional)</span></label>
+          <input id="contribution-context" maxlength="240" autocomplete="off">
+          <label for="contribution-description">What should we review?</label>
+          <textarea id="contribution-description" maxlength="1000" rows="4" required aria-describedby="contribution-error"></textarea>
+          <input id="contribution-website" class="honeypot" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <div class="point-picker">
+            <button id="pick-contribution-point" class="secondary-action" type="button" aria-describedby="contribution-point-status contribution-error" disabled>Choose point on map</button>
+            <button id="clear-contribution-point" class="text-action" type="button" hidden>Remove point</button>
+            <small id="contribution-point-status">A map point is optional. The form closes while you tap the map, then returns.</small>
+          </div>
+          <p id="contribution-error" class="form-error" role="alert" hidden></p>
+          <div class="contribution-actions">
+            <button id="submit-contribution" class="primary-action" type="submit">Submit for review</button>
+            <button id="cancel-contribution" class="secondary-action" type="button">Cancel</button>
+          </div>
+        </form>
+      </div>
+      <div id="contribution-success" role="status" aria-live="polite" hidden>
+        <span class="contribution-label">SUBMITTED</span>
+        <h2>Thank you</h2>
+        <p>Your suggestion is pending review and has not changed the live map.</p>
+        <p class="contribution-reference">Reference: <strong id="contribution-reference"></strong></p>
+        <button id="new-contribution" class="primary-action" type="button">Send another report</button>
+        <button id="finish-contribution" class="secondary-action" type="button">Return to map</button>
+      </div>
     </section>
 
     <noscript>

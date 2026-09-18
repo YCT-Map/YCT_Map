@@ -1,10 +1,11 @@
-import { fetchLocations } from "./api.js?v=p3s3-rerouting-1";
-import { createDestinationPanel } from "./destination-panel.js?v=p3s3-rerouting-1";
-import { createMap } from "./map.js?v=p3s3-rerouting-1";
-import { createSearch } from "./search.js?v=p3s3-rerouting-1";
-import { createRouteInspector } from "./route-inspector.js?v=p3s3-rerouting-1";
-import { createUserLocation } from "./user-location.js?v=p3s3-rerouting-1";
-import { createUserNavigation } from "./user-navigation.js?v=p3s3-rerouting-1";
+import { fetchLocations } from "./api.js?v=p3s4-contributions-1";
+import { createContributions } from "./contributions.js?v=p3s4-contributions-1";
+import { createDestinationPanel } from "./destination-panel.js?v=p3s4-contributions-1";
+import { createMap } from "./map.js?v=p3s4-contributions-1";
+import { createSearch } from "./search.js?v=p3s4-contributions-1";
+import { createRouteInspector } from "./route-inspector.js?v=p3s4-contributions-1";
+import { createUserLocation } from "./user-location.js?v=p3s4-contributions-1";
+import { createUserNavigation } from "./user-navigation.js?v=p3s4-contributions-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -22,6 +23,7 @@ const config = {
   debugRouteUrl: shell.dataset.debugRouteUrl,
   routeUrl: shell.dataset.routeUrl,
   liveRouteUrl: shell.dataset.liveRouteUrl,
+  contributionUrl: shell.dataset.contributionUrl,
   centre: [Number(shell.dataset.centreLongitude), Number(shell.dataset.centreLatitude)],
 };
 
@@ -79,6 +81,21 @@ async function start() {
       },
     });
 
+    const contributionController = createContributions({
+      panel: document.querySelector("#contribution-panel"),
+      openButton: document.querySelector("#open-contribution"),
+      features,
+      endpoint: config.contributionUrl,
+      onOpen: () => {
+        navigationController.suspend();
+        destinationPanel.close();
+        setInterfaceState("contributing");
+      },
+      onClose: () => setInterfaceState(navigationController.resume() ? "route-available" : "browsing"),
+      onPickPoint: (callback) => mapController?.pickContributionPoint(callback),
+      onClearPoint: () => mapController?.clearContributionPoint(),
+    });
+
     createSearch({
       features,
       onSelect: selectDestination,
@@ -112,6 +129,7 @@ async function start() {
       });
       const existingPosition = userLocationController.getAcceptedPosition();
       if (existingPosition) mapController.showUserLocation(existingPosition, { focus: true });
+      contributionController.setMapAvailable(true);
       await createRouteInspector({
         element: document.querySelector("#route-inspector"),
         anchorsUrl: config.debugRouteAnchorsUrl,

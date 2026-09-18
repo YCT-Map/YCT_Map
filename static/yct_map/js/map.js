@@ -23,6 +23,8 @@ const USER_ACCURACY_SOURCE_ID = "live-user-accuracy";
 const USER_ACCURACY_LAYER_ID = "live-user-accuracy-fill";
 const USER_LOCATION_DOT_LAYER_ID = "live-user-location-dot";
 const USER_LOCATION_CHEVRON_LAYER_ID = "live-user-location-chevron";
+const CONTRIBUTION_SOURCE_ID = "pending-contribution-point";
+const CONTRIBUTION_LAYER_ID = "pending-contribution-point-circle";
 
 function accuracyPolygon(position, points = 48) {
   const latitudeRadians = position.latitude * Math.PI / 180;
@@ -213,6 +215,9 @@ export async function createMap({ container, config, features, onSelect, onReady
     }
 
     map.addSource(USER_ROUTE_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addSource(CONTRIBUTION_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({ id: CONTRIBUTION_LAYER_ID, type: "circle", source: CONTRIBUTION_SOURCE_ID,
+      paint: { "circle-radius": 11, "circle-color": "#f3b51b", "circle-stroke-color": "#7a4d00", "circle-stroke-width": 3 } });
     map.addLayer({ id: USER_ROUTE_CASING_LAYER_ID, type: "line", source: USER_ROUTE_SOURCE_ID,
       paint: { "line-color": "rgba(255,255,255,.92)", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 8, 18, 12] } });
     map.addLayer({ id: USER_ROUTE_LAYER_ID, type: "line", source: USER_ROUTE_SOURCE_ID,
@@ -431,6 +436,24 @@ export async function createMap({ container, config, features, onSelect, onReady
     map.getSource(USER_ACCURACY_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
   }
 
+  function clearContributionPoint() {
+    map.getSource(CONTRIBUTION_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
+  }
+
+  function pickContributionPoint(callback) {
+    if (!loaded) return false;
+    map.getCanvas().style.cursor = "crosshair";
+    map.once("click", (event) => {
+      map.getCanvas().style.cursor = "";
+      const coordinates = [event.lngLat.lng, event.lngLat.lat];
+      map.getSource(CONTRIBUTION_SOURCE_ID).setData({ type: "FeatureCollection", features: [{
+        type: "Feature", geometry: { type: "Point", coordinates }, properties: {},
+      }] });
+      callback(coordinates);
+    });
+    return true;
+  }
+
   return { focus, focusCampus, setVisibleFeatures, showRoute, showUserRoute, clearUserRoute, setUserRouteStale,
-    showUserLocation, recenterUserLocation, clearUserLocation, map };
+    showUserLocation, recenterUserLocation, clearUserLocation, pickContributionPoint, clearContributionPoint, map };
 }

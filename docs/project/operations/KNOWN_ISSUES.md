@@ -8,7 +8,7 @@ Updated as issues are discovered. Do not list speculative concerns as confirmed 
 
 ## Current Phase
 
-PHASES 1 AND 2 and Phase 3 Sprints 001, 002 and 003 are OWNER ACCEPTED.
+PHASES 1, 2 and 3 are OWNER ACCEPTED / COMPLETE.
 
 ## Active Limitations
 
@@ -20,6 +20,10 @@ PHASES 1 AND 2 and Phase 3 Sprints 001, 002 and 003 are OWNER ACCEPTED.
 - Off-route detection and controlled rerouting are verified with simulated coordinates; physical-device behavior remains unverified. Path Survey Mode and the complete editor mapping interface are not implemented.
 - Rerouting is campus-graph only. It does not provide city routing or complete outside-campus recovery.
 - ETA uses a filtered personal pace only after sufficient reliable movement; otherwise it intentionally falls back to approximately `1.35 m/s`.
+- Sprint 004 moderation uses Django admin and records decisions only; applying an approved contribution to campus data remains Phase 4 editor work.
+- Anonymous throttling uses process-local cache in local development. A shared production cache must be selected before multi-instance deployment.
+- Demo destinations remain in use. The real campus place, entrance, internal-place and floor models and editor CRUD are not implemented.
+- Approved contributions require later authenticated editor action; approval intentionally does not publish or alter map data.
 
 ---
 

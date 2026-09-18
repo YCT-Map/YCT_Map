@@ -1,4 +1,4 @@
-import { distanceMetres, projectOntoRoute } from "./live-route-progress.js?v=p3s3-rerouting-1";
+import { distanceMetres, projectOntoRoute } from "./live-route-progress.js?v=p3s4-contributions-1";
 
 export function routeThresholds(accuracyMetres) {
   return {

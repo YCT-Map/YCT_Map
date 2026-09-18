@@ -296,3 +296,20 @@ test("failed reroute retains guidance and exposes a retry action", async () => {
   assert.equal(harness.get("#retry-reroute").hidden, false);
   assert.match(harness.get("#user-route-progress-status").textContent, /Unable to safely reroute/);
 });
+
+test("foreground suspension hides and restores a route without resetting it", () => {
+  const harness = createHarness(navigationSelectors());
+  let clears = 0;
+  const controller = createUserNavigation({
+    panel: harness.panel, features: [destination, origin], routeUrl: "/api/routes/",
+    onRoute() {}, onClear: () => { clears += 1; },
+  });
+  controller.begin(destination);
+  assert.equal(controller.suspend(), true);
+  assert.equal(harness.panel.hidden, true);
+  assert.equal(clears, 0);
+  assert.equal(controller.resume(), true);
+  assert.equal(harness.panel.hidden, false);
+  assert.equal(harness.get("#user-route-destination").textContent, destination.properties.name);
+  assert.equal(clears, 0);
+});

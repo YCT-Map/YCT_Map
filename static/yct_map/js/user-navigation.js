@@ -1,5 +1,5 @@
-import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=p3s3-rerouting-1";
-import { createOffRouteDetector } from "./off-route.js?v=p3s3-rerouting-1";
+import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=p3s4-contributions-1";
+import { createOffRouteDetector } from "./off-route.js?v=p3s4-contributions-1";
 
 export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, onRoute, onClear, onBrowse,
   onCancel, onStateChange, onRouteStale, requestRoute = fetch }) {
@@ -16,6 +16,7 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   let activeTracker = null;
   let offRouteDetector = null;
   let rerouteRequestActive = false;
+  let visibleBeforeSuspend = false;
 
   const csrfToken = () => document.cookie.split("; ").find((row) => row.startsWith("csrftoken="))?.split("=")[1] || "";
   const liveOption = () => [...originSelect.options].find((option) => option.value === "__live__");
@@ -197,5 +198,7 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     offRouteDetector.retry();
     void performReroute(livePosition, { manualRetry: true });
   });
-  return { begin, reset, updateLivePosition, clearLivePosition, performReroute };
+  function suspend() { visibleBeforeSuspend = !panel.hidden; panel.hidden = true; return visibleBeforeSuspend; }
+  function resume() { if (visibleBeforeSuspend) panel.hidden = false; const restored = visibleBeforeSuspend; visibleBeforeSuspend = false; return restored; }
+  return { begin, reset, updateLivePosition, clearLivePosition, performReroute, suspend, resume };
 }

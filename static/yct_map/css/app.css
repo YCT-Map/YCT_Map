@@ -773,3 +773,173 @@ input {
     background: #fffffc;
   }
 }
+
+.report-action {
+  min-height: 2.75rem;
+  padding: .55rem .8rem;
+  color: var(--green-800);
+  font-weight: 800;
+  background: rgba(255,255,252,.94);
+  border: 1px solid rgba(23,102,60,.18);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(13,44,32,.1);
+  cursor: pointer;
+}
+
+.report-label-short { display: none; }
+
+.contribution-panel {
+  position: fixed;
+  z-index: 24;
+  right: var(--safe-right);
+  bottom: var(--safe-bottom);
+  left: var(--safe-left);
+  max-height: min(78dvh, 46rem);
+  padding: 1.2rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  color: var(--green-950);
+  background: rgba(255,255,252,.98);
+  border-radius: 1.2rem 1.2rem 0 0;
+  box-shadow: 0 -10px 35px rgba(13,44,32,.18);
+}
+
+.contribution-panel h2 { margin: .55rem 3rem .35rem 0; font-size: 1.35rem; }
+.contribution-label { color: var(--green-700); font-size: .65rem; font-weight: 850; letter-spacing: .08em; }
+.review-notice { margin: 0 0 1rem; color: var(--muted); font-size: .8rem; line-height: 1.45; }
+.contribution-panel form { display: grid; gap: .48rem; }
+.contribution-panel label { margin-top: .3rem; font-size: .75rem; font-weight: 800; }
+.contribution-panel label span { color: var(--muted); font-weight: 500; }
+.contribution-panel input:not(.honeypot),
+.contribution-panel select,
+.contribution-panel textarea {
+  width: 100%; min-height: 2.75rem; padding: .7rem .75rem; color: var(--green-950);
+  background: white; border: 1px solid #cbd5cf; border-radius: .65rem; font: inherit;
+}
+.contribution-panel textarea { min-height: 6rem; resize: vertical; }
+.contribution-actions, .point-picker { display: flex; gap: .55rem; flex-wrap: wrap; align-items: center; margin-top: .35rem; }
+.contribution-actions button { flex: 1 1 9rem; min-height: 2.75rem; }
+.secondary-action, .text-action { min-height: 2.75rem; padding: .6rem .8rem; font-weight: 750; background: white; border: 1px solid #cbd5cf; border-radius: .7rem; cursor: pointer; }
+.text-action { color: #8c3b26; border-color: transparent; }
+.point-picker small { flex-basis: 100%; color: var(--muted); }
+.form-error { margin: .25rem 0; padding: .65rem; color: #7c2d12; background: #fff0e8; border-radius: .6rem; }
+.contribution-reference { color: var(--muted); }
+.honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; }
+.map-shell[data-interface-state="contributing"] .user-location-controls { visibility: hidden; }
+
+@media (min-width: 42rem) {
+  .contribution-panel { top: auto; right: var(--safe-right); bottom: var(--safe-bottom); left: auto; width: min(27rem, calc(100vw - 2rem)); border-radius: var(--radius-lg); }
+}
+
+@media (max-width: 41.99rem) {
+  .app-header { max-width: calc(100vw - 1rem); }
+  .report-action { padding-inline: .65rem; font-size: .72rem; }
+  .contribution-panel { max-height: 72dvh; padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+}
+
+@media (max-height: 37rem) {
+  .contribution-panel, .user-route-panel { max-height: 82dvh; overflow-y: auto; overscroll-behavior: contain; }
+}
+
+/* Phase 3 Sprint 004 narrow-screen polish. */
+@media (max-width: 41.99rem) {
+  .app-header {
+    right: var(--safe-right);
+    width: auto;
+    max-width: none;
+    gap: .4rem;
+  }
+
+  .brand { flex: 0 0 auto; }
+  .brand-mark { width: 2.55rem; height: 2.55rem; }
+  .dataset-badge { flex: 0 0 auto; padding-inline: .48rem; white-space: nowrap; }
+  .report-action { min-width: 0; margin-left: auto; padding-inline: .68rem; white-space: nowrap; }
+
+  .discovery { max-width: none; }
+  .search-form { min-height: 3.25rem; }
+
+  .category-list {
+    width: calc(100% + var(--safe-right));
+    margin-right: calc(0px - var(--safe-right));
+    padding-right: var(--safe-right);
+    padding-bottom: .55rem;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: .05rem var(--safe-right);
+    scroll-snap-type: x proximity;
+    touch-action: pan-x;
+  }
+
+  .category-chip { min-height: 2.75rem; scroll-snap-align: start; }
+
+  .destination-panel,
+  .user-route-panel,
+  .contribution-panel {
+    max-height: 70dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  .user-route-panel { padding-bottom: calc(var(--safe-bottom) + .35rem); }
+  .route-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
+  .route-actions button { width: 100%; min-height: 2.75rem; padding: .65rem .55rem; font-size: .72rem; }
+  #clear-user-route, #retry-reroute { grid-column: 1 / -1; }
+
+  .contribution-panel { right: 0; bottom: 0; left: 0; width: 100%; border-radius: 1.2rem 1.2rem 0 0; }
+  .contribution-panel input:not(.honeypot),
+  .contribution-panel select,
+  .contribution-panel textarea { max-width: 100%; }
+  .contribution-panel p,
+  .contribution-panel small { overflow-wrap: anywhere; }
+  .point-picker > button { flex: 1 1 9rem; }
+
+  .map-shell[data-interface-state="choosing-origin"] .user-location-controls,
+  .map-shell[data-interface-state="route-available"] .user-location-controls,
+  .map-shell[data-interface-state="contributing"] .user-location-controls,
+  .map-shell[data-interface-state="choosing-origin"] .debug-tools,
+  .map-shell[data-interface-state="route-available"] .debug-tools,
+  .map-shell[data-interface-state="contributing"] .debug-tools,
+  .map-shell[data-interface-state="choosing-origin"] .map-status,
+  .map-shell[data-interface-state="route-available"] .map-status,
+  .map-shell[data-interface-state="contributing"] .map-status {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .map-shell[data-interface-state="choosing-origin"] .maplibregl-ctrl-bottom-right,
+  .map-shell[data-interface-state="route-available"] .maplibregl-ctrl-bottom-right,
+  .map-shell[data-interface-state="contributing"] .maplibregl-ctrl-bottom-right {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+@media (max-width: 22.5rem) {
+  .report-label-full { display: none; }
+  .report-label-short { display: inline; }
+  .report-action { padding-inline: .55rem; font-size: .7rem; }
+  .dataset-badge { font-size: .58rem; letter-spacing: .05em; }
+}
+
+@media (max-width: 20rem) {
+  .brand-mark { width: 2.4rem; height: 2.4rem; }
+  .dataset-badge { padding-inline: .38rem; }
+  .route-actions { grid-template-columns: 1fr; }
+  #clear-user-route, #retry-reroute { grid-column: auto; }
+  .contribution-actions, .point-picker { display: grid; grid-template-columns: 1fr; }
+}
+
+@media (max-height: 25rem) {
+  .destination-panel,
+  .user-route-panel,
+  .contribution-panel {
+    max-height: 68dvh;
+    overflow-y: auto;
+  }
+
+  .panel-handle { margin-bottom: .55rem; }
+  .user-route-panel h2, .contribution-panel h2 { margin-block: .35rem; }
+  .review-notice, .demo-notice { margin-top: .45rem; }
+}

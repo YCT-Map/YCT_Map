@@ -86,3 +86,9 @@ Calculates a route from an ephemeral live-position match to an active anchored d
 ## Planned API
 
 To be documented as each sprint produces implemented, tested routes.
+
+## Anonymous contributions (Phase 3 Sprint 004)
+
+`POST /api/contributions/` accepts JSON with `request_id`, `type`, optional `target_location`, `proposed_name`, `proposed_category`, `context`, `description` and optional `proposed_point` (`latitude`, `longitude`). The request requires the standard Django CSRF token. Successful creation returns HTTP 201 with only `id`, `status` and a review message; an idempotent replay returns HTTP 200 with `duplicate_request: true`.
+
+Errors use narrow codes: `INVALID_TYPE`, `INVALID_TARGET`, `INVALID_COORDINATE`, `VALIDATION_ERROR`, and `RATE_LIMITED` (HTTP 429 with `Retry-After`). Submitted data is always pending and this endpoint never edits public campus records.

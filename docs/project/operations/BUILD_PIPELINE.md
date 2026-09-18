@@ -11,12 +11,12 @@ There is no other authoritative pipeline document. Do not create competing pipel
 ```
 Phase 1 — Foundation & Map Experience          ACCEPTED
 Phase 2 — Routing & Navigation                 ACCEPTED
-Phase 3 — Live Navigation & Core Product       IN PROGRESS
+Phase 3 — Live Navigation & Core Product       ACCEPTED
 Phase 4 — Editor & Mapping Tools               NOT STARTED
 Phase 5 — Real YabaTech Data, Verification & Launch   NOT STARTED
 
-Current:            PHASE 3 — SPRINT 003 OWNER ACCEPTED
-Next expected:      Phase 3 Sprint 004 discussion/planning
+Current:            PHASE 3 — OWNER ACCEPTED / COMPLETE
+Next expected:      Phase 4 specification integration and planning
 ```
 
 Status values in use: `NOT STARTED` `IN PROGRESS` `BLOCKED` `COMPLETE` `ACCEPTED`
@@ -298,7 +298,7 @@ Do not begin during Phase 2:
 
 ## Phase 3 — Live Navigation & Core Product Systems
 
-**Status: IN PROGRESS — Sprints 001, 002 and 003 OWNER ACCEPTED; Sprint 004 not started**
+**Status: ACCEPTED — all four sprints OWNER ACCEPTED on 2026-09-18**
 **Depends on:** Phase 2 ACCEPTED
 
 ### Primary Goal
@@ -367,17 +367,19 @@ Do not during Phase 3:
 
 ### Phase 3 Exit Criteria
 
-- [ ] Live location works on supported browser/device conditions
-- [ ] Position updates correctly while moving
-- [ ] GPS noise is handled without spurious rerouting
-- [ ] Rerouting behaviour triggers correctly on real departure
-- [ ] Contribution submission works without an account
-- [ ] Moderation basics work (editor can see and act on submissions)
-- [ ] Mobile experience remains performant
-- [ ] Tests and checks pass
-- [ ] Owner verifies the core navigation and contribution flows
-- [ ] Two screenshots + one short recording captured
-- [ ] Sprint / phase evidence captured in `SPRINT_LOG.md`
+- [x] Live location works under the accepted simulated-browser verification boundary
+- [x] Position updates correctly during deterministic simulated movement
+- [x] GPS noise is handled without spurious rerouting
+- [x] Controlled rerouting triggers on confirmed simulated departure
+- [x] Contribution submission works without an account
+- [x] Moderation basics work (staff can inspect and act on submissions)
+- [x] Mobile experience remains performant and operable
+- [x] Tests and checks pass
+- [x] Owner verifies the core navigation and contribution flows
+- [x] Primary Sprint 004 evidence identified and retained
+- [x] Sprint / phase evidence captured in `SPRINT_LOG.md`
+
+Physical-phone GPS/navigation/rerouting and field verification remain explicitly outside the accepted verification boundary.
 
 ---
 

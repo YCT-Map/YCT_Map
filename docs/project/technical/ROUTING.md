@@ -133,6 +133,8 @@ Arrival takes precedence, backtracking inside the corridor remains on-route, and
 
 Sprint 003 is OWNER ACCEPTED as `SIMULATED REROUTING VERIFIED`. Owner review covered the checking state, controlled route replacement, destination preservation, continued navigation progress and non-hijacking camera behavior. The detailed timing, cooldown, poor-GPS, failure and arrival branches retain deterministic automated-test verification rather than being described as manually owner-verified.
 
+Phase 3 is OWNER ACCEPTED / COMPLETE. Sprint 004 preserved manual routing and active route state while contribution/mobile bottom sheets temporarily own the foreground. Contribution approval never edits routing geometry or destination anchors. Physical-device navigation/rerouting, the OSM-derived network and all campus paths remain unverified in the field.
+
 ---
 
 ## Not In V1

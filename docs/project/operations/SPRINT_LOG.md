@@ -506,3 +506,29 @@ This addendum records the owner decision without rewriting the implementation-ti
 - Physical-device rerouting is not verified. OSM-derived graph geometry remains `UNVERIFIED`; no field verification has occurred.
 - Primary evidence is `P3-S3-A-off-route-detected.png` and `P3-S3-B-rerouted-navigation.png`, both using simulated coordinates.
 - Phase 3 Sprint 004 is next for discussion/planning only. No Sprint 004 implementation is included.
+
+## Phase 3 Sprint 004 — Implementation Complete / Owner Review Required (2026-09-18)
+
+Objective: complete the Phase 3 contribution foundation and mobile/accessibility polish without expanding into Phase 4 editor tooling.
+
+Implemented:
+- Added a minimal persisted `Contribution` model with controlled type/status choices, optional existing-location target, proposed place/category/point, moderation outcome fields and UUID replay protection.
+- Added `POST /api/contributions/` with CSRF, server validation, bounded input, active-target validation, coordinate validation, session plus hashed-IP throttling and honeypot handling.
+- Added a mobile-first anonymous contribution panel with existing-place and missing-place modes, deliberate map-point selection, loading/success/error states, retained retry data and no collection of contact details or location history.
+- Added staff-only Django-admin review. Moderation decisions record reviewer/time but do not modify `Location`, publish a contribution or grant `FIELD_VERIFIED` status.
+- Preserved active route state while the contribution panel temporarily owns the foreground and added narrow/landscape overflow and touch-target refinements.
+
+Verification: 70 Django tests and 27 JavaScript tests pass; JavaScript syntax, Django checks and migration drift are clean. Owner visual verification and evidence remain required. `BUILD_JOURNAL.md` is intentionally unchanged until acceptance.
+
+Next: owner verifies the Sprint 004 flows and captures `P3-S4-A-anonymous-contribution.png` and `P3-S4-B-mobile-navigation-polish.png`. Do not begin Phase 4 before explicit Phase 3 acceptance.
+
+### Acceptance Addendum — 2026-09-18
+
+- Phase 3 Sprint 004 and Phase 3 were formally OWNER ACCEPTED / COMPLETE.
+- The owner verified anonymous corrections and missing-place reports, deliberate map-point submission, pending moderation, approval, rejection with a moderator note, reviewer audit fields, unchanged public map data after moderation, manual-routing regression and the approximately 360×800 mobile route layout.
+- Owner testing exposed high-precision MapLibre coordinates failing six-decimal model validation and repeated failures consuming the normal quota. Client/server normalization, coordinate-specific feedback and separate accepted/abuse counters corrected the defect before acceptance.
+- Final verification is 74 Django tests and 34 JavaScript tests, with syntax, Django checks, migration drift and whitespace checks clean.
+- Primary evidence: `P3-S4-A-anonymous-contribution.png` and `P3-S4-B-mobile-navigation-polish.png`. Supporting admin evidence records pending, approved and rejected states.
+- Approval records an accepted report for later authenticated editor action; it does not mutate live map data or grant `FIELD_VERIFIED` status.
+- Physical-phone GPS/navigation/rerouting, OSM-derived graph geometry and all campus data remain unverified in the field.
+- Phase 4 implementation has not started.

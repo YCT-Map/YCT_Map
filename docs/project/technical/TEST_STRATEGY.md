@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PHASE 3 — SPRINT 001 OWNER ACCEPTED
-Implementation:    PHASE 2 REGRESSIONS + LIVE-LOCATION BEHAVIOUR SUITE ACTIVE
+Current phase:     PHASE 3 — OWNER ACCEPTED / COMPLETE
+Implementation:    COMPLETE PHASE 1–3 REGRESSION SUITE ACTIVE
 ```
 
 This document defines the intended testing approach for YCT Map.
@@ -104,5 +104,9 @@ Phase 3 Sprint 002 acceptance: 60 Django tests and 12 Node-executed JavaScript t
 Phase 3 Sprint 003 implementation: 60 Django tests and 23 Node-executed JavaScript tests pass before owner review. New deterministic coverage checks bounded accuracy-aware corridors, a single anomaly with recovery, poor-accuracy uncertainty, repeated reliable deviation, backtracking, arrival precedence, cooldown/movement gating, an active-graph-derived off-route trace, no-false-reroute GPS degradation, one route replacement, pace preservation and retained-route failure with retry. The existing Django live-origin endpoint remains the authoritative reroute service and its matching/privacy tests remain green.
 
 Owner acceptance visually confirms the off-route checking state, one controlled reroute, route/destination replacement semantics, post-reroute progress and camera preservation. Automated verification remains the authority for exact confirmation timing, anomaly recovery, poor-GPS behavior, request locking, stabilization, cooldown, movement gating, failure handling, pace preservation and arrival precedence. The verification label is `SIMULATED REROUTING VERIFIED`, not physical-device verification.
+
+Phase 3 Sprint 004 implementation: 70 Django tests and 27 Node-executed JavaScript tests pass before owner review. Contribution coverage includes anonymous pending submission, validation, bounded text, safe treatment of script-like text, no public-location mutation, CSRF, rate limiting, UUID replay protection, staff-only moderation and review audit fields. Frontend coverage includes opening and adapting the form, narrow protected submission, success feedback, retry with retained data/idempotency key and explicit point selection/removal. The complete earlier search, routing, live-navigation and rerouting suites remain green.
+
+Phase 3 final acceptance: 74 Django tests and 34 Node-executed JavaScript tests pass. The final additions cover real MapLibre coordinate precision, client/server six-decimal normalization, coordinate-specific errors, accepted-submission quota separation, bounded invalid traffic, idempotent quota behavior, responsive mobile contracts and route-state preservation across foreground panels. Owner verification covers contribution submission, map points, pending moderation, approval/rejection and audit behavior, unchanged public data after moderation, manual-route regression and the approximately 360×800 mobile route layout. Physical-phone navigation/rerouting remains unverified.
 
 Coverage includes model validation, aliases, DEMO fixture integrity, map-page configuration, explicit GeoJSON serialization, partial/case-insensitive name search, alias search, category filtering, empty results, invalid input and read-only endpoint behavior.

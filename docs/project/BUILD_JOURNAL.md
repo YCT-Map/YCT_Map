@@ -1762,3 +1762,183 @@ They should be able to explain route corridors, threshold scaling, repeated evid
 ### Next Sprint
 
 Phase 3 Sprint 004 is next for discussion/planning. Its scope is not yet authorized. Full outside-campus UX, Path Survey Mode, physical-device verification and field verification remain future work unless explicitly approved.
+
+## Phase 3 — Sprint 004: Anonymous Contributions, Moderation & Mobile Polish
+
+**Recorded status:** OWNER ACCEPTED on 2026-09-18. Phase 3 OWNER ACCEPTED / COMPLETE.
+
+### Purpose
+
+This sprint completed Phase 3 by letting ordinary users report missing or incorrect campus information without accounts, while preventing unreviewed reports from changing the public map. It also refined the mobile interface so navigation and contribution panels remain usable on realistic phone screens.
+
+### User Outcome
+
+A user can report an existing-place correction or suggest a missing place, optionally mark a proposed point, and receive a pending-review reference. Trusted staff can approve, reject or merge the report in Django admin. Moderation records a decision but does not silently publish data. Search and navigation remain available afterward.
+
+### Starting State
+
+Sprint 003 had accepted simulated live navigation and controlled rerouting but no public contribution store or moderation queue. The interface was map-first and responsive, although very narrow route actions, competing floating controls and long contribution content still needed deliberate mobile ownership rules.
+
+### What We Built
+
+- A minimal persisted `Contribution` model with UUID identity, controlled type/status choices, optional target location, proposed place/category/point, description/context and moderation audit fields.
+- A CSRF-protected anonymous JSON endpoint that always creates `PENDING` reports.
+- Existing-place and missing-place form modes with optional deliberate map-point placement.
+- Django-admin moderation for `APPROVED`, `REJECTED` and `MERGED` outcomes.
+- UUID idempotency, bounded validation, honeypot handling, accepted-submission throttling and a separate abuse ceiling.
+- Six-decimal coordinate normalization in both browser and server.
+- Mobile bottom sheets, horizontally reachable categories, touch-friendly route actions, capped landscape height and foreground-panel ownership.
+
+### Technical Concepts Introduced
+
+**Pending-only safety** separates collecting information from publishing trusted campus data. A public user can propose a change but cannot mutate `Location`, routing or verification state.
+
+**Moderation is not editing.** `APPROVED` means the report is useful input for later authenticated editor work. It does not mean the content is field verified and does not perform an arbitrary data transformation.
+
+**Idempotency** uses a browser-generated request UUID. If a successful response is lost and the browser retries, Django returns the original record rather than creating a duplicate or consuming another success slot.
+
+**Two-tier throttling** distinguishes legitimate accepted submissions from abusive traffic. Three successfully stored reports per session per ten minutes is the normal quota. A broader salted, hashed-IP ceiling also counts invalid or automated traffic so malformed requests are not unlimited.
+
+### How It Works Internally
+
+```text
+anonymous form
+   -> CSRF-protected JSON POST
+   -> payload/type/target/coordinate validation
+   -> accepted-submission quota check
+   -> Contribution(status=PENDING)
+   -> reference returned to browser
+   -> authenticated Django-admin review
+   -> APPROVED / REJECTED / MERGED + reviewer/time/note
+   -> no automatic Location or route mutation
+```
+
+The browser keeps the current form and request UUID after recoverable failure. Proposed coordinates are rounded to six decimals before transmission and quantized again by Django before model validation.
+
+### Architecture / Components Involved
+
+The independent `contributions` Django application owns persistence, endpoint and admin registration. `contributions.js` owns form state and API interaction. `app.js` coordinates foreground ownership with navigation, while `map.js` provides a temporary proposed-point layer. Existing location and routing services are referenced but never mutated by submission or moderation.
+
+### Important Files
+
+- `contributions/models.py` — pending report and moderation audit model.
+- `contributions/views.py` — validation, normalization, throttling and idempotent submission.
+- `contributions/admin.py` — authenticated moderation.
+- `static/yct_map/js/contributions.js` — form modes, retry and point payload.
+- `static/yct_map/css/app.css` — mobile sheets, controls and narrow layouts.
+- `tests/js/phase3-contributions.test.mjs` and `phase3-mobile-layout.test.mjs` — browser-state and responsive contracts.
+- `contributions/tests/test_contributions.py` — endpoint, security, throttling and moderation tests.
+
+### Data Flow
+
+Only intentionally entered report fields and an intentionally chosen proposed point reach Django. No live-location history, breadcrumb, student identifier, email or telephone number is attached. Staff decisions add reviewer and timestamp fields. Public location responses continue reading `Location`, not approved contributions.
+
+### Decisions and Trade-offs
+
+We used Django admin rather than a custom editor because full editor tooling belongs to Phase 4. This is less polished than a purpose-built review queue but gives authenticated, permission-backed moderation without expanding scope.
+
+Coordinates remain ordinary decimal fields rather than PostGIS geometry because one optional proposed point does not justify spatial infrastructure. Six decimal places provide sub-metre numeric resolution while keeping the schema portable.
+
+The local throttle uses process memory, which is sufficient for owner testing but requires a shared production cache before multi-instance deployment.
+
+### Problems Encountered
+
+Owner testing found an integration defect that the initial automated examples missed:
+
+```text
+high-precision MapLibre coordinates
+    -> Django six-decimal validation returned HTTP 422
+    -> repeated retries consumed the normal session quota
+    -> HTTP 429 hid the original problem
+```
+
+The visible form looked complete because the invalid precision existed only in the generated map-point payload. Generic error copy did not identify the selected point.
+
+### How We Solved Them
+
+The client rounds coordinates before building the payload, and the server independently validates finite numeric values then quantizes to six decimals. Coordinate failures now receive intentional map-point feedback. Validation failures no longer consume the three-success quota; a separate 30-request hashed-IP abuse ceiling still bounds malicious invalid traffic. Regression tests use realistic MapLibre precision.
+
+### Testing and Verification
+
+At acceptance, 74 Django tests and 34 JavaScript tests passed. JavaScript syntax, Django system checks, migration drift and whitespace checks were clean. The owner verified both submission types, a proposed point, pending records, approval, rejection with a note, reviewer audit fields, unchanged public data, manual routing and mobile routing around 360×800.
+
+Automated tests verify validation, normalization, throttling, abuse protection, idempotency, failure/retry preservation, accessible status behavior, responsive contracts and all previous regressions.
+
+### Current Limitations
+
+- Approval requires later authenticated editor action and does not publish data.
+- Full editor CRUD, real campus place modeling, entrance management, floors/internal places, path editing and Path Survey Mode are absent.
+- Throttling uses process-local cache in development.
+- Demo destinations and the `UNVERIFIED` OSM-derived graph remain.
+- Physical-phone GPS/navigation/rerouting and all field verification remain unverified.
+
+### Evidence
+
+- **`P3-S4-A-anonymous-contribution.png`** demonstrates map context, successful submission, pending-review wording and the report reference.
+- **`P3-S4-B-mobile-navigation-polish.png`** demonstrates the active route at approximately 360×800, visible map, full-width route sheet, summary and touch-friendly actions.
+- Supporting admin images demonstrate pending, approved and rejected states without claiming public-data mutation.
+
+### What Students Should Understand
+
+Students should be able to explain why accepting anonymous input is different from trusting or publishing it; how controlled choices, server validation, CSRF and staff authorization protect the boundary; and why moderation status is not field verification. They should understand idempotency and the difference between a successful-submission quota and a malicious-request ceiling.
+
+They should also be able to explain why browser-generated floating-point coordinates must be normalized at integration boundaries, why both client and server participate, and why owner testing is essential even with a green automated suite. Responsive foreground ownership is application state, not only CSS: hiding a route sheet must not destroy its route.
+
+### Presentation / Defence Notes
+
+- **Why no account for contributors?** Navigation and community reporting are intentionally lightweight; trust is established through moderation, not forced identity.
+- **Why does approval not move the map?** A report is evidence for an editor, not a safe universal update instruction.
+- **Why normalize twice?** Client rounding produces a clean contract; server quantization enforces authority against arbitrary clients.
+- **Why did tests miss the first defect?** Initial fixtures used short decimal examples rather than real MapLibre precision.
+- **How is spam limited?** Successful reports have a small session quota; all traffic also faces a broader non-PII hashed-IP ceiling.
+- **Was physical navigation verified?** No. Phase 3 acceptance preserves a simulated-versus-physical boundary.
+
+### Next Sprint
+
+Phase 3 is complete. The next permitted activity is Phase 4 specification integration and planning. No Phase 4 implementation is authorized without an approved sprint plan and standalone `BUILD` command.
+
+## Phase 3 Summary — Live Navigation & Core Product Systems
+
+### Achievements
+
+Four sprints transformed static routing into a privacy-conscious simulated live-navigation product and added a safe community-reporting channel. Sprint 001 established browser geolocation and filtering; Sprint 002 connected transient positions to the graph and tracked route progress/ETA; Sprint 003 confirmed genuine deviation before controlled rerouting; Sprint 004 added pending moderation and mobile polish.
+
+### Resulting Architecture
+
+```text
+Geolocation API -> raw sample filter -> accepted transient position
+       -> route/network projection -> virtual origin -> existing A*
+       -> progress + pace + ETA + stationary/arrival state
+       -> route-corridor evidence -> controlled reroute
+
+Anonymous report -> validated PENDING contribution -> staff decision
+                  -> later editor action (not automatic publication)
+```
+
+Raw and accepted GPS positions are separate. Accuracy metadata controls whether samples may update the marker, pace, progress or off-route evidence. Server matching inserts only request-local virtual graph origins. Frequent progress and evidence calculations remain in browser memory; reroute requests reuse the protected live-origin endpoint.
+
+### Major Concepts Learned
+
+- Browser permission and `getCurrentPosition`/`watchPosition` lifecycle.
+- GPS uncertainty, sample filtering and implausible-jump protection.
+- Polyline network matching, virtual origins and A* reuse.
+- Route projection, personal walking speed, 1.35 m/s fallback ETA, stationary state and confirmed arrival.
+- Accuracy-aware route corridors, repeated off-route evidence, stabilization, cooldown and request locking.
+- Pending moderation, auditability, idempotency, CSRF and layered throttling.
+- Transient-location privacy and responsive foreground ownership.
+
+### Important Problems and Solutions
+
+Unsafe graph matches were rejected rather than weakening thresholds. Deterministic traces were derived from the active graph rather than guessed. Off-route evidence was accumulated instead of reacting to one sample. Failed reroutes retained faded guidance. MapLibre precision was normalized at both sides of the API, and validation failures were separated from accepted-submission throttling.
+
+### Evidence
+
+Phase 3 evidence comprises the accepted Sprint 001 live-location images, Sprint 002 live-route/progress images, Sprint 003 off-route/reroute images and Sprint 004 contribution/mobile-polish images. All GPS/navigation evidence uses simulated coordinates unless explicitly stated otherwise.
+
+### Current System Capabilities
+
+YCT Map now supports searchable DEMO destinations, OSM-derived `UNVERIFIED` campus routing, manual and safely matched live origins, route progress, dynamic/fallback ETA, stationary and arrival logic, controlled rerouting, anonymous pending contributions, staff moderation and responsive mobile panels.
+
+### Transition to the Next Phase
+
+Phase 4 will establish authenticated editor and campus-data tooling. It must preserve the distinction between moderation, editor review and `FIELD_VERIFIED` data. Physical-device verification, real campus population, entrance/internal-place tools, path editing and Path Survey Mode remain future work.

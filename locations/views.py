@@ -13,7 +13,7 @@ from .models import Location
 MAP_CENTRE = {"longitude": 3.37424, "latitude": 6.51857}
 MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 MAPLIBRE_VERSION = "6.10.0"
-UI_ASSET_VERSION = "p3s3-rerouting-1"
+UI_ASSET_VERSION = "p3s4-contributions-1"
 
 
 @require_GET
@@ -33,6 +33,7 @@ def map_view(request):
             "debug_route_url": "/api/debug/route/" if settings.DEBUG else "",
             "route_url": "/api/routes/",
             "live_route_url": "/api/routes/from-position/",
+            "contribution_url": "/api/contributions/",
         },
     )
 

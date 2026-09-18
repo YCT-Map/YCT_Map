@@ -109,3 +109,9 @@ Never move backend secrets into frontend code.
     v
 [Database]     <-- internal only; never exposed to public internet
 ```
+
+## Anonymous contribution controls
+
+The public contribution endpoint requires CSRF, accepts POST only, rejects unknown payload keys, validates controlled choices/references/coordinate ranges and bounds all stored text. A session limit and salted hash of the request IP provide local-development throttling without persisting raw IP addresses. A honeypot absorbs simple automated form posts, while UUID request IDs make retries idempotent. User text is stored as data and rendered with text-only DOM operations or Django's normal escaping.
+
+Moderation remains inside authenticated Django admin. Anonymous submission and moderation are separate capabilities, and no moderation status automatically changes public map data or verification state.

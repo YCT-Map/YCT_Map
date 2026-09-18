@@ -12,8 +12,8 @@
 | **Date** | 2026-09-18 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 3 — LIVE NAVIGATION & CORE PRODUCT SYSTEMS |
-| **Pipeline Phase** | Phase 3 Sprint 003 OWNER ACCEPTED |
-| **Latest Meaningful Commit** | Phase 3 Sprint 003 milestone (`feat: add controlled off-route rerouting`) |
+| **Pipeline Phase** | PHASE 3 OWNER ACCEPTED / COMPLETE |
+| **Latest Meaningful Commit** | Phase 3 Sprint 004 milestone (`feat: complete Phase 3 live navigation and contributions`) |
 
 ---
 
@@ -21,7 +21,7 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | PHASE 3 SPRINT 003 OWNER ACCEPTED |
+| Application implementation | PHASE 3 OWNER ACCEPTED / COMPLETE |
 | Product definition | SUBSTANTIALLY COMPLETE |
 | Documentation / governance | SUBSTANTIALLY COMPLETE |
 | Build pipeline | SUBSTANTIALLY COMPLETE |
@@ -30,7 +30,7 @@
 | Demo/development dataset | 6 DEMO locations; 47 OSM-derived UNVERIFIED nodes, 54 segments and 6 UNVERIFIED anchors |
 | Field verification | NOT STARTED |
 | Deployment | NOT STARTED |
-| Test suite | 60 DJANGO + 23 JAVASCRIPT TESTS PASSING |
+| Test suite | 74 DJANGO + 34 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -41,7 +41,7 @@ See `docs/project/operations/BUILD_PIPELINE.md` for the full 5-phase plan.
 ```
 Phase 1 — Foundation & Map Experience          ACCEPTED
 Phase 2 — Routing & Navigation                 ACCEPTED
-Phase 3 — Live Navigation & Core Product       IN PROGRESS
+Phase 3 — Live Navigation & Core Product       ACCEPTED
 Phase 4 — Editor & Mapping Tools               NOT STARTED
 Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 ```
@@ -133,9 +133,19 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ---
 
+**Phase 3 / Sprint 004 — OWNER VERIFIED / ACCEPTED**
+- Anonymous pending-only contribution submission for corrections, missing places, information and access/path reports
+- Optional deliberate map-point selection with authoritative six-decimal client/server normalization
+- CSRF, bounded validation, UUID idempotency, three-success session quota and separate hashed-IP abuse ceiling
+- Staff-only Django-admin moderation with approval/rejection/merge audit fields and no automatic public-data mutation
+- Full-width mobile sheets, reachable horizontal categories, touch-friendly route actions and foreground-state preservation
+- 74 Django tests and 34 JavaScript tests passing at Phase 3 acceptance
+
+---
+
 ## Active Work
 
-No implementation is active. Phase 3 Sprint 003 is OWNER ACCEPTED. Sprint 004 has not started.
+Phase 3 Sprint 004 and Phase 3 are OWNER ACCEPTED / COMPLETE. Anonymous reports enter a pending-only moderation queue; approval records a decision but does not mutate public map data. The accepted phase includes simulated live navigation and rerouting, not physical-phone verification.
 
 ---
 
@@ -147,7 +157,7 @@ Physical-phone GPS/navigation/rerouting remains unverified because no owner-appr
 
 ## Next Approved Task
 
-Phase 3 Sprint 004 discussion/planning. Do not begin implementation without explicit approval and a standalone `BUILD` command.
+Phase 4 specification integration and planning may proceed when explicitly requested. Phase 4 implementation still requires its own approved plan and standalone `BUILD` command.
 
 ---
 

@@ -59,7 +59,7 @@ There is no location-history model, breadcrumb storage or raw-coordinate analyti
 
 **APPROVED decision (DEC-T02):** Python / Django for business logic, REST APIs, and administrative/editor capabilities.
 
-**CURRENT implementation:** Django `5.2.17` LTS serves the public map, an explicit read-only GeoJSON location collection, a narrow public location-to-location route endpoint and DEBUG-only routing inspection. Contribution and editor endpoints remain planned.
+**CURRENT implementation:** Django `5.2.17` LTS serves the public map, an explicit read-only GeoJSON location collection, narrow route endpoints, DEBUG-only routing inspection and a CSRF-protected anonymous contribution endpoint. Full editor endpoints remain planned.
 
 ---
 
@@ -158,7 +158,15 @@ No file storage requirements identified for V1 (no location photographs in V1).
 [Database]   [Auth Service]
 ```
 
-The browser frontend, public location and route endpoints, local database, routing services, transient live-location pipeline, live-route progress, controlled rerouting and external map-style connection are implemented. Contribution/editor workflows and production infrastructure remain planned.
+The browser frontend, public location and route endpoints, local database, routing services, transient live-location pipeline, live-route progress, controlled rerouting, pending contribution queue and external map-style connection are implemented. Full editor workflows and production infrastructure remain planned.
+
+## Contribution Moderation Foundation
+
+Sprint 004 adds a separate `contributions` application. Anonymous users submit a bounded report through `POST /api/contributions/`; Django validates controlled enums, active location references, coordinate ranges and required fields before saving a `PENDING` record. A request UUID provides retry idempotency. A three-success session quota is separate from the broader hashed-IP abuse ceiling, so ordinary validation mistakes do not consume accepted-submission capacity.
+
+Django staff administration is the only moderation interface in this sprint. `APPROVED`, `REJECTED` and `MERGED` decisions record the moderator and review time. Approval means accepted input for later editor action; it neither changes `Location` data nor grants `FIELD_VERIFIED` status.
+
+Phase 3 is OWNER ACCEPTED / COMPLETE. Live positions, route progress and rerouting evidence remain transient; contribution records persist only intentionally submitted report data. Physical-phone GPS/navigation/rerouting and all field verification remain outside the accepted boundary.
 
 ---
 

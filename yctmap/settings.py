@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "locations.apps.LocationsConfig",
     "routing.apps.RoutingConfig",
+    "contributions.apps.ContributionsConfig",
 ]
 
 MIDDLEWARE = [
