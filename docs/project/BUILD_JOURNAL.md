@@ -1386,3 +1386,187 @@ Students should understand that browser GPS data is uncertain input rather than 
 ### Next Sprint
 
 Phase 3 Sprint 002 is next for discussion/planning. Its exact scope is not yet approved. Candidate follow-up work includes the retained-position explanation and a carefully bounded live-position-to-network adapter, but no Sprint 002 implementation is authorized by this milestone.
+
+## Phase 3 — Sprint 002: Live Route Start, Route Progress & Dynamic ETA
+
+**Recorded status:** OWNER ACCEPTED on 2026-09-18. **SIMULATED LIVE NAVIGATION VERIFIED. PHYSICAL LIVE NAVIGATION NOT VERIFIED.**
+
+### Purpose
+
+This sprint connected the transient live position from Sprint 001 to the routing system without treating an arbitrary GPS coordinate as a trustworthy graph node. It also introduced stable route progress and an ETA that can use a filtered personal walking pace while retaining the documented 1.35 m/s fallback.
+
+### User Outcome
+
+A user with a sufficiently accurate accepted position can choose **Use my live location**, request a route to an anchored DEMO destination, see the measured position separately from the matched route origin, and watch remaining distance and approximate ETA respond to simulated movement. Manual starting points remain available.
+
+### Starting State
+
+Sprint 001 could display and filter transient browser positions, but only anchored locations could start routes. The server had no safe coordinate-to-graph adapter, and the browser had no route-progress, personal-speed, stationary or arrival model.
+
+### What We Built
+
+- A CSRF-protected `POST /api/routes/from-position/` endpoint with a narrow no-store response.
+- Complete-polyline nearest-point matching against active walkable segments.
+- Quality-aware snap limits: preferred through 25 m, conditional caution through 40 m, and rejection beyond 40 m.
+- A request-local virtual graph origin connected through partial segment geometry while respecting directionality.
+- A live-origin option that does not remove or imitate manual routing.
+- Separate measured-position and network-matched-origin presentation.
+- Client-side route projection, stable displayed progress, remaining distance, walking-speed filtering, stationary state, dynamic ETA and two-sample arrival confirmation.
+- Explicit feedback when a worse incoming GPS sample is rejected in favor of the previous better position.
+
+### Technical Concepts Introduced
+
+**GPS-to-network matching** converts an uncertain geographic sample into a safe routing attachment. It is not verification of the person's exact physical position.
+
+**Nearest point on a polyline** checks every line segment between consecutive LineString vertices. For one leg from `A` to `B`, the position is projected onto the leg and the projection fraction is clamped to `0…1`; the candidate with the smallest perpendicular distance wins.
+
+**Partial-segment geometry** preserves the real line shape between the matched point and an endpoint. This matters because the user may join halfway along a curved segment rather than at its start.
+
+**Ephemeral graph augmentation** adds a virtual origin only to the in-memory graph for one request. It does not create a database node or movement history.
+
+**Route progress projection** maps each accepted sample onto the already calculated route and measures distance along the route. Straight-line distance to the destination would cut across geometry and produce incorrect progress.
+
+**Robust speed estimation** excludes weak samples, uncertainty-sized movement, implausible speeds and stationary periods. A rolling median limits the influence of one noisy value.
+
+### How It Works Internally
+
+```text
+accepted live sample + destination UUID
+                |
+                v
+ POST /api/routes/from-position/
+                |
+                v
+ project onto every eligible segment leg
+                |
+       safe threshold decision
+         | reject        | accept
+         v               v
+      HTTP 422     ephemeral virtual node
+                            |
+                   partial directed arc(s)
+                            |
+                            v
+                       existing A*
+                            |
+                            v
+                fixed route geometry returned
+
+later accepted browser samples
+                |
+                v
+ project onto fixed route -> stabilize progress
+                |                    |
+                v                    v
+       remaining route distance   filtered pace
+                \                    /
+                 +---- dynamic ETA -+
+```
+
+The server performs initial network matching because the routing graph and its direction rules are authoritative there. After the route is returned, routine progress calculations remain in browser memory; repeated coordinates are not sent to Django.
+
+### Architecture / Components Involved
+
+- Django routing view: validates the small JSON request and returns a controlled contract.
+- Matching service: validates position quality and projects onto active `WalkableSegment` geometry.
+- Routing service: creates the virtual node and partial arcs, then calls the existing A* implementation.
+- User-navigation controller: offers live/manual origins and owns active-route UI state.
+- Live-route tracker: projects later samples, stabilizes progress and estimates pace/ETA.
+- Map controller: keeps the blue measured location separate from the hollow matched route origin and red destination.
+
+### Important Files
+
+- `routing/matching.py` — position validation, polyline projection and safe-match policy.
+- `routing/services.py` — ephemeral graph origin and A* integration.
+- `routing/views.py` and `routing/urls.py` — protected public live-route contract.
+- `static/yct_map/js/live-route-progress.js` — route projection, progress, pace, ETA and arrival state.
+- `static/yct_map/js/user-navigation.js` — live-origin selection and navigation summary updates.
+- `static/yct_map/js/user-location.js` — retained-better-position explanation.
+- `static/yct_map/js/map.js` — distinct measured, matched-origin and destination symbols.
+- `routing/tests/test_live_routing.py` and `tests/js/phase3-live-routing.test.mjs` — deterministic server and client behavior.
+
+### Data Flow
+
+The initial accepted latitude, longitude and reported accuracy travel once to Django with the destination UUID. The endpoint validates them, matches them to the graph, calculates A* and returns route geometry plus a small summary. It does not echo separate raw coordinates, persist them or cache the response.
+
+Later accepted samples stay in the browser. They update the measured marker and progress tracker. The tracker returns presentation state—remaining metres, ETA source, movement state and arrival—not a breadcrumb history.
+
+### Decisions and Trade-offs
+
+**Nearest segment instead of nearest node.** Nearest-node snapping can send a user to a junction far along the path and omit the usable partial segment. Polyline projection represents where the route is actually joined.
+
+**Measured point remains visible.** Snapping is a routing decision, not permission to move the blue location marker. A hollow origin communicates the graph match without pretending GPS and routing geometry are identical.
+
+**25/40 m safety boundary.** Matches within 25 m are preferred. A 25–40 m match is allowed only when reported accuracy is 25 m or better. Anything farther is rejected. This favors a transparent failure over a plausible-looking but unsafe route.
+
+**Displayed progress is stabilized.** Raw projected progress may move backward because of jitter. A small regression is ignored; a larger regression requires confirmation before displayed progress moves backward. The raw measurement therefore cannot make the UI oscillate freely.
+
+**Pace and stationary state are separate.** Being stationary should change movement state without replacing the last useful walking pace with zero. Personal pace becomes available only after enough plausible samples; otherwise ETA uses 1.35 m/s.
+
+**Arrival requires confirmation.** One good-looking GPS sample near the end is insufficient. Two eligible samples at least three seconds apart must be near both the route end and remaining-distance threshold.
+
+### Problems Encountered
+
+The owner's original simulated coordinate (`6.51857, 3.37424`) enabled live location but produced HTTP 422. Repository inspection showed that its nearest eligible segment was approximately 69.35 m away, beyond the 40 m hard limit. This was correct safety behavior, not an A* defect.
+
+The test coordinate initially used by server unit tests belonged to the synthetic test fixture rather than the active OSM-derived development graph. Owner verification therefore required a dataset derived from the active graph.
+
+The owner did not cleanly complete every stationary and arrival transition during manual simulation. Those behaviors must not be described as owner-verified.
+
+### How We Solved Them
+
+We retained the rejection rule and derived an owner test trace from the active graph instead of weakening safety. The trace began at the active School Building anchor, followed exact calculated route geometry toward `DEMO — Hostel`, and produced an initial route of approximately 209 m. Later owner-observed values of approximately 185 m and 179 m confirmed advancing progress.
+
+Stationary handling, pace isolation, arrival confirmation and progress stability remain backed by deterministic automated tests. Documentation records that narrower verification boundary explicitly.
+
+### Testing and Verification
+
+At acceptance:
+
+- 60 Django tests passed;
+- 12 Node-executed JavaScript tests passed;
+- JavaScript syntax checks passed;
+- Django system checks passed;
+- no migration drift existed;
+- Git whitespace checks passed.
+
+The owner visually verified live-origin availability, safe matching, HTTP 422 rejection of the approximately 69 m case, route initialization, marker separation, a fixed route during updates, advancing progress, decreasing remaining distance, personal-pace ETA behavior and preserved manual routing.
+
+Deterministic automated tests verified stationary-state handling, stationary samples not corrupting walking pace, ETA fallback/personal hierarchy, two-sample arrival, backward-progress stability, snap rejection and manual/live regressions. Physical-phone navigation was not tested.
+
+### Current Limitations
+
+- The OSM-derived graph and anchors remain `UNVERIFIED`, not field verified.
+- Physical-phone GPS/navigation remains unverified pending an approved secure test origin.
+- Full off-route detection and automatic rerouting are absent.
+- Outside-campus behavior is not a complete product flow.
+- Path Survey Mode and persistent editor survey traces are future work.
+- Stationary and arrival transitions were not cleanly owner-observed in this sprint.
+
+### Evidence
+
+- **`P3-S2-A-live-origin-route.png`** demonstrates the approximately 209 m live-origin route, simulated live marker, distinct matched graph origin, destination and navigation summary.
+- **`P3-S2-B-dynamic-eta-progress.png`** demonstrates an active fixed route after simulated movement, reduced remaining distance and dynamic navigation state. A screenshot explicitly showing personal pace is preferred where available.
+- The HTTP 422 unsafe-snap screenshot is supporting evidence of the safety boundary, not one of the two primary images.
+
+All evidence uses simulated campus coordinates. It does not establish physical GPS reliability or field-verified walkability.
+
+### What Students Should Understand
+
+Students should be able to explain why GPS coordinates cannot be inserted directly into A*, how projecting onto every polyline leg differs from choosing the nearest node, and how partial geometry connects a virtual origin without modifying persistence. They should distinguish raw projected progress from stabilized displayed progress and explain why remaining distance follows the route.
+
+They should also understand that speed derived from noisy GPS is a statistical estimate. Accuracy, elapsed time, uncertainty-sized movement, plausible speed limits, sample count and smoothing all affect whether personal pace is trusted. Stationary state describes current movement; it does not mean the person's walking pace is zero. Finally, privacy depends on data flow: initial coordinates are transient server input, while ongoing progress remains client-side.
+
+### Presentation / Defence Notes
+
+- **Why not snap to the nearest node?** It can skip usable path geometry and select a topologically misleading junction.
+- **What is the virtual origin?** A request-only node at the safe projected point, connected through partial segment geometry and discarded after routing.
+- **Why did the 69 m test fail?** The hard limit is 40 m; refusing the match prevents false campus guidance.
+- **Why can displayed progress differ from one raw projection?** Stabilization prevents GPS jitter from repeatedly moving progress backward.
+- **How is dynamic ETA calculated?** Remaining route distance is divided by a rolling-median personal pace when reliable; otherwise 1.35 m/s is used.
+- **Was stationary/arrival manually verified?** No. Those transitions are deterministic automated-test verification only.
+- **Was physical navigation verified?** No. The accepted label is `SIMULATED LIVE NAVIGATION VERIFIED`.
+
+### Next Sprint
+
+Phase 3 Sprint 003 is next for discussion/planning. Expected future concerns include full off-route evidence and controlled rerouting, but no Sprint 003 implementation has begun or is authorized without a standalone `BUILD` command.

@@ -99,4 +99,6 @@ Phase 3 Sprint 001 implementation: 52 Django tests and 8 Node-executed JavaScrip
 
 Owner acceptance records `SIMULATED GEOLOCATION VERIFIED`. It does not record physical-phone GPS verification. The owner also confirmed that an accepted approximately 40 m position remains displayed when a substantially worse approximately 100 m sample arrives.
 
+Phase 3 Sprint 002 acceptance: 60 Django tests and 12 Node-executed JavaScript tests pass. Server coverage includes complete-polyline projection, preferred/caution snap thresholds, poor-accuracy and excessive-distance rejection, ephemeral graph augmentation, one-way behavior, CSRF enforcement and the narrow no-store response. Client coverage includes the live POST contract, route projection, stable backward progress, stationary handling, confirmed arrival and filtered personal-speed ETA. The owner visually verified live-origin routing, safe snapping, progress, remaining distance and personal-pace ETA. Stationary and arrival transitions remain deterministic automated verification rather than owner-observed verification.
+
 Coverage includes model validation, aliases, DEMO fixture integrity, map-page configuration, explicit GeoJSON serialization, partial/case-insensitive name search, alias search, category filtering, empty results, invalid input and read-only endpoint behavior.

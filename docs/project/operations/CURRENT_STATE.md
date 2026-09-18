@@ -12,8 +12,8 @@
 | **Date** | 2026-09-18 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 3 — LIVE NAVIGATION & CORE PRODUCT SYSTEMS |
-| **Pipeline Phase** | Phase 3 Sprint 001 OWNER ACCEPTED; Sprint 002 awaits discussion/planning |
-| **Latest Meaningful Commit** | Phase 3 Sprint 001 milestone (`feat: establish live location foundation`) |
+| **Pipeline Phase** | Phase 3 Sprint 002 OWNER ACCEPTED |
+| **Latest Meaningful Commit** | Phase 3 Sprint 002 milestone (`feat: add live route progress and dynamic ETA`) |
 
 ---
 
@@ -21,7 +21,7 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | PHASE 3 SPRINT 001 OWNER ACCEPTED |
+| Application implementation | PHASE 3 SPRINT 002 OWNER ACCEPTED |
 | Product definition | SUBSTANTIALLY COMPLETE |
 | Documentation / governance | SUBSTANTIALLY COMPLETE |
 | Build pipeline | SUBSTANTIALLY COMPLETE |
@@ -30,7 +30,7 @@
 | Demo/development dataset | 6 DEMO locations; 47 OSM-derived UNVERIFIED nodes, 54 segments and 6 UNVERIFIED anchors |
 | Field verification | NOT STARTED |
 | Deployment | NOT STARTED |
-| Test suite | 52 DJANGO + 8 JAVASCRIPT TESTS PASSING |
+| Test suite | 60 DJANGO + 12 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -113,21 +113,31 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ---
 
+**Phase 3 / Sprint 002 — OWNER VERIFIED / ACCEPTED**
+- Quality-aware live-position matching to complete walkable-segment geometry
+- Ephemeral virtual route origins with no location persistence
+- Stable client-side route progress, remaining distance and personal-pace ETA
+- Explicit 1.35 m/s fallback, stationary handling and confirmed arrival logic
+- SIMULATED LIVE NAVIGATION VERIFIED; stationary/arrival transitions verified by deterministic tests, not owner observation
+- 60 Django tests and 12 JavaScript tests passing at acceptance
+
+---
+
 ## Active Work
 
-No implementation is active. Phase 3 Sprint 001 is OWNER ACCEPTED. Live position remains display-only and transient; Sprint 002 has not started.
+No implementation is active. Phase 3 Sprint 002 is OWNER ACCEPTED. No Sprint 003 work has started.
 
 ---
 
 ## Known Blockers
 
-Physical-phone GPS remains unverified because no owner-approved HTTPS test origin exists. When a worse sample is rejected in favor of the last better accepted position, the UI does not yet explicitly explain that retention decision.
+Physical-phone GPS remains unverified because no owner-approved HTTPS test origin exists. Live-route verification currently depends on deterministic simulated campus traces. Off-route detection and rerouting remain deferred to Sprint 003.
 
 ---
 
 ## Next Approved Task
 
-Phase 3 Sprint 002 discussion/planning. Its scope requires owner approval and a standalone `BUILD` command.
+Phase 3 Sprint 003 discussion/planning. Implementation requires explicit approval and a standalone `BUILD` command.
 
 ---
 

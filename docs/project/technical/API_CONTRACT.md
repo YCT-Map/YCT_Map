@@ -4,7 +4,7 @@
 
 ```
 Current phase:     PHASE 1 — FOUNDATION & MAP EXPERIENCE
-Implementation:    PUBLIC LOCATION COLLECTION IMPLEMENTED
+Implementation:    PUBLIC LOCATION AND ROUTING ENDPOINTS IMPLEMENTED
 ```
 
 This document will describe all API endpoints once the backend is implemented.
@@ -72,6 +72,14 @@ The response is an explicit GeoJSON `FeatureCollection`. Each feature exposes on
 - aliases
 
 Inactive locations are excluded. Unknown categories and overlong queries return HTTP 400. Non-GET methods return HTTP 405.
+
+### `GET /api/routes/`
+
+Calculates a route between two active anchored destination UUIDs supplied as `origin` and `destination`. The narrow response contains route geometry, endpoint names, geometry-derived distance, approximate ETA and verification context; graph internals are not exposed.
+
+### `POST /api/routes/from-position/`
+
+Calculates a route from an ephemeral live-position match to an active anchored destination. The JSON body contains `destination` plus `position.latitude`, `position.longitude` and `position.accuracy_metres`. CSRF protection is required. Unsafe accuracy or network matches fail explicitly. The response does not separately echo or persist the submitted coordinate and is marked `Cache-Control: no-store`.
 
 ---
 

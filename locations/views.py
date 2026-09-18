@@ -5,6 +5,7 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from .models import Location
 
@@ -12,10 +13,11 @@ from .models import Location
 MAP_CENTRE = {"longitude": 3.37424, "latitude": 6.51857}
 MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 MAPLIBRE_VERSION = "6.10.0"
-UI_ASSET_VERSION = "p3s1-live-location-1"
+UI_ASSET_VERSION = "p3s2-live-route-1"
 
 
 @require_GET
+@ensure_csrf_cookie
 def map_view(request):
     return render(
         request,
@@ -30,6 +32,7 @@ def map_view(request):
             "debug_route_anchors_url": "/api/debug/route-anchors/" if settings.DEBUG else "",
             "debug_route_url": "/api/debug/route/" if settings.DEBUG else "",
             "route_url": "/api/routes/",
+            "live_route_url": "/api/routes/from-position/",
         },
     )
 

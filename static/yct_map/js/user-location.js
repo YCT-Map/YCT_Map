@@ -1,5 +1,5 @@
-import { assessSample } from "./location-filter.js?v=p3s1-live-location-1";
-import { createGeolocationService } from "./geolocation.js?v=p3s1-live-location-1";
+import { assessSample } from "./location-filter.js?v=p3s2-live-route-1";
+import { createGeolocationService } from "./geolocation.js?v=p3s2-live-route-1";
 
 const COPY = {
   idle: "Location is optional and stays on this device.",
@@ -12,6 +12,7 @@ const COPY = {
   unavailable: "Your location is temporarily unavailable. Try again or use a manual start.",
   "timed-out": "Location is taking too long. Try again or use a manual start.",
   stopped: "Live location stopped. Manual directions remain available.",
+  retained: "Location accuracy decreased. Keeping your previous better position.",
 };
 
 export function createUserLocation({
@@ -36,7 +37,7 @@ export function createUserLocation({
     state = nextState;
     element.dataset.state = state;
     message.textContent = COPY[state];
-    locateButton.hidden = ["requesting-permission", "locating", "active", "low-accuracy"].includes(state);
+    locateButton.hidden = ["requesting-permission", "locating", "active", "low-accuracy", "retained"].includes(state);
     locateButton.disabled = state === "unsupported";
     recenterButton.hidden = !acceptedPosition;
     stopButton.hidden = !trackingRequested;
@@ -47,7 +48,8 @@ export function createUserLocation({
   function receive(rawPosition) {
     const result = assessSample(rawPosition, acceptedPosition);
     if (!result.accepted) {
-      if (!acceptedPosition && ["poor-accuracy", "keep-better-position"].includes(result.reason)) render("locating");
+      if (acceptedPosition && ["poor-accuracy", "keep-better-position"].includes(result.reason)) render("retained");
+      else if (!acceptedPosition && ["poor-accuracy", "keep-better-position"].includes(result.reason)) render("locating");
       return result;
     }
     acceptedPosition = result.sample;

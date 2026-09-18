@@ -1,10 +1,10 @@
-import { fetchLocations } from "./api.js?v=p3s1-live-location-1";
-import { createDestinationPanel } from "./destination-panel.js?v=p3s1-live-location-1";
-import { createMap } from "./map.js?v=p3s1-live-location-1";
-import { createSearch } from "./search.js?v=p3s1-live-location-1";
-import { createRouteInspector } from "./route-inspector.js?v=p3s1-live-location-1";
-import { createUserLocation } from "./user-location.js?v=p3s1-live-location-1";
-import { createUserNavigation } from "./user-navigation.js?v=p3s1-live-location-1";
+import { fetchLocations } from "./api.js?v=p3s2-live-route-1";
+import { createDestinationPanel } from "./destination-panel.js?v=p3s2-live-route-1";
+import { createMap } from "./map.js?v=p3s2-live-route-1";
+import { createSearch } from "./search.js?v=p3s2-live-route-1";
+import { createRouteInspector } from "./route-inspector.js?v=p3s2-live-route-1";
+import { createUserLocation } from "./user-location.js?v=p3s2-live-route-1";
+import { createUserNavigation } from "./user-navigation.js?v=p3s2-live-route-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -21,6 +21,7 @@ const config = {
   debugRouteAnchorsUrl: shell.dataset.debugRouteAnchorsUrl,
   debugRouteUrl: shell.dataset.debugRouteUrl,
   routeUrl: shell.dataset.routeUrl,
+  liveRouteUrl: shell.dataset.liveRouteUrl,
   centre: [Number(shell.dataset.centreLongitude), Number(shell.dataset.centreLatitude)],
 };
 
@@ -58,7 +59,8 @@ async function start() {
       panel: document.querySelector("#user-route-panel"),
       features,
       routeUrl: config.routeUrl,
-      onRoute: (route, origin, destination) => mapController?.showUserRoute(route, origin, destination),
+      liveRouteUrl: config.liveRouteUrl,
+      onRoute: (route, origin, destination, options) => mapController?.showUserRoute(route, origin, destination, options),
       onClear: () => mapController?.clearUserRoute(),
       onBrowse: () => document.querySelector("#location-search")?.focus(),
       onStateChange: setInterfaceState,
@@ -83,8 +85,14 @@ async function start() {
     });
     userLocationController = createUserLocation({
       element: document.querySelector("#user-location-controls"),
-      onPosition: (position, options) => mapController?.showUserLocation(position, options),
-      onClear: () => mapController?.clearUserLocation(),
+      onPosition: (position, options) => {
+        mapController?.showUserLocation(position, options);
+        navigationController?.updateLivePosition(position);
+      },
+      onClear: () => {
+        mapController?.clearUserLocation();
+        navigationController?.clearLivePosition();
+      },
       onRecenter: () => mapController?.recenterUserLocation(),
     });
     setInterfaceState("browsing");

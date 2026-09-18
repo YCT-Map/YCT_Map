@@ -450,3 +450,31 @@ This addendum records the owner decision without rewriting the implementation-ti
 - Ordinary-user coordinates are not persisted, stored as history/breadcrumbs, added to analytics or sent to the backend. Evidence uses simulated campus coordinates.
 - Accepted evidence: `P3-S1-A-live-location-marker.png` and `P3-S1-B-location-permission-fallback.png`.
 - Phase 3 Sprint 002 is next for discussion/planning only. No Sprint 002 implementation is included.
+
+## Phase 3 — Sprint 002: Live Route Start, Route Progress & Dynamic ETA
+
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+**Date:** 2026-09-18
+
+### Implementation Record
+
+- Added a CSRF-protected POST route endpoint accepting an ephemeral accepted position and destination UUID.
+- Added complete-segment projection, quality-aware 25/40 m matching thresholds and request-local virtual graph origins that respect one-way traversal.
+- Kept the measured live marker distinct from the network-matched route start; no false connector is drawn and no live coordinates are persisted or echoed as separate response fields.
+- Added live position as an optional route origin while preserving every manual origin flow.
+- Added route-line projection, stable progress, remaining distance, filtered walking-speed estimates, explicit 1.35 m/s fallback ETA, stationary/uncertain states and two-sample arrival confirmation.
+- Added explicit UI copy when a worse position is rejected and the previous better position is retained.
+- Added server and browser-module coverage; 60 Django and 12 JavaScript tests pass.
+- Physical-phone GPS is not verified. Owner review must use an approved HTTPS origin for that claim; localhost simulated traces remain `SIMULATED GEOLOCATION` evidence only.
+- `BUILD_JOURNAL.md` remains unchanged until owner acceptance. Sprint 003 rerouting has not started.
+
+### Acceptance Addendum — 2026-09-18
+
+- Phase 3 Sprint 002 was formally OWNER ACCEPTED with the verification label `SIMULATED LIVE NAVIGATION VERIFIED`.
+- The owner visually verified the live-origin option, a safe network match, route initialization, separation of the measured marker and matched origin, fixed-route behavior, advancing progress, decreasing remaining distance and personal walking-pace ETA behavior.
+- The owner also verified that a simulated point approximately 69 m from the nearest eligible segment fails safely with HTTP 422.
+- The representative accepted route targeted `DEMO — Hostel`, began at approximately 209 m and later showed approximately 185 m and 179 m remaining with simulated 3 m accuracy.
+- Deterministic automated tests—not owner observation—verify stationary-state handling, stationary pace isolation, ETA hierarchy, arrival confirmation, progress stability, snap rejection and live/manual regressions.
+- Physical-phone GPS/navigation is not verified. The active OSM-derived routing graph remains `UNVERIFIED` and is not field-verified guidance.
+- Primary evidence is `P3-S2-A-live-origin-route.png` and `P3-S2-B-dynamic-eta-progress.png`; the rejected-snap image is supporting evidence.
+- Phase 3 Sprint 003 is next for discussion/planning only. No Sprint 003 implementation is included.

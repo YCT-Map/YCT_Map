@@ -517,6 +517,8 @@ input {
 .route-guidance { margin-left: .85rem; padding: .3rem 0 .3rem 1.45rem; color: var(--muted); font-size: .72rem; border-left: 2px dotted #9aa7a0; }
 .user-route-metrics { display: flex; gap: 1rem; margin-top: .7rem; padding: .7rem; background: #edf4ff; border-radius: .7rem; }
 .user-route-metrics strong { font-size: 1rem; }
+.route-progress-status, .route-eta-source { color: #52645b; font-size: .82rem; margin: .65rem 0 0; }
+.route-progress-status { color: #155f3b; font-weight: 700; }
 .route-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .65rem; }
 .route-actions button { min-height: 2.75rem; padding: .55rem .7rem; color: var(--green-800); font-size: .68rem; font-weight: 800; background: white; border: 1px solid var(--line); border-radius: .6rem; cursor: pointer; }
 

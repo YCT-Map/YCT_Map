@@ -117,7 +117,11 @@ Incorrect or missing paths must remain editable. Future Path Survey Mode may hel
 
 Sprint 001 keeps accepted browser positions transient and client-side. It does not pass arbitrary GPS coordinates into A* or create temporary graph nodes. Manual location anchors remain the only public route origins.
 
-A future live-origin sprint should project an accepted coordinate onto an eligible segment, enforce a short quality-aware maximum snap distance, and fail safely when the user is outside the mapped network. It must not invent a straight connector through buildings or snap hundreds of metres to an arbitrary node.
+Sprint 002 implements live-origin matching by projecting an accepted coordinate onto every leg of eligible segment geometry. It prefers matches within 25 m, permits 25–40 m only with accuracy of 25 m or better, and rejects matches beyond 40 m. A request-local virtual node connects to the matched segment endpoints according to segment direction; no node, segment, coordinate history or breadcrumb is persisted.
+
+The measured blue position and the hollow network-match marker are deliberately separate. No straight visual connector is invented. During an active live route, the browser projects accepted samples onto the complete route geometry, stabilizes backward/noisy progress, calculates remaining distance along the route, and derives ETA from a rolling median of plausible walking samples when sufficient evidence exists. Otherwise the documented 1.35 m/s fallback remains explicit. Off-route decisions and rerouting are still Sprint 003 work.
+
+Sprint 002 is OWNER ACCEPTED as `SIMULATED LIVE NAVIGATION VERIFIED`. Owner review covered safe/unsafe snapping, live-origin routing, route progress, remaining distance and personal-pace ETA. Stationary and arrival transitions are verified by deterministic tests only. Physical-device navigation, off-route detection and automatic rerouting remain unverified or unimplemented.
 
 ---
 

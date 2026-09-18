@@ -113,6 +113,8 @@ test("public navigation opens, excludes destination, renders result, and clears"
     "#user-route-distance",
     "#user-route-eta",
     "#user-route-data-notice",
+    "#user-route-progress-status",
+    "#user-route-eta-source",
     "#change-route-origin",
     "#change-route-destination",
     "#clear-user-route",
@@ -151,7 +153,7 @@ test("public navigation opens, excludes destination, renders result, and clears"
   assert.equal(controller.begin(destination), true);
   assert.equal(harness.panel.hidden, false);
   assert.equal(states.at(-1), "choosing-origin");
-  assert.deepEqual(harness.get("#user-route-origin").options.map((option) => option.value), ["", "origin-id"]);
+  assert.deepEqual(harness.get("#user-route-origin").options.map((option) => option.value), ["", "__live__", "origin-id"]);
   assert.equal(harness.get("#show-user-route").disabled, true);
 
   harness.get("#user-route-origin").value = "origin-id";
@@ -179,7 +181,7 @@ test("Cancel restores the selected destination through the application callback"
     "#user-route-form", "#user-route-origin", "#user-route-destination", "#show-user-route",
     "#user-route-error", "#user-route-result", "#user-route-form-state", "#user-route-from",
     "#user-route-to", "#user-route-distance", "#user-route-eta", "#change-route-origin",
-    "#user-route-data-notice",
+    "#user-route-data-notice", "#user-route-progress-status", "#user-route-eta-source",
     "#change-route-destination", "#clear-user-route", "#close-user-route", "#cancel-user-route",
   ]);
   let cancelled = null;
@@ -197,4 +199,32 @@ test("Cancel restores the selected destination through the application callback"
 
   assert.equal(harness.panel.hidden, true);
   assert.equal(cancelled, destination);
+});
+
+test("accepted live position is offered and sent through the protected live route contract", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const selectors = ["#user-route-form", "#user-route-origin", "#user-route-destination", "#show-user-route",
+    "#user-route-error", "#user-route-result", "#user-route-form-state", "#user-route-from", "#user-route-to",
+    "#user-route-distance", "#user-route-eta", "#user-route-data-notice", "#user-route-progress-status",
+    "#user-route-eta-source", "#change-route-origin", "#change-route-destination", "#clear-user-route",
+    "#close-user-route", "#cancel-user-route"];
+  const harness = createHarness(selectors);
+  let request = null;
+  const controller = createUserNavigation({
+    panel: harness.panel, features: [destination, origin], routeUrl: "/api/routes/",
+    liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {},
+    requestRoute: async (url, options) => { request = { url, options }; return { ok: true, json: async () => ({
+      route: { type: "Feature", geometry: { type: "LineString", coordinates: [[3.374, 6.518], [3.375, 6.519]] } },
+      summary: { origin: { name: "Your location" }, destination: { name: destination.properties.name },
+        total_distance_metres: 100, eta_label: "~2 min", verification_state: "UNVERIFIED" },
+    }) }; },
+  });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 10, timestamp: 1_000 });
+  controller.begin(destination);
+  harness.get("#user-route-origin").value = "__live__";
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+  assert.equal(request.url, "/api/routes/from-position/");
+  assert.equal(request.options.method, "POST");
+  assert.equal(request.options.headers["X-CSRFToken"], "test-token");
+  assert.deepEqual(JSON.parse(request.options.body).position, { latitude: 6.518, longitude: 3.374, accuracy_metres: 10 });
 });

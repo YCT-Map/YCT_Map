@@ -158,7 +158,7 @@ No file storage requirements identified for V1 (no location photographs in V1).
 [Database]   [Auth Service]
 ```
 
-The browser frontend, public location and route endpoints, local database, routing services and external map-style connection are implemented. Live geolocation, contribution/editor workflows and production infrastructure remain planned.
+The browser frontend, public location and route endpoints, local database, routing services, transient live-location pipeline, live-route progress and external map-style connection are implemented. Rerouting, contribution/editor workflows and production infrastructure remain planned.
 
 ---
 
@@ -178,9 +178,9 @@ The browser frontend, public location and route endpoints, local database, routi
 - Indoor mapping is not in V1
 - Routing uses paths maintained in YCT Map data — quality depends on field verification
 - Current OSM-derived routing paths and anchors are `UNVERIFIED`; service-road access and exact entrances require later review and field survey
-- Browser live-location acquisition/display exists; route progress and rerouting do not
+- Browser live-location acquisition/display and live-origin route progress exist; rerouting does not
 - Browser live-location display is implemented, but physical-phone GPS remains unverified until an approved HTTPS test origin is available
-- Live location is not yet matched to the routing graph and cannot yet be selected as a route origin
+- Live locations are matched transiently to the routing graph; matched coordinates and progress remain unpersisted
 - Building geometry relies on available data; complex irregular polygons may be simplified initially
 
 ---

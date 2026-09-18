@@ -15,6 +15,7 @@
     data-debug-route-anchors-url="{{ debug_route_anchors_url }}"
     data-debug-route-url="{{ debug_route_url }}"
     data-route-url="{{ route_url }}"
+    data-live-route-url="{{ live_route_url }}"
     data-centre-longitude="{{ map_centre.longitude }}"
     data-centre-latitude="{{ map_centre.latitude }}"
   >
@@ -164,7 +165,9 @@
         <div class="route-place"><span class="start-key">S</span><span>Start at <strong id="user-route-from"></strong></span></div>
         <div class="route-guidance">Follow the highlighted route</div>
         <div class="route-place"><span class="destination-key">D</span><span>Arrive at <strong id="user-route-to"></strong></span></div>
+        <p id="user-route-progress-status" class="route-progress-status" hidden></p>
         <div class="user-route-metrics"><strong id="user-route-distance"></strong><strong id="user-route-eta"></strong></div>
+        <p id="user-route-eta-source" class="route-eta-source"></p>
         <div class="route-actions">
           <button id="change-route-origin" type="button">Change start</button>
           <button id="change-route-destination" type="button">Change destination</button>

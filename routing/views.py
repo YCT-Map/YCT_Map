@@ -1,12 +1,15 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.http import Http404, JsonResponse
-from django.views.decorators.http import require_GET
+import json
+
+from django.views.decorators.http import require_GET, require_POST
 
 from .eta import format_approximate_eta
 from .models import LocationNetworkAnchor, VerificationState, WalkableNode, WalkableSegment
+from .matching import InsufficientAccuracyError, LivePositionError, NoSafeNetworkMatchError
 from .results import InvalidNodeError, MissingAnchorError, NoRouteError
-from .services import route_between_locations
+from .services import route_between_locations, route_from_live_position
 from locations.models import Location
 
 
@@ -121,6 +124,55 @@ def public_route(request):
             "eta_label": format_approximate_eta(result.eta_seconds),
             "eta_is_approximate": True,
             "verification_state": route_state,
+        },
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@require_POST
+def public_route_from_position(request):
+    try:
+        payload = json.loads(request.body)
+        position = payload["position"]
+        destination_id = str(payload["destination"]).strip()
+        longitude = position["longitude"]
+        latitude = position["latitude"]
+        accuracy_metres = position["accuracy_metres"]
+    except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
+        return JsonResponse({"error": "A valid destination and live position are required.", "code": "INVALID_POSITION"}, status=400)
+    try:
+        result, match, destination = route_from_live_position(
+            longitude, latitude, accuracy_metres, destination_id,
+        )
+    except InsufficientAccuracyError as error:
+        return JsonResponse({"error": str(error), "code": error.code}, status=422)
+    except NoSafeNetworkMatchError as error:
+        return JsonResponse({"error": str(error), "code": error.code}, status=422)
+    except LivePositionError as error:
+        return JsonResponse({"error": str(error), "code": error.code}, status=400)
+    except MissingAnchorError:
+        return JsonResponse({"error": "The destination is not connected to the walkable network yet.",
+                             "code": "MISSING_DESTINATION_ANCHOR"}, status=422)
+    except (ValidationError, ValueError, InvalidNodeError):
+        return JsonResponse({"error": "The live route request is invalid.", "code": "INVALID_POSITION"}, status=400)
+    except NoRouteError:
+        return JsonResponse({"error": "No walkable route is available from this position.", "code": "NO_ROUTE"}, status=404)
+
+    geometry = ({"type": "Point", "coordinates": result.geometry[0]} if len(result.geometry) == 1
+                else {"type": "LineString", "coordinates": result.geometry})
+    response = JsonResponse({
+        "route": {"type": "Feature", "geometry": geometry, "properties": {"route_state": "UNVERIFIED", "origin_type": "live"}},
+        "summary": {
+            "origin": {"name": "Your location", "type": "live"},
+            "destination": {"id": str(destination.id), "name": destination.name},
+            "total_distance_metres": round(result.distance_metres, 2),
+            "remaining_distance_metres": round(result.distance_metres, 2),
+            "eta_label": format_approximate_eta(result.eta_seconds),
+            "eta_is_approximate": True,
+            "eta_source": "fallback",
+            "verification_state": "UNVERIFIED",
+            "network_match_distance_metres": round(match.distance_metres, 2),
         },
     })
     response.headers["Cache-Control"] = "no-store"

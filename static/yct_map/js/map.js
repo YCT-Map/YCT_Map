@@ -219,11 +219,11 @@ export async function createMap({ container, config, features, onSelect, onReady
       paint: { "line-color": "#2563eb", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 5, 18, 8], "line-opacity": .96 } });
     map.addSource(USER_ENDPOINT_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     map.addLayer({ id: USER_ENDPOINT_CIRCLE_LAYER_ID, type: "circle", source: USER_ENDPOINT_SOURCE_ID,
-      paint: { "circle-radius": ["match", ["get", "role"], "destination", 12, 10],
-        "circle-color": ["match", ["get", "role"], "destination", "#d63d32", "#2563eb"],
-        "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
+      paint: { "circle-radius": ["match", ["get", "role"], "destination", 12, "matched", 8, 10],
+        "circle-color": ["match", ["get", "role"], "destination", "#d63d32", "matched", "rgba(255,255,255,.2)", "#2563eb"],
+        "circle-stroke-color": ["match", ["get", "role"], "matched", "#2563eb", "#fff"], "circle-stroke-width": 3 } });
     map.addLayer({ id: USER_ENDPOINT_LABEL_LAYER_ID, type: "symbol", source: USER_ENDPOINT_SOURCE_ID,
-      layout: { "text-field": ["match", ["get", "role"], "destination", "D", "S"], "text-size": 11, "text-font": ["Noto Sans Regular"], "text-allow-overlap": true, "text-ignore-placement": true },
+      layout: { "text-field": ["match", ["get", "role"], "destination", "D", "matched", "", "S"], "text-size": 11, "text-font": ["Noto Sans Regular"], "text-allow-overlap": true, "text-ignore-placement": true },
       paint: { "text-color": "#fff" } });
 
     map.addSource(USER_ACCURACY_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -375,12 +375,14 @@ export async function createMap({ container, config, features, onSelect, onReady
     );
   }
 
-  function showUserRoute(routeFeature, origin, destination) {
+  function showUserRoute(routeFeature, origin, destination, { originType = "manual" } = {}) {
     if (!loaded || routeFeature.geometry.type !== "LineString") return;
     const coordinates = routeFeature.geometry.coordinates;
     map.getSource(USER_ROUTE_SOURCE_ID).setData({ type: "FeatureCollection", features: [routeFeature] });
     map.getSource(USER_ENDPOINT_SOURCE_ID).setData({ type: "FeatureCollection", features: [
-      { type: "Feature", geometry: { type: "Point", coordinates: coordinates[0] }, properties: { role: "start", name: origin.properties.name } },
+      { type: "Feature", geometry: { type: "Point", coordinates: coordinates[0] }, properties: {
+        role: originType === "live" ? "matched" : "start", name: originType === "live" ? "Matched route start" : origin.properties.name,
+      } },
       { type: "Feature", geometry: { type: "Point", coordinates: coordinates.at(-1) }, properties: { role: "destination", name: destination.properties.name } },
     ] });
     const longitudes = coordinates.map(([longitude]) => longitude);
