@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PHASE 2 / SPRINT 002
-Implementation:    SPRINT 002 OWNER ACCEPTED; USER-FACING ROUTE UX NEXT
+Current phase:     PHASE 2 / SPRINT 003 — OWNER ACCEPTED
+Implementation:    PHASE 2 ROUTING AND USER-FACING NAVIGATION COMPLETE
 ```
 
 This document records the approved routing behavior for YCT Map.
@@ -55,7 +55,7 @@ Walking ETA uses `1.35 m/s` as the current default speed assumption and must be 
 
 The default is a fallback rather than the final live-navigation mechanism. Phase 3 may derive a smoothed user-specific walking speed only from reliable movement updates, excluding GPS outliers and stationary periods, and must fall back to `1.35 m/s` when personal speed is not reliable.
 
-Routing remains outside Phase 1 Sprint 001.
+Phase 2 implements static/manual routing. Live-position navigation remains Phase 3 work.
 
 ---
 
@@ -65,7 +65,9 @@ The routing system must work correctly against demonstration data before real ca
 
 Demo paths must be clearly labelled DEMO in the data model.
 
-The current purple network is synthetic and geographically unverified. Some segments do not correspond to real campus walkways. This is a known fixture limitation, not a claim about campus access and not a routing-engine defect. Real paths must be populated and field-verified later.
+The primary development network is now built from a reviewed OpenStreetMap/Overpass snapshot: 47 YCT Map-owned nodes and 54 segments derived from 30 campus highway ways. Every record is `UNVERIFIED`; visual plausibility is not evidence of pedestrian access, safety or field verification. The old synthetic topology remains only for deterministic automated tests.
+
+The importer preserves OSM way/node references, source way version and timestamp, clips processing to vertices inside the approved campus polygon, splits ways at endpoints, shared OSM nodes and reviewed arrival nodes, and never joins un-noded geometric crossings. Vehicle `oneway=yes` does not restrict walking unless `oneway:foot=yes` is present.
 
 ## Sprint 001 Foundation
 
@@ -95,7 +97,15 @@ The current purple network is synthetic and geographically unverified. Some segm
 - When Phase 3 introduces reliable live geolocation, the user's actual position may use a directional triangle or chevron.
 - Heading or orientation must be shown only when reliable live-position and heading information exists.
 
-These are approved Sprint 003 presentation requirements. They are not implemented by the Sprint 002 technical inspector.
+These approved Sprint 003 presentation requirements are implemented separately from the Sprint 002 technical inspector.
+
+Sprint 003 implements them with a static blue `S` start marker, a larger red `D` destination marker and a blue cased route. No marker rotates or claims live position. Route bounds use all route coordinates with mobile/desktop panel-aware padding and a short-route zoom cap.
+
+The public route contract accepts stable location UUIDs and intentionally returns only route geometry, endpoint names, distance, approximate ETA and verification context. Graph IDs and algorithm internals remain private. DEBUG topology tools are separate and collapsed by default.
+
+The normal-user controller owns explicit `browsing`, `destination-selected`, `choosing-origin` and `route-available` states. A Directions action changes state atomically before the destination panel is released, preventing a fragile transition from leaving no visible owner of the interface.
+
+The OSM realism pass did not replace or repair A*. A* was already returning the shortest route in the supplied graph. Replacing unrealistic synthetic geometry with a more plausible reviewed OSM-derived graph improved visible routes because route quality depends on input topology as well as algorithm correctness.
 
 ## Real Network Construction and Validation
 

@@ -393,3 +393,18 @@ Reason:      Reusing suitable published reference information reduces unnecessar
 Consequences: Import/construction must create explicit editable YCT Map records. Missing or incorrect paths remain correctable, Path Survey Mode may refine evidence, and footprint-intersection warnings require human review rather than unconditional rejection.
 Alternatives considered: Route directly over rendered base-map paths (rejected — no project ownership or verification), redraw every path without reference (rejected — unnecessary work), reject every footprint intersection (rejected — would exclude genuine passages/corridors).
 ```
+
+---
+
+## DEC-T18
+
+```
+ID:          DEC-T18
+Date:        2026-09-18
+Status:      ACCEPTED
+Decision:    The primary local development routing network is imported from a reviewed OSM/Overpass snapshot into YCT Map-owned WalkableNode and WalkableSegment records with preserved provenance and UNVERIFIED status. The original synthetic topology is retained only for deterministic tests.
+Context:     The synthetic five-segment graph proved graph construction and A* correctly but produced geographically unrealistic routes during product review.
+Reason:      A geographically plausible development graph permits meaningful UX review without claiming field verification or coupling route execution to rendered base-map tiles.
+Consequences: Imported geometry remains editable, is never automatically FIELD_VERIFIED, and is not written back to OSM. Route quality still depends on later entrance review, access review and physical survey. Algorithm tests continue to use the small synthetic fixture for deterministic edge cases.
+Alternatives considered: Keep synthetic geometry as the primary visual dataset (rejected as unsuitable for continued review), route directly against rendered tiles (rejected because tiles are presentation rather than owned graph data), mark imported OSM data FIELD_VERIFIED (rejected because no field survey occurred).
+```

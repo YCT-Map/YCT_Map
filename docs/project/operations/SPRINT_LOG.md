@@ -323,3 +323,86 @@ This addendum preserves the implementation-time record above and records the lat
 - Future editor validation should flag ordinary outdoor path/building-footprint intersections while supporting deliberate reviewed passage/corridor exceptions.
 - Approved milestone commit message: `feat: add A* route calculation distance and baseline ETA`.
 - Phase 2 Sprint 003 is next. No Sprint 003 implementation is included in this milestone.
+
+---
+
+## Phase 2 — Sprint 003: User-Facing Navigation UX & Phase 2 Completion
+
+**Date:** 2026-09-18
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+
+### Objective and Result
+
+Converted the accepted routing engine into a mobile-first user flow: select an anchored destination, choose a non-live DEMO origin, calculate a route, see distinct static endpoints, inspect distance/ETA, and clear or change the route without refreshing.
+
+### What Was Built
+
+- Explicit public route endpoint with no graph IDs or DEBUG terminology.
+- `routing_available` location contract field and conditional Directions entry point.
+- Origin-selection, calculating, route, inline error, change and clear states.
+- Blue cased route, blue static `S` marker and larger red `D` marker.
+- Route geometry bounds with route-panel-aware mobile/desktop padding.
+- Compact responsive route sheet with start/follow/arrive guidance and DEMO warning.
+- Complete purple network hidden by default; DEBUG tools retained separately in a collapsed developer panel.
+
+### Verification and Boundary
+
+All 48 automated tests pass, including every earlier routing and Phase 1 regression. No browser GPS, moving marker, heading, personal-speed estimation, route progress, rerouting, real path import, editor collision logic or field verification was implemented.
+
+Required acceptance evidence: `P2-S3-A-navigation-route-endpoints.png`, `P2-S3-B-mobile-navigation-summary.png`, and `P2-R-navigation-flow.mp4`.
+
+`BUILD_JOURNAL.md` Sprint 003 and the Phase 2 summary remain pending until owner acceptance.
+
+**Commit:** Not committed — owner review required.
+
+### Owner Review Correction Addendum — 2026-09-18
+
+This addendum preserves the initial implementation record above. The first owner review did not accept Sprint 003 because the screenshots exposed the existing DEBUG route inspector rather than making the separate normal-user Directions flow evident.
+
+- Investigation confirmed that active anchored DEMO destinations returned `routing_available: true` and that the public route endpoint and user-navigation implementation existed.
+- Unversioned browser modules could combine current HTML/CSS with stale JavaScript, leaving Directions hidden and making the DEBUG inspector appear to be the only route entry point.
+- A shared UI asset version now refreshes the stylesheet, application entry module and all imported application modules together.
+- Directions availability is explicitly derived from the boolean routing contract, and origin selection handles the absence of another anchored DEMO location safely.
+- Fresh mobile-browser verification completed the normal flow without opening Developer tools and rendered a blue cased route, a blue static `S` at the route start, a red `D` at the route end, distance, approximate ETA, guidance and change/clear controls.
+- All 49 automated tests pass. Sprint 003 remains unaccepted pending owner re-verification.
+
+### Second Owner Review Correction Addendum — 2026-09-18
+
+The second owner review also did not accept Sprint 003. Although cache-safe assets exposed Directions, the owner still did not receive an unmistakable normal-user route transition. Investigation found no Directions-to-DEBUG code path and reproduced the public flow in a clean Edge session, but confirmed that panel ownership was non-atomic: `app.js` closed the destination panel before an optional navigation-controller call could confirm that choosing-origin state opened.
+
+- `app.js` now owns the explicit `browsing`, `destination-selected`, `choosing-origin` and `route-available` interface states.
+- User navigation is initialized before destination interaction is registered, and the destination card closes only after `begin()` succeeds.
+- Origin selection starts with an explicit placeholder, excludes the selected destination and enables Show route only after a valid origin is chosen.
+- Cancel returns to the selected destination card; Clear returns to browsing; Change destination returns focus to discovery.
+- A repository-owned Node behaviour suite executes Directions intent, choosing-origin population, public route request/result rendering, cancel and clear behavior.
+- All 49 Django tests and 3 JavaScript behaviour tests pass. A fresh Microsoft Edge mobile run reached `route-available` with Developer tools closed and rendered the blue public route plus endpoint-aligned blue `S` and red `D` markers.
+- Sprint 003 remains unaccepted pending owner re-verification. No Phase 3 work is included.
+
+### OSM Walkable Network Realism Pass — 2026-09-18
+
+After confirming that the public Sprint 003 navigation flow worked, the owner rejected the five-segment synthetic geometry as too unrealistic for continued product review. The routing engine was retained unchanged while its primary local dataset was replaced.
+
+- Captured a reproducible Overpass snapshot inside OSM campus way `671850885` at OSM base timestamp `2026-09-18T06:32:00Z`.
+- Reviewed 30 candidate ways: 29 service ways and one explicit footway.
+- Added controlled OSM/manual/synthetic provenance to routing nodes and segments.
+- Added a deterministic, transactional dry-run/apply importer with access/construction rejection, campus-boundary filtering and topology splitting at shared/arrival nodes.
+- Loaded 47 OSM-derived `UNVERIFIED` nodes, 54 `UNVERIFIED` segments and six reviewed `UNVERIFIED` destination anchors.
+- Added the missing Medical Centre anchor. Every pair among the six DEMO destinations now produces a route.
+- Preserved the original synthetic topology only as an automated-test fixture.
+- Added ODbL/source documentation and explicit UI wording that the route geometry is OSM-derived, unverified and not field-verified guidance.
+- All 52 Django tests and 3 JavaScript behaviour tests pass. Sprint 003 and Phase 2 remain unaccepted pending owner visual review; no Phase 3 work is included.
+
+### Final Acceptance Addendum — 2026-09-18
+
+This addendum preserves the implementation and correction history above and records the final owner decision.
+
+- Phase 2 Sprint 003 was formally OWNER ACCEPTED.
+- Phase 2 — Routing & Navigation was formally OWNER ACCEPTED.
+- The owner verified the public Directions flow, static route endpoints, Medical Centre routing and the materially more plausible OSM-derived development network.
+- The accepted development dataset contains 47 OSM-derived `UNVERIFIED` nodes, 54 `UNVERIFIED` segments and six destination anchors. No imported record is `FIELD_VERIFIED`.
+- The original five-segment synthetic graph remains only for deterministic automated tests and algorithm edge cases.
+- A* was already correct against the synthetic graph. Poor visible realism came from poor input geometry; replacing the graph data improved routes without changing A*, reconstruction, distance or ETA logic.
+- The missing Medical Centre Directions action was caused by an absent active `LocationNetworkAnchor`; a deliberate non-field-verified anchor resolved it.
+- Accepted evidence is `P2-S3-A-navigation-route-endpoints.png`, `P2-S3-B-medical-centre-route.png`, supporting `P2-S3-C-osm-unverified-network.png`, and phase recording `P2-R-navigation-flow.mp4`.
+- Browser GPS, live progress, rerouting, Path Survey Mode, complete editor mapping, verified entrances and field-verified paths remain deferred.
+- Phase 3 is next for discussion/planning only. No Phase 3 implementation is included.

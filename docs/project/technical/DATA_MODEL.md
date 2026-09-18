@@ -3,13 +3,13 @@
 ## Status
 
 ```
-Current phase:     PHASE 2 — ROUTING & NAVIGATION
-Implementation:    LOCATION, ALIAS, WALKABLE NETWORK + LOCATION ANCHOR SUBSET IMPLEMENTED
+Current phase:     PHASE 2 — OWNER ACCEPTED
+Implementation:    LOCATION, ALIAS, WALKABLE NETWORK, PROVENANCE + LOCATION ANCHOR SUBSET IMPLEMENTED
 ```
 
 This document describes the expected data model based on approved product decisions.
 
-Nothing here is implemented. This is design intent to be validated when the build phase begins.
+Implemented subsets are identified below; later entities remain design intent.
 
 All field names and types are indicative — actual implementation may differ.
 
@@ -21,15 +21,19 @@ All field names and types are indicative — actual implementation may differ.
 
 Building geometry, floors, internal locations, paths, contributions and verification-user relationships remain planned and were intentionally not created during Sprint 001.
 
-## Current Phase 2 Sprint 001 Implementation
+## Current Phase 2 Implementation
 
 `WalkableNode` stores a stable UUID, optional label, decimal longitude/latitude, controlled verification state, active state and timestamps.
 
 `WalkableSegment` stores a stable UUID, optional label, start/end node foreign keys, GeoJSON `LineString`, bidirectional flag, controlled verification state, active state and timestamps. Distance is derived from geometry rather than stored manually.
 
-The current routing fixture contains synthetic `DEMO` topology only. Its coordinates do not verify real campus paths or destination positions.
+The primary local development network contains 47 OSM-derived nodes and 54 segments imported as `UNVERIFIED`. Six synthetic DEMO destinations are connected through explicitly reviewed, non-field-verified anchors. The earlier five-node/five-segment synthetic topology remains only as an isolated automated-test fixture.
+
+`WalkableNode` and `WalkableSegment` retain controlled source provenance: `source_type`, `source_reference`, optional OSM version and optional source timestamp. Provenance identifies where geometry originated; it does not change verification state.
 
 Phase 2 Sprint 002 adds routing-owned `LocationNetworkAnchor`. It currently gives one active location one primary network-node connection. This keeps locations separate from graph junctions and can later evolve to multiple entrances without changing the A* node-to-node contract.
+
+The Medical Centre initially lacked Directions because it had no active `LocationNetworkAnchor`. The OSM realism pass added a deliberate `UNVERIFIED` anchor, so all six DEMO destinations now participate in routing. An anchor expresses a development arrival connection; it does not verify the destination coordinate or entrance in the field.
 
 ---
 

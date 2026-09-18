@@ -95,6 +95,7 @@ class LocationEndpointTests(TestCase):
                 "verification_state",
                 "verification_label",
                 "aliases",
+                "routing_available",
             },
         )
         self.assertNotIn("created_at", feature["properties"])
@@ -146,6 +147,26 @@ class MapPageTests(TestCase):
         self.assertContains(response, 'data-centre-latitude="6.51857"')
         self.assertContains(response, "yct_map/data/yabatech-campus-boundary.geojson")
         self.assertContains(response, "DEMO DATA")
+        self.assertContains(response, 'data-route-url="/api/routes/"')
+        self.assertContains(response, 'id="destination-directions"')
+        self.assertContains(response, 'id="user-route-panel"')
+        self.assertContains(response, "app.js?v=p2s3-osm-realism-4")
+        self.assertContains(response, "app.css?v=p2s3-osm-realism-4")
+        self.assertNotContains(response, "A* route inspection")
+
+    def test_sprint_003_modules_use_the_same_cache_version(self):
+        app_path = settings.BASE_DIR / "static/yct_map/js/app.js"
+        app_source = app_path.read_text(encoding="utf-8")
+
+        for module in (
+            "api.js",
+            "destination-panel.js",
+            "map.js",
+            "search.js",
+            "route-inspector.js",
+            "user-navigation.js",
+        ):
+            self.assertIn(f'{module}?v=p2s3-osm-realism-4', app_source)
 
     def test_campus_orientation_boundary_is_the_approved_osm_polygon(self):
         boundary_path = settings.BASE_DIR / "static/yct_map/data/yabatech-campus-boundary.geojson"

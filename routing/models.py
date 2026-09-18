@@ -15,12 +15,22 @@ class VerificationState(models.TextChoices):
     FIELD_VERIFIED = "FIELD_VERIFIED", "Field verified"
 
 
+class SourceType(models.TextChoices):
+    SYNTHETIC = "SYNTHETIC", "Synthetic fixture"
+    OSM = "OSM", "OpenStreetMap"
+    MANUAL = "MANUAL", "YCT Map manual"
+
+
 class WalkableNode(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     label = models.CharField(max_length=120, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, validators=[MinValueValidator(-180), MaxValueValidator(180)])
     latitude = models.DecimalField(max_digits=8, decimal_places=6, validators=[MinValueValidator(-90), MaxValueValidator(90)])
     verification_state = models.CharField(max_length=20, choices=VerificationState.choices)
+    source_type = models.CharField(max_length=20, choices=SourceType.choices, default=SourceType.MANUAL)
+    source_reference = models.CharField(max_length=80, blank=True)
+    source_version = models.PositiveIntegerField(null=True, blank=True)
+    source_timestamp = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -37,6 +47,10 @@ class WalkableSegment(models.Model):
     geometry = models.JSONField()
     is_bidirectional = models.BooleanField(default=True)
     verification_state = models.CharField(max_length=20, choices=VerificationState.choices)
+    source_type = models.CharField(max_length=20, choices=SourceType.choices, default=SourceType.MANUAL)
+    source_reference = models.CharField(max_length=80, blank=True)
+    source_version = models.PositiveIntegerField(null=True, blank=True)
+    source_timestamp = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

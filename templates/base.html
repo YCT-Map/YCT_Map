@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
     <link rel="preconnect" href="https://unpkg.com" crossorigin>
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@{{ maplibre_version }}/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="{% static 'yct_map/css/app.css' %}">
+    <link rel="stylesheet" href="{% static 'yct_map/css/app.css' %}?v={{ ui_asset_version }}">
     {% block head %}{% endblock %}
   </head>
   <body>

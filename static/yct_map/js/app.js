@@ -1,13 +1,15 @@
-import { fetchLocations } from "./api.js";
-import { createDestinationPanel } from "./destination-panel.js";
-import { createMap } from "./map.js";
-import { createSearch } from "./search.js";
-import { createRouteInspector } from "./route-inspector.js";
+import { fetchLocations } from "./api.js?v=p2s3-osm-realism-4";
+import { createDestinationPanel } from "./destination-panel.js?v=p2s3-osm-realism-4";
+import { createMap } from "./map.js?v=p2s3-osm-realism-4";
+import { createSearch } from "./search.js?v=p2s3-osm-realism-4";
+import { createRouteInspector } from "./route-inspector.js?v=p2s3-osm-realism-4";
+import { createUserNavigation } from "./user-navigation.js?v=p2s3-osm-realism-4";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
 const mapError = document.querySelector("#map-error");
-const panel = createDestinationPanel(document.querySelector("#destination-panel"));
+let destinationPanel = null;
+let navigationController = null;
 
 const config = {
   locationsUrl: shell.dataset.locationsUrl,
@@ -17,10 +19,15 @@ const config = {
   debugNetworkUrl: shell.dataset.debugNetworkUrl,
   debugRouteAnchorsUrl: shell.dataset.debugRouteAnchorsUrl,
   debugRouteUrl: shell.dataset.debugRouteUrl,
+  routeUrl: shell.dataset.routeUrl,
   centre: [Number(shell.dataset.centreLongitude), Number(shell.dataset.centreLatitude)],
 };
 
 let mapController = null;
+
+function setInterfaceState(state) {
+  shell.dataset.interfaceState = state;
+}
 
 function setStatus(message, state = "ready") {
   status.querySelector("span:last-child").textContent = message;
@@ -28,7 +35,9 @@ function setStatus(message, state = "ready") {
 }
 
 function selectDestination(feature) {
-  panel.show(feature);
+  navigationController.reset({ notify: false });
+  destinationPanel.show(feature);
+  setInterfaceState("destination-selected");
   mapController?.focus(feature);
 }
 
@@ -43,11 +52,34 @@ async function start() {
       setStatus(`${features.length} demo destinations ready`, "ready");
     }
 
+    navigationController = createUserNavigation({
+      panel: document.querySelector("#user-route-panel"),
+      features,
+      routeUrl: config.routeUrl,
+      onRoute: (route, origin, destination) => mapController?.showUserRoute(route, origin, destination),
+      onClear: () => mapController?.clearUserRoute(),
+      onBrowse: () => document.querySelector("#location-search")?.focus(),
+      onStateChange: setInterfaceState,
+      onCancel: (feature) => {
+        destinationPanel.show(feature);
+        setInterfaceState("destination-selected");
+      },
+    });
+
+    destinationPanel = createDestinationPanel(document.querySelector("#destination-panel"), {
+      onDirections: (feature) => {
+        if (navigationController.begin(feature)) {
+          destinationPanel.close();
+        }
+      },
+    });
+
     createSearch({
       features,
       onSelect: selectDestination,
       onFilter: (matches) => mapController?.setVisibleFeatures(matches),
     });
+    setInterfaceState("browsing");
 
     try {
       mapController = await createMap({

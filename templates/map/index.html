@@ -14,6 +14,7 @@
     data-debug-network-url="{{ debug_network_url }}"
     data-debug-route-anchors-url="{{ debug_route_anchors_url }}"
     data-debug-route-url="{{ debug_route_url }}"
+    data-route-url="{{ route_url }}"
     data-centre-longitude="{{ map_centre.longitude }}"
     data-centre-latitude="{{ map_centre.latitude }}"
   >
@@ -78,10 +79,12 @@
       <span>You can still search and inspect all demonstration destinations.</span>
     </aside>
 
+    {% if debug_network_url %}<details id="debug-tools" class="debug-tools">
+      <summary>Developer tools</summary>
     <aside id="network-inspector" class="network-inspector" aria-label="Demonstration network inspection" hidden>
-      <button id="toggle-demo-network" type="button" aria-pressed="true">
+      <button id="toggle-demo-network" type="button" aria-pressed="false">
         <span class="network-swatch" aria-hidden="true"></span>
-        DEMO walkable network
+        UNVERIFIED walkable network
       </button>
       <small>Inspection only — no route calculated</small>
     </aside>
@@ -105,6 +108,7 @@
       </div>
       <small>Synthetic inspection data — not verified campus navigation.</small>
     </aside>
+    </details>{% endif %}
 
     <section
       id="destination-panel"
@@ -121,10 +125,40 @@
       </div>
       <h1 id="destination-name"></h1>
       <p id="destination-description"></p>
+      <button id="destination-directions" class="primary-action" type="button" hidden>Directions</button>
       <p class="demo-notice">
         <span aria-hidden="true">ⓘ</span>
         Synthetic information for product demonstration only. This is not a verified real campus location.
       </p>
+    </section>
+
+    <section id="user-route-panel" class="user-route-panel" aria-labelledby="user-route-title" hidden>
+      <div class="panel-handle" aria-hidden="true"></div>
+      <button id="close-user-route" class="panel-close" type="button" aria-label="Close route">×</button>
+      <div class="destination-meta"><span class="demo-route-label">DEMO ROUTE</span></div>
+      <h2 id="user-route-title">Walking directions</h2>
+      <div id="user-route-form-state">
+        <p class="route-destination-copy">To <strong id="user-route-destination"></strong></p>
+        <form id="user-route-form">
+          <label for="user-route-origin">Choose a starting point</label>
+          <select id="user-route-origin" required></select>
+          <button id="show-user-route" class="primary-action" type="submit">Show route</button>
+          <button id="cancel-user-route" class="secondary-action" type="button">Cancel</button>
+        </form>
+      </div>
+      <p id="user-route-error" class="route-error" role="alert" hidden></p>
+      <div id="user-route-result" aria-live="polite" hidden>
+        <div class="route-place"><span class="start-key">S</span><span>Start at <strong id="user-route-from"></strong></span></div>
+        <div class="route-guidance">Follow the highlighted route</div>
+        <div class="route-place"><span class="destination-key">D</span><span>Arrive at <strong id="user-route-to"></strong></span></div>
+        <div class="user-route-metrics"><strong id="user-route-distance"></strong><strong id="user-route-eta"></strong></div>
+        <div class="route-actions">
+          <button id="change-route-origin" type="button">Change start</button>
+          <button id="change-route-destination" type="button">Change destination</button>
+          <button id="clear-user-route" type="button">Clear route</button>
+        </div>
+      </div>
+      <p id="user-route-data-notice" class="demo-notice">DEMO destinations with unverified route geometry — not field-verified campus navigation.</p>
     </section>
 
     <noscript>
@@ -132,5 +166,5 @@
     </noscript>
   </main>
 
-  <script type="module" src="{% static 'yct_map/js/app.js' %}"></script>
+  <script type="module" src="{% static 'yct_map/js/app.js' %}?v={{ ui_asset_version }}"></script>
 {% endblock %}

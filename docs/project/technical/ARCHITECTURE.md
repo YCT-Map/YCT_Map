@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:         PHASE 2 — ROUTING & NAVIGATION (planning)
-Application code:      PHASE 1 OWNER ACCEPTED; PHASE 2 NOT STARTED
+Current phase:         PHASE 2 — ROUTING & NAVIGATION — OWNER ACCEPTED
+Application code:      PHASE 2 COMPLETE; PHASE 3 NOT STARTED
 ```
 
 This document records approved architectural decisions and expected system design.
@@ -20,8 +20,8 @@ YCT Map is a web-based application consisting of:
 | Layer | Description | Status |
 |-------|-------------|--------|
 | Frontend | Django templates, CSS and modular JavaScript; map-first interface | CURRENT — Phase 1 |
-| Backend API | Public location/search GeoJSON endpoint | CURRENT — Phase 1 subset |
-| Database | SQLite locally; `Location` and `LocationAlias` models | CURRENT — Phase 1 subset |
+| Backend API | Location/search and explicit anchored-route endpoints | CURRENT — Phase 2 |
+| Database | SQLite locally; locations, aliases, walkable graph and anchors | CURRENT — Phase 2 |
 | Authentication | Django auth installed; editor workflows not implemented | FOUNDATION ONLY |
 | Map tiles | OpenFreeMap Liberty rendered with MapLibre GL JS | CURRENT |
 
@@ -29,7 +29,7 @@ YCT Map is a web-based application consisting of:
 
 ## Frontend
 
-**Status: CURRENT — PHASE 1 ACCEPTED**
+**Status: CURRENT — PHASE 2 ACCEPTED**
 
 **APPROVED direction:**
 - Mobile-first web application
@@ -48,20 +48,20 @@ YCT Map is a web-based application consisting of:
 
 ## Backend
 
-**Status: CURRENT — PHASE 1 SUBSET**
+**Status: CURRENT — PHASE 2 SUBSET**
 
 **APPROVED direction:**
 - Backend API serving campus data, routing, contributions and editor management
 
 **APPROVED decision (DEC-T02):** Python / Django for business logic, REST APIs, and administrative/editor capabilities.
 
-**CURRENT implementation:** Django `5.2.17` LTS serves the public map and an explicit read-only GeoJSON location collection. Routing, contributions and editor endpoints remain planned.
+**CURRENT implementation:** Django `5.2.17` LTS serves the public map, an explicit read-only GeoJSON location collection, a narrow public location-to-location route endpoint and DEBUG-only routing inspection. Contribution and editor endpoints remain planned.
 
 ---
 
 ## Database
 
-**Status: CURRENT — LOCAL PHASE 1 SUBSET**
+**Status: CURRENT — LOCAL PHASE 2 SUBSET**
 
 **APPROVED direction:**
 - Persistent storage for campus locations, walkable paths, public contributions, editor accounts
@@ -70,7 +70,7 @@ YCT Map is a web-based application consisting of:
 
 **APPROVED decision (DEC-T03):** Managed PostgreSQL (Neon preferred; Supabase compatible alternative).
 
-**CURRENT implementation:** SQLite is used only for Sprint 001 local development. Portable Django ORM fields preserve a clean PostgreSQL migration path. No production database infrastructure exists.
+**CURRENT implementation:** SQLite stores local locations, aliases, routing nodes, segments and anchors. Portable Django ORM fields and JSON geometry preserve a clean PostgreSQL migration path. No production database infrastructure exists.
 
 ---
 
@@ -107,7 +107,7 @@ YCT Map data and OpenStreetMap remain separate systems. Local destination, alias
 
 ## Routing
 
-**Status: NOT STARTED**
+**Status: CURRENT — PHASE 2 SPRINT 003**
 
 **APPROVED direction:**
 - Routing applies only within YabaTech campus boundaries
@@ -116,6 +116,10 @@ YCT Map data and OpenStreetMap remain separate systems. Local destination, alias
 - GPS noise must not trigger unnecessary rerouting
 
 **APPROVED decision (DEC-T05):** Shortest-path network graph algorithm (Dijkstra / A*) operating over YCT Map's connected walkable path linestring geometry.
+
+**CURRENT implementation:** Active Django network rows become an immutable adjacency graph. A* uses geometry-derived metres plus an admissible Haversine heuristic, reconstructs traversal-oriented geometry and returns an explicit immutable result. A routing-owned anchor connects locations to graph nodes. The browser's user route flow calls a narrow public endpoint, renders a cased blue route with static labelled endpoints, and keeps DEBUG topology tools separate.
+
+The primary development graph is imported from a reviewed OSM/Overpass snapshot into YCT Map-owned records with source references and `UNVERIFIED` state. The import is not a live OSM dependency, does not write back, and does not confer field verification.
 
 ---
 
@@ -135,7 +139,7 @@ No file storage requirements identified for V1 (no location photographs in V1).
 
 ---
 
-## Architecture Diagram (Planned)
+## Architecture Diagram
 
 ```
 [User Browser / Mobile Device]
@@ -150,7 +154,7 @@ No file storage requirements identified for V1 (no location photographs in V1).
 [Database]   [Auth Service]
 ```
 
-The browser, Phase 1 frontend, public location endpoint, local database and external map-style connection are implemented. Authentication workflows, routing and production infrastructure remain planned.
+The browser frontend, public location and route endpoints, local database, routing services and external map-style connection are implemented. Live geolocation, contribution/editor workflows and production infrastructure remain planned.
 
 ---
 
@@ -169,6 +173,8 @@ The browser, Phase 1 frontend, public location endpoint, local database and exte
 
 - Indoor mapping is not in V1
 - Routing uses paths maintained in YCT Map data — quality depends on field verification
+- Current OSM-derived routing paths and anchors are `UNVERIFIED`; service-road access and exact entrances require later review and field survey
+- No browser GPS, route progress or rerouting exists yet
 - Building geometry relies on available data; complex irregular polygons may be simplified initially
 
 ---

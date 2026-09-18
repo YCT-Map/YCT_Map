@@ -8,8 +8,8 @@ The map is the primary interface. Students, staff and visitors can search campus
 
 ## Project Status
 
-**Phase:** PHASE 2 — ROUTING & NAVIGATION (SPRINT 002 OWNER ACCEPTED)
-**Application implementation:** PHASE 1 ACCEPTED; PHASE 2 SPRINT 002 ACCEPTED
+**Phase:** PHASE 2 — ROUTING & NAVIGATION (OWNER ACCEPTED)
+**Application implementation:** PHASES 1 AND 2 ACCEPTED; PHASE 3 NOT STARTED
 **Product definition:** SUBSTANTIALLY COMPLETE
 **Documentation / governance:** IN PROGRESS
 **Campus production dataset:** NOT YET POPULATED
@@ -27,14 +27,13 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 python manage.py migrate
 python manage.py loaddata demo_locations
-python manage.py loaddata demo_walkable_network
-python manage.py loaddata demo_route_anchors
+python manage.py import_osm_walkable_network --snapshot routing/data/osm/yabatech_highways_2026-09-18.overpass.json --review routing/data/osm/yabatech_review.json --apply
 python manage.py runserver 127.0.0.1:8000
 ```
 
 Open `http://127.0.0.1:8000/`.
 
-The Phase 1 map uses pinned MapLibre GL JS assets and OpenFreeMap Liberty over the network. All included destinations are synthetic records explicitly marked `DEMO`.
+The map uses pinned MapLibre GL JS assets and OpenFreeMap Liberty over the network. Destinations remain synthetic `DEMO` records. The development routing graph is YCT Map-owned, OSM-derived and explicitly `UNVERIFIED`; it is not field-verified campus guidance.
 
 ---
 

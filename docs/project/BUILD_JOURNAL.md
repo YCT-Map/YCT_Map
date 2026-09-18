@@ -561,210 +561,6 @@ Phase 2 will introduce YCT Map’s own synthetic walkable network, geometry-deri
 
 ### Purpose
 
-Sprint 001 created the data and service foundation that a route-finding algorithm needs. It represented walkable topology as project-owned nodes and segments, derived cost from geographic geometry, and converted persisted records into an in-memory graph. It deliberately stopped before choosing routes.
-
-The sprint also closed Phase 1's cosmetic carryover by replacing polygon-based campus-label placement with one deterministic point label without changing the accepted campus boundary, camera behavior or base-map configuration.
-
-### User Outcome
-
-In development mode, a project member can display the complete synthetic walkable network as dashed purple segments and junction points, hide or show it, and see an explicit “no route calculated” message. This makes the new topology inspectable without pretending that navigation already exists.
-
-Search, categories, destination selection and campus orientation continue to work as they did in accepted Phase 1.
-
-### Starting State
-
-Phase 1 milestone commit `602a0be` provided a searchable map, synthetic destinations, a reviewed campus boundary and responsive destination details. It did not contain routing nodes, walkable segments, graph construction or segment-length calculation.
-
-The accepted design required persistent but minimal routing models, GeoJSON path geometry, geometry-derived distance, bidirectional and future one-way traversal, an in-memory graph boundary, synthetic fixtures, focused validation and development-only inspection. A* selection, route results, distance totals, ETA and final navigation UI were excluded.
-
-### What We Built
-
-- A `routing` Django application with its own migration, models, fixture, services, endpoint and tests.
-- `WalkableNode` records for graph junctions.
-- `WalkableSegment` records connecting two nodes through a GeoJSON `LineString`.
-- Stable UUID identifiers, controlled verification state, active state and directionality.
-- Haversine distance calculation over every consecutive pair of LineString coordinates.
-- An in-memory adjacency graph containing directed traversal arcs.
-- Reverse arcs with reversed geometry for bidirectional segments.
-- Diagnostics for malformed geometry, zero length, self-edges and duplicate/reverse-duplicate segments.
-- Five synthetic DEMO nodes and five synthetic DEMO segments in a removable fixture.
-- A DEBUG-only GeoJSON inspection endpoint and dashed purple map overlay.
-- A deterministic single campus-label point.
-
-### Technical Concepts Introduced
-
-**Graph topology.** A node represents a position where traversal can begin, end, branch or continue. An edge represents a permitted connection between two nodes. In YCT Map, persisted `WalkableSegment` records are the edge data; the graph builder turns them into directed in-memory arcs.
-
-**Project routing data versus base-map data.** OpenFreeMap supplies visual context such as roads, buildings and labels. It does not automatically define what YCT Map considers safely walkable. YCT Map's routing network is stored separately so its provenance, direction and verification state can be controlled.
-
-**Polyline geometry.** A GeoJSON `LineString` stores an ordered list of `[longitude, latitude]` coordinates. Intermediate vertices allow a segment to follow a bend. Drawing or measuring only the endpoints would incorrectly replace a curved path with a straight shortcut.
-
-**Geometry-derived cost.** Each consecutive coordinate pair is measured with the Haversine formula, and those leg lengths are summed. The result becomes the segment's traversal cost. Distance is therefore derived from the actual stored polyline rather than typed into a separate authoritative field.
-
-**Persistence-to-computation boundary.** Django models are useful for validation, editing and persistence, but graph algorithms need a compact adjacency structure. The graph builder reads active records and produces immutable nodes and arcs for computation without making algorithms query the database at every step.
-
-**Directionality.** One stored bidirectional segment produces two graph arcs: start to end and end to start. The reverse arc uses reversed coordinate order so later route geometry follows the direction of travel. A one-way segment produces only its allowed forward arc.
-
-### How It Works Internally
-
-`WalkableNode` stores one graph junction's stable identity and geographic position. A node is not a destination or building; it is routing topology.
-
-`WalkableSegment` references a start and end node and stores the geographic line between them. Model validation rejects self-connections, invalid geometry, zero-length geometry and lines whose endpoints do not match the selected nodes within the allowed tolerance.
-
-The canonical geometry utility validates longitude/latitude bounds and calculates each segment's length. `build_graph()` selects active nodes and active segments whose endpoints are active. It adds a forward `GraphArc`; for a bidirectional segment it also adds a reverse arc with reversed geometry.
-
-The DEBUG endpoint serializes active DEMO nodes and segments into a deliberately small GeoJSON contract. The browser draws all segment features as dashed purple lines and nodes as small junction circles. This is a topology view, not algorithm output: it displays the complete available network rather than a selected origin-to-destination subset.
-
-### Architecture / Components Involved
-
-```text
-SQLite
-  |-- WalkableNode rows
-  `-- WalkableSegment rows + GeoJSON LineStrings
-                  |
-                  v
-             build_graph()
-                  |
-                  v
-        RoutingGraph adjacency map
-          node -> directed GraphArc(s)
-
-DEBUG inspection path:
-
-database -> narrow GeoJSON endpoint -> dashed complete-network overlay
-
-OpenFreeMap Liberty ----------------> visual geographic context
-YCT Map routing data ---------------> project-controlled topology
-```
-
-### Important Files
-
-- `routing/models.py` — persisted nodes, segments, verification state and model validation.
-- `routing/migrations/0001_initial.py` — routing schema.
-- `routing/geometry.py` — LineString validation and Haversine length calculation.
-- `routing/graph.py` — immutable arc/result structures and database-to-adjacency conversion.
-- `routing/validators.py` — network-level diagnostics.
-- `routing/views.py` and `routing/urls.py` — DEBUG-only inspection contract.
-- `routing/fixtures/demo_walkable_network.json` — removable synthetic topology.
-- `routing/tests/test_routing.py` — geometry, graph, validation and endpoint tests.
-- `static/yct_map/js/map.js` — inspection layers, toggle and deterministic campus label.
-- `templates/map/index.html` — explicit inspection legend and no-route message.
-
-### Data Flow
-
-```text
-1. Explicit fixture load creates DEMO nodes and segments.
-2. Segment geometry is stored as an ordered GeoJSON LineString.
-3. Geometry utility sums Haversine distance across every leg.
-4. Graph builder reads active database rows.
-5. Each valid segment becomes a forward arc.
-6. A bidirectional segment also becomes a reverse arc.
-7. DEBUG endpoint serializes topology for visual inspection.
-8. MapLibre draws the entire network; no route is selected.
-```
-
-The future A* service will consume the graph produced at step 6. It will not need to know how Django stores model rows.
-
-### Decisions and Trade-offs
-
-**Ordinary Django fields and JSONField instead of PostGIS.** Sprint 001 needs persistence and geometry traversal, not spatial database queries. JSONField keeps setup small and PostgreSQL-compatible. More advanced spatial needs can be reconsidered when evidence justifies them.
-
-**Dynamic length instead of a manually maintained distance column.** Calculation costs a small amount of CPU, but prevents geometry and distance from disagreeing. The campus graph is small enough that correctness is more valuable than premature caching.
-
-**Stable UUIDs.** A stable segment identity lets future route results, editor changes, audit records and Path Survey Mode refer to a particular path independently of labels or array order. Survey observations can later attach to a segment without making one raw GPS trace trusted automatically.
-
-**Boolean directionality.** `is_bidirectional` expresses the required current cases clearly. Rich restriction modelling is deferred until an actual requirement exists.
-
-**Development-only visualization.** Inspectability is valuable, but presenting the complete network as a public route would be misleading. Keeping the endpoint and overlay under DEBUG protects that distinction.
-
-**Disconnected topology as a diagnosable condition.** A network may contain separate components during development. The foundation exposes this safely rather than inventing connections. A later algorithm must return no-route when components cannot connect.
-
-### Problems Encountered
-
-- The accepted polygon-based campus symbol could repeat its label at close zoom.
-- The preferred integrated browser connection was unavailable during implementation verification.
-- The isolated verification browser could render the application shell but did not complete the external OpenFreeMap style load.
-- Owner inspection confirmed that some synthetic segments do not match real campus walkways and some DEMO destination positions are inaccurate.
-
-The last point is not a routing-engine failure: Sprint 001 intentionally used synthetic replaceable coordinates to prove architecture.
-
-### How We Solved Them
-
-- The campus boundary remained unchanged, while its symbol source became one deterministic point at the approved orientation centre.
-- Automated checks, a locally running Django application and isolated desktop/mobile browser passes verified the implementation; final successful visual verification was completed by the owner in the normal environment.
-- A regression comparison against Phase 1 milestone `602a0be` confirmed that MapLibre version, Liberty style URL, camera settings, campus opacity and base-map behavior were unchanged.
-- The documentation explicitly retains the DEMO limitation. Real paths and positions will be populated and physically verified later rather than retroactively treating fixture coordinates as truth.
-
-### Testing and Verification
-
-All 23 Django tests passed at acceptance, including all 13 Phase 1 regressions. Routing tests cover:
-
-- fixture records remaining explicitly `DEMO`;
-- curved geometry measuring longer than its straight endpoint chord;
-- zero-length rejection;
-- self-edge rejection;
-- segment geometry anchored to its nodes;
-- reverse arcs for bidirectional segments;
-- inactive-segment exclusion;
-- reverse-duplicate detection;
-- explicit DEBUG endpoint metadata; and
-- absence of that endpoint when DEBUG is disabled.
-
-Django system checks, migration-drift checks, JavaScript syntax checks and `git diff --check` passed. The owner verified the complete network overlay, junction rendering, toggle, explicit no-route state, single campus label, search, categories and destination selection.
-
-### Current Limitations
-
-- The purple network is synthetic and geographically unverified.
-- Some DEMO segments do not correspond to actual campus walkways.
-- Some DEMO destination positions are inaccurate.
-- There is no A*, Dijkstra or other route selection yet.
-- There is no calculated route geometry, total route distance or ETA.
-- Locations are not yet anchored to routing nodes.
-- There is no GPS, progress tracking, rerouting or final navigation interface.
-- The DEBUG overlay is a technical inspection aid, not production navigation.
-- Real path safety, accessibility and physical existence remain unverified.
-
-### Evidence
-
-- **`P2-S1-A-demo-walkable-network.png`** demonstrates the complete dashed purple DEMO topology and junction nodes over the map. It proves that stored network data reaches the browser and remains visually distinct from base geography.
-- **`P2-S1-B-routing-foundation.png`** demonstrates the development inspection state, including the toggle and explicit statement that no route has been calculated. It records the boundary between network foundation and future route selection.
-
-These images demonstrate software behavior, not real-campus path accuracy.
-
-### What Students Should Understand
-
-Students should distinguish three concepts that may occupy the same screen:
-
-1. The base map provides visual context.
-2. The complete purple network represents all currently available DEMO graph edges.
-3. A future calculated route will be only the ordered subset selected by an algorithm.
-
-They should be able to explain that nodes describe connectivity, while LineString segments describe both connectivity and geographic shape. Haversine measures the earth-surface distance between consecutive longitude/latitude pairs; summing those legs retains bends. They should also explain why persisted Django objects are converted into adjacency arcs before running graph algorithms.
-
-Most importantly, students must not confuse mathematical consistency with geographic truth. The software can correctly validate, measure and traverse synthetic geometry even when that geometry does not describe a real walkway. Field verification is a separate data-quality process.
-
-### Presentation / Defence Notes
-
-- **Why not route on OpenFreeMap roads directly?** Visible cartography is not automatically a verified, campus-specific walkability dataset under YCT Map's control.
-- **Why nodes and segments?** Routing needs explicit connectivity. Coordinates alone do not say which places can be traversed between.
-- **Why retain intermediate LineString points?** They preserve curved path shape and produce a more faithful distance.
-- **Why two arcs for a bidirectional segment?** Algorithms operate on directed choices. Two arcs express travel in both directions while sharing one persisted segment identity.
-- **Is the purple line a route?** No. It is the entire synthetic network. No origin, destination or shortest-path selection exists yet.
-- **Are the purple paths real?** No. They are deliberately synthetic DEMO data and cannot support claims about actual campus walkability.
-- **What does Sprint 001 enable?** A* can now receive stable nodes, directed arcs, geometry and distance costs without depending directly on Django models.
-
-### Next Sprint
-
-Phase 2 Sprint 002 — A* Route Calculation, Distance & Baseline ETA — will consume this graph foundation. It will choose the lowest-distance reachable sequence of arcs, reconstruct ordered route geometry, total geometry-derived distance, and calculate an approximate ETA using the approved `1.35 m/s` fallback.
-
-Sprint 002 remains a separate planning/build cycle. No Sprint 002 implementation is part of this accepted milestone.
-
-## Phase 2 — Sprint 001: Walkable Network & Routing Foundation
-
-**Recorded status:** OWNER VERIFIED / ACCEPTED on 2026-09-17.
-
-### Purpose
-
 Sprint 001 established the data and service foundation required before YCT Map can calculate routes. It introduced a project-owned walkable network, geometry-derived segment distance and an in-memory graph representation while deliberately excluding route selection. It also closed Phase 1’s cosmetic label carryover without changing the accepted base-map configuration or camera behavior.
 
 ### User Outcome
@@ -1188,3 +984,227 @@ Students should also understand that reverse traversal requires reversed geometr
 Phase 2 Sprint 003 will turn the technical route result into a clearer user-facing route experience. Approved endpoint presentation requires a distinct static start marker and red destination indicator. Static origins must not imitate live GPS; directional live-position and heading indicators remain reserved for reliable Phase 3 geolocation data.
 
 No Sprint 003 implementation is included in this accepted milestone.
+
+## Phase 2 — Sprint 003: User-Facing Navigation UX & Phase 2 Completion
+
+**Recorded status:** OWNER VERIFIED / ACCEPTED on 2026-09-18.
+
+### Purpose
+
+Sprint 003 converted the accepted routing engine into a normal-user navigation experience. It also replaced the primary synthetic visual graph with a reviewed, OSM-derived development network so route UX could be evaluated against geographically plausible topology without claiming field verification.
+
+### User Outcome
+
+A user can select an anchored DEMO destination, choose another anchored DEMO location as a manual start, request Directions, and see a blue calculated route with a static blue `S`, red `D`, walking distance, approximate ETA and simple start/follow/arrive guidance. The user can change either endpoint or clear the route. Developer topology inspection remains separate and collapsed.
+
+### Starting State
+
+Sprint 002 already had correct A* calculation, route reconstruction, distance and ETA, but these were exposed mainly through a DEBUG inspector. Endpoint presentation needed to distinguish manual selection from future live GPS. The original five-segment graph was deterministic and useful for algorithm tests, but owner review found it geographically unrealistic for continued visual product evaluation. Medical Centre also had no Directions action because it lacked an active network anchor.
+
+### What We Built
+
+- A narrow public route endpoint using location UUIDs rather than graph internals.
+- A normal-user Directions flow and responsive route summary.
+- Explicit `browsing`, `destination-selected`, `choosing-origin` and `route-available` UI states.
+- A blue cased route, static blue `S`, red `D`, and panel-aware route framing.
+- Change-start, change-destination, cancel and clear behavior.
+- JavaScript behavior tests for the real interaction sequence.
+- OSM provenance fields plus a deterministic reviewed-snapshot importer.
+- A 47-node, 54-segment, six-anchor OSM-derived `UNVERIFIED` development graph.
+- A deliberate non-verified Medical Centre anchor.
+
+### Technical Concepts Introduced
+
+**Public contract isolation.** The browser sends stable location identifiers and receives only names, route geometry, distance, ETA and verification context. Database node IDs and A* internals remain private.
+
+**Finite UI state.** The interface has named states with one clear owner. This prevents two panels from competing or both disappearing during a transition.
+
+**Provenance versus verification.** Provenance answers where geometry came from; verification answers how strongly YCT Map trusts it. An OSM way reference is useful audit information, but it is not evidence that the path was physically checked.
+
+**Data quality and algorithm quality.** A shortest-path algorithm can be correct and still produce an implausible real-world route when its graph is unrealistic. A* optimizes the network supplied to it; it cannot discover missing paths or reject an incorrectly included service road without suitable data.
+
+### How It Works Internally
+
+The location endpoint exposes `routing_available` only when an active anchor exists. Directions changes the app to `choosing-origin`; a successful selection calls the public route endpoint. Django resolves both location anchors, builds the adjacency graph and runs A*. The response geometry is rendered as a selected blue route, not the complete network.
+
+The importer reads a repository-owned Overpass snapshot and reviewed manifest. It rejects disallowed/construction features, clips processing to the campus reference area, splits OSM ways at endpoints, shared OSM nodes and reviewed arrival nodes, then persists owned nodes and segments transactionally. Source references, versions and timestamps remain attached while verification stays `UNVERIFIED`.
+
+```text
+Destination card --Directions--> choosing-origin
+       |                              |
+       |                         choose origin
+       |                              v
+       `----------------------> POST /api/routes/
+                                      |
+                          anchors -> graph -> A*
+                                      |
+                                      v
+                         route-available UI state
+```
+
+### Architecture / Components Involved
+
+```text
+Reviewed OSM snapshot + manifest
+              |
+              v
+      deterministic importer
+              |
+              v
+SQLite: WalkableNode -- WalkableSegment -- LocationNetworkAnchor
+              |
+              v
+        in-memory adjacency graph
+              |
+              v
+          A* route service
+              |
+              v
+public route JSON -> navigation controller -> MapLibre layers/panel
+```
+
+OpenFreeMap tiles remain visual background. The imported graph is YCT Map-owned application data and is not read from rendered tiles at route time.
+
+### Important Files
+
+- `routing/models.py` and `routing/migrations/0003_walkable_provenance.py` — source metadata and controlled provenance.
+- `routing/osm_import.py` and `routing/management/commands/import_osm_walkable_network.py` — deterministic conversion and transactional loading.
+- `routing/data/osm/` — captured source snapshot, review manifest and provenance notes.
+- `routing/views.py` and `routing/urls.py` — narrow public route contract.
+- `static/yct_map/js/user-navigation.js` — navigation state and route-panel behavior.
+- `static/yct_map/js/app.js`, `destination-panel.js` and `map.js` — coordinated state, intent and map rendering.
+- `tests/js/sprint003-public-navigation.test.mjs` — behavior-level frontend regression coverage.
+- `routing/tests/test_osm_import.py` — conversion, provenance and replacement tests.
+
+### Data Flow
+
+```text
+OSM way geometry
+ -> reviewed walking candidate
+ -> split at routing decisions/junctions
+ -> WalkableNode endpoints
+ -> WalkableSegment LineStrings
+ -> active adjacency arcs
+ -> A* selected arc sequence
+ -> continuous traversal-oriented coordinates
+ -> browser route line + endpoints + summary
+```
+
+For bidirectional segments the graph creates a reverse arc with reversed coordinates. Distance is the sum of Haversine lengths over every selected LineString leg. ETA is `distance / 1.35 m/s`, rounded for display and explicitly approximate.
+
+### Decisions and Trade-offs
+
+- The small synthetic graph remains the deterministic test fixture but is no longer the primary visual dataset.
+- A captured snapshot plus reviewed manifest is reproducible; querying Overpass during every load would make tests and local setup depend on changing network data.
+- JSON geometry and SQLite remain sufficient at this scale; PostGIS is not yet justified.
+- OSM-derived records stay editable and `UNVERIFIED`. There is no automatic OSM write-back or automatic promotion to `FIELD_VERIFIED`.
+- One current anchor per location keeps the model narrow; multiple entrances remain future work.
+
+### Problems Encountered
+
+The initial implementation passed backend and static checks, but the first owner review appeared to expose the DEBUG route experience rather than the intended public flow. Asset caching was one cause, so shared versioning was introduced. A later review exposed a second issue: the destination panel could close before the navigation controller had successfully taken ownership. Backend response tests and syntax checks could not prove this interaction sequence.
+
+Separately, the owner correctly rejected the five-segment synthetic geometry as too unrealistic. Medical Centre lacked Directions because it had no active `LocationNetworkAnchor`.
+
+### How We Solved Them
+
+- Versioned the related frontend assets together to prevent mixed old/new modules.
+- Made application state explicit and initialized navigation before destination interaction.
+- Closed the destination panel only after `begin()` successfully entered choosing-origin state.
+- Added executable JavaScript behavior tests covering intent, origin selection, request/result rendering, cancellation and clearing.
+- Replaced the primary visual dataset with reviewed OSM-derived topology while retaining the routing engine unchanged.
+- Added a deliberate `UNVERIFIED` Medical Centre anchor.
+
+The central engineering lesson is precise: **A* was already correct. Poor route realism came from poor input geometry, not from an incorrect shortest-path algorithm.** Better network data materially improved the same A*, reconstruction, distance and ETA pipeline.
+
+### Testing and Verification
+
+At acceptance, 52 Django tests and 3 Node-executed JavaScript behavior tests passed. Coverage includes public contract isolation, route edge cases, source restrictions, deterministic import, provenance, transactional replacement, 47/54 record counts, six anchors, Medical Centre availability and all 15 unordered destination pairs. Django checks, migration drift, JavaScript syntax and Git diff/whitespace checks form the milestone gate.
+
+Owner verification confirmed the normal-user route flow, endpoint markers, route-aware framing, Medical Centre routing, preserved discovery features and improved plausibility of several routes.
+
+### Current Limitations
+
+- OSM-derived paths are not field verified; service-road walkability is not guaranteed.
+- Exact entrances/exits are not deeply mapped and some arrival points remain approximate.
+- There is no browser GPS, live position, heading, route progress or rerouting.
+- ETA still uses the `1.35 m/s` fallback.
+- Path Survey Mode and the complete editor mapping interface do not exist yet.
+- Plausible geometry must not be presented as proof of safe or permitted real-world access.
+
+### Evidence
+
+- **`P2-S3-A-navigation-route-endpoints.png`** demonstrates the normal-user blue route, static blue start and red destination indicators, route summary and separation from DEBUG inspection.
+- **`P2-S3-B-medical-centre-route.png`** demonstrates that the formerly unanchored Medical Centre now participates in routing through an explicit non-field-verified anchor.
+- **`P2-S3-C-osm-unverified-network.png`** supports review of the 47-node/54-segment OSM-derived development topology and its explicit unverified status.
+- **`P2-R-navigation-flow.mp4`** records the end-to-end Phase 2 interaction from destination selection through route display and route controls.
+
+The evidence demonstrates software behavior and owner review, not field verification of campus access.
+
+### What Students Should Understand
+
+Students should be able to explain why persistent graph records are converted into an adjacency structure, why reverse arcs reverse geometry, why destination anchors are separate from junctions, and why route distance follows every geometry leg. They should distinguish DEBUG topology inspection from the public route experience, provenance from verification, and algorithm correctness from dataset realism.
+
+They should also understand why tests at multiple levels matter: Django tests proved contracts and services, syntax checks proved parseability, but only behavior tests and owner browser review exercised panel ownership and state transitions.
+
+### Presentation / Defence Notes
+
+- **Why A*?** It preserves shortest-distance correctness while its admissible straight-line Haversine heuristic prioritizes nodes likely to lead toward the goal.
+- **What are `g`, `h` and `f`?** `g` is distance already travelled, `h` is the non-overestimating straight-line estimate remaining, and `f = g + h` orders candidates.
+- **Why anchors?** A destination is a semantic place; a node is routing topology. An anchor connects them without confusing their responsibilities.
+- **Why not route over the base map?** Rendered tiles are presentation. YCT Map needs explicit, editable, auditable graph records.
+- **Is OSM-derived equal to verified?** No. It preserves source provenance but remains `UNVERIFIED` until review and physical confirmation.
+- **Why did routes improve without changing A*?** The graph began representing more plausible real geography.
+
+### Next Sprint
+
+Phase 3 is next for discussion and planning. It may add browser geolocation, a genuinely live directional position indicator, progress and controlled rerouting. No Phase 3 implementation is authorized by this acceptance milestone; a standalone `BUILD` command is still required.
+
+## Phase 2 Summary — Routing & Navigation
+
+**Status:** OWNER ACCEPTED on 2026-09-18.
+
+### Achievements
+
+Phase 2 established persisted routing topology, geometry-derived weights, adjacency conversion, A* shortest-distance routing, reconstruction, distance and baseline ETA, destination anchoring, normal-user Directions UX, static endpoint markers, responsive framing and a reproducible OSM-derived development network with provenance.
+
+### Resulting Architecture
+
+```text
+Persistent layer          Computation layer             Experience layer
+---------------           -----------------             ----------------
+WalkableNode       ->     adjacency[node]       ->      public route API
+WalkableSegment           directed GraphArc(s)          navigation state
+LocationAnchor            A* + reconstruction           MapLibre route UI
+OSM provenance            distance + ETA                 S / D + summary
+```
+
+Nodes represent routing decisions; persisted segments represent shaped connections. Active rows become directed arcs in memory. A* maintains `g`, estimates admissible Haversine `h`, orders by `f = g + h`, then follows predecessor arcs backward and reverses them to reconstruct the route. Segment coordinates are oriented for travel and joined without duplicated junction points.
+
+### Major Concepts Learned
+
+- Graph topology is different from visible cartography.
+- A LineString carries path shape; summed Haversine legs provide traversal cost.
+- Persistence supports validation, provenance and editing; adjacency supports efficient search.
+- Directionality belongs in graph arcs, including reversed geometry for reverse travel.
+- Anchors connect places to topology without making place coordinates graph junctions.
+- ETA at `1.35 m/s` is a fallback estimate, not observed user speed.
+- UI state is architecture: explicit ownership prevents fragile multi-panel transitions.
+- OSM provenance does not equal YCT Map field verification.
+- A correct algorithm cannot compensate for an unrealistic graph.
+
+### Important Problems and Solutions
+
+The repeated campus label was resolved with deterministic point placement. Sprint 003's stale-asset and fragile-transition failures were resolved through shared versioning, explicit states and behavior tests. The unrealistic synthetic graph was replaced as the visual development dataset by reviewed OSM-derived records while remaining available for deterministic tests. The missing Medical Centre anchor was added without claiming field verification.
+
+### Evidence
+
+Phase 2 evidence comprises `P2-S1-A-demo-walkable-network.png`, `P2-S1-B-routing-foundation.png`, `P2-S2-A-calculated-demo-route.png`, `P2-S2-B-route-distance-eta.png`, `P2-S3-A-navigation-route-endpoints.png`, `P2-S3-B-medical-centre-route.png`, supporting `P2-S3-C-osm-unverified-network.png`, and `P2-R-navigation-flow.mp4`.
+
+### Current System Capabilities
+
+The local application can search and select six DEMO destinations, calculate routes between every pair, render a selected route distinctly, display geometry-derived distance and approximate ETA, explain static start/arrival steps, and allow endpoint changes or clearing. Developers can inspect the complete graph separately. The primary graph is plausible enough for development review but remains unverified.
+
+### Transition to Phase 3
+
+Phase 3 can build live navigation on a stable route contract and explicit frontend states. It must introduce permission-aware browser geolocation, reliable live-position semantics, progress and noise-tolerant rerouting without confusing manual/static origins with GPS. Field verification, Path Survey Mode and full editor mapping remain later responsibilities.

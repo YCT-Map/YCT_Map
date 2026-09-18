@@ -12,6 +12,12 @@ const NETWORK_LINE_LAYER_ID = "demo-walkable-network-lines";
 const NETWORK_NODE_LAYER_ID = "demo-walkable-network-nodes";
 const ROUTE_SOURCE_ID = "calculated-demo-route";
 const ROUTE_LAYER_ID = "calculated-demo-route-line";
+const USER_ROUTE_SOURCE_ID = "user-demo-route";
+const USER_ROUTE_CASING_LAYER_ID = "user-demo-route-casing";
+const USER_ROUTE_LAYER_ID = "user-demo-route-line";
+const USER_ENDPOINT_SOURCE_ID = "user-route-endpoints";
+const USER_ENDPOINT_CIRCLE_LAYER_ID = "user-route-endpoint-circles";
+const USER_ENDPOINT_LABEL_LAYER_ID = "user-route-endpoint-labels";
 
 async function loadCampusBoundary(url) {
   try {
@@ -49,6 +55,17 @@ function campusPadding() {
     return { top: 190, right: 24, bottom: 96, left: 24 };
   }
   return { top: 112, right: 72, bottom: 72, left: 72 };
+}
+
+function routePadding() {
+  const panel = document.querySelector("#user-route-panel");
+  const panelHeight = panel?.getBoundingClientRect().height || 300;
+  const panelWidth = panel?.getBoundingClientRect().width || 400;
+  if (window.matchMedia("(max-width: 41.99rem)").matches) {
+    const discoveryBottom = document.querySelector(".discovery")?.getBoundingClientRect().bottom || 180;
+    return { top: Math.ceil(discoveryBottom) + 24, right: 28, bottom: Math.ceil(panelHeight) + 24, left: 28 };
+  }
+  return { top: 112, right: Math.ceil(panelWidth) + 48, bottom: 72, left: 72 };
 }
 
 class CampusFocusControl {
@@ -108,7 +125,7 @@ export async function createMap({ container, config, features, onSelect, onReady
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
   map.addControl(new CampusFocusControl(() => focusCampus()), "bottom-right");
   map.addControl(
-    new maplibregl.AttributionControl({ compact: true, customAttribution: "DEMO data" }),
+    new maplibregl.AttributionControl({ compact: true, customAttribution: "DEMO destinations · OSM-derived UNVERIFIED route data" }),
     "bottom-right",
   );
 
@@ -140,14 +157,15 @@ export async function createMap({ container, config, features, onSelect, onReady
         properties: { name: "YabaTech Campus" },
       }});
     }
-
     if (demoNetwork?.features?.length) {
       map.addSource(NETWORK_SOURCE_ID, { type: "geojson", data: demoNetwork });
       map.addLayer({ id: NETWORK_LINE_LAYER_ID, type: "line", source: NETWORK_SOURCE_ID,
         filter: ["==", ["get", "feature_type"], "segment"],
+        layout: { visibility: "none" },
         paint: { "line-color": "#6a4bbc", "line-width": 3, "line-opacity": 0.72, "line-dasharray": [2, 2] } });
       map.addLayer({ id: NETWORK_NODE_LAYER_ID, type: "circle", source: NETWORK_SOURCE_ID,
         filter: ["==", ["get", "feature_type"], "node"],
+        layout: { visibility: "none" },
         paint: { "circle-radius": 4, "circle-color": "#6a4bbc", "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 } });
       const inspector = document.querySelector("#network-inspector");
       const toggle = document.querySelector("#toggle-demo-network");
@@ -172,6 +190,20 @@ export async function createMap({ container, config, features, onSelect, onReady
         },
       });
     }
+
+    map.addSource(USER_ROUTE_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({ id: USER_ROUTE_CASING_LAYER_ID, type: "line", source: USER_ROUTE_SOURCE_ID,
+      paint: { "line-color": "rgba(255,255,255,.92)", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 8, 18, 12] } });
+    map.addLayer({ id: USER_ROUTE_LAYER_ID, type: "line", source: USER_ROUTE_SOURCE_ID,
+      paint: { "line-color": "#2563eb", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 5, 18, 8], "line-opacity": .96 } });
+    map.addSource(USER_ENDPOINT_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({ id: USER_ENDPOINT_CIRCLE_LAYER_ID, type: "circle", source: USER_ENDPOINT_SOURCE_ID,
+      paint: { "circle-radius": ["match", ["get", "role"], "destination", 12, 10],
+        "circle-color": ["match", ["get", "role"], "destination", "#d63d32", "#2563eb"],
+        "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
+    map.addLayer({ id: USER_ENDPOINT_LABEL_LAYER_ID, type: "symbol", source: USER_ENDPOINT_SOURCE_ID,
+      layout: { "text-field": ["match", ["get", "role"], "destination", "D", "S"], "text-size": 11, "text-font": ["Noto Sans Regular"], "text-allow-overlap": true, "text-ignore-placement": true },
+      paint: { "text-color": "#fff" } });
 
     map.addSource(SOURCE_ID, {
       type: "geojson",
@@ -233,6 +265,8 @@ export async function createMap({ container, config, features, onSelect, onReady
         layout: { "text-field": ["get", "name"], "text-size": ["interpolate", ["linear"], ["zoom"], 13, 13, 17, 17], "text-font": ["Noto Sans Regular"], "text-letter-spacing": 0.04 },
         paint: { "text-color": "#0d442a", "text-halo-color": "rgba(255, 255, 252, 0.96)", "text-halo-width": 2 } });
     }
+    map.moveLayer(USER_ENDPOINT_CIRCLE_LAYER_ID);
+    map.moveLayer(USER_ENDPOINT_LABEL_LAYER_ID);
 
     for (const layerId of [CIRCLE_LAYER_ID, LABEL_LAYER_ID]) {
       map.on("click", layerId, (event) => {
@@ -305,5 +339,24 @@ export async function createMap({ container, config, features, onSelect, onReady
     );
   }
 
-  return { focus, focusCampus, setVisibleFeatures, showRoute, map };
+  function showUserRoute(routeFeature, origin, destination) {
+    if (!loaded || routeFeature.geometry.type !== "LineString") return;
+    const coordinates = routeFeature.geometry.coordinates;
+    map.getSource(USER_ROUTE_SOURCE_ID).setData({ type: "FeatureCollection", features: [routeFeature] });
+    map.getSource(USER_ENDPOINT_SOURCE_ID).setData({ type: "FeatureCollection", features: [
+      { type: "Feature", geometry: { type: "Point", coordinates: coordinates[0] }, properties: { role: "start", name: origin.properties.name } },
+      { type: "Feature", geometry: { type: "Point", coordinates: coordinates.at(-1) }, properties: { role: "destination", name: destination.properties.name } },
+    ] });
+    const longitudes = coordinates.map(([longitude]) => longitude);
+    const latitudes = coordinates.map(([, latitude]) => latitude);
+    map.fitBounds([[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]],
+      { padding: routePadding(), maxZoom: 17.5, duration: 700, essential: false });
+  }
+
+  function clearUserRoute() {
+    map.getSource(USER_ROUTE_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
+    map.getSource(USER_ENDPOINT_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
+  }
+
+  return { focus, focusCampus, setVisibleFeatures, showRoute, showUserRoute, clearUserRoute, map };
 }

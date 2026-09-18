@@ -10,13 +10,13 @@ There is no other authoritative pipeline document. Do not create competing pipel
 
 ```
 Phase 1 — Foundation & Map Experience          ACCEPTED
-Phase 2 — Routing & Navigation                 IN PROGRESS
+Phase 2 — Routing & Navigation                 ACCEPTED
 Phase 3 — Live Navigation & Core Product       NOT STARTED
 Phase 4 — Editor & Mapping Tools               NOT STARTED
 Phase 5 — Real YabaTech Data, Verification & Launch   NOT STARTED
 
-Current:            PHASE 2 — SPRINT 002 OWNER ACCEPTED
-Next expected:      Phase 2 Sprint 003 discussion / authorization
+Current:            PHASE 2 — OWNER ACCEPTED
+Next expected:      Phase 3 discussion and planning; implementation requires BUILD
 ```
 
 Status values in use: `NOT STARTED` `IN PROGRESS` `BLOCKED` `COMPLETE` `ACCEPTED`
@@ -225,7 +225,7 @@ Do not build during Phase 1:
 
 ## Phase 2 — Routing & Navigation
 
-**Status: IN PROGRESS — Sprint 002 OWNER ACCEPTED; Sprint 003 next**
+**Status: ACCEPTED — Sprint 003 and the complete phase owner accepted on 2026-09-18**
 **Depends on:** Phase 1 ACCEPTED
 
 ### Primary Goal
@@ -284,15 +284,15 @@ Do not begin during Phase 2:
 
 ### Phase 2 Exit Criteria
 
-- [ ] Routing works across the demonstration path network
-- [ ] Route distances are calculated automatically from geometry
-- [ ] Walking ETA is displayed
-- [ ] Invalid and unreachable route cases are handled gracefully
-- [ ] Route rendering works correctly on mobile
-- [ ] Relevant tests pass
-- [ ] Owner personally verifies representative routes
-- [ ] Two screenshots captured
-- [ ] Sprint / phase evidence captured in `SPRINT_LOG.md`
+- [x] Routing works across the demonstration path network
+- [x] Route distances are calculated automatically from geometry
+- [x] Walking ETA is displayed
+- [x] Invalid and unreachable route cases are handled gracefully
+- [x] Route rendering works correctly on mobile
+- [x] Relevant tests pass
+- [x] Owner personally verifies representative routes
+- [x] Two screenshots captured
+- [x] Sprint / phase evidence captured in `SPRINT_LOG.md`
 
 ---
 

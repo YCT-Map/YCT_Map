@@ -11,9 +11,9 @@
 |-------|-------|
 | **Date** | 2026-09-18 |
 | **Branch** | `main` |
-| **Current Phase** | PHASE 2 — ROUTING & NAVIGATION |
-| **Pipeline Phase** | Phase 2 Sprint 002 OWNER ACCEPTED; Sprint 003 is next |
-| **Latest Meaningful Commit** | Phase 2 Sprint 002 milestone (`feat: add A* route calculation distance and baseline ETA`) |
+| **Current Phase** | PHASE 2 — ROUTING & NAVIGATION — OWNER ACCEPTED |
+| **Pipeline Phase** | Phase 2 complete; Phase 3 awaits discussion/planning and a standalone BUILD command |
+| **Latest Meaningful Commit** | Phase 2 completion milestone (`feat: complete Phase 2 campus routing and navigation`) |
 
 ---
 
@@ -21,16 +21,16 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | PHASE 2 SPRINT 002 OWNER ACCEPTED |
+| Application implementation | PHASES 1 AND 2 OWNER ACCEPTED; PHASE 3 NOT STARTED |
 | Product definition | SUBSTANTIALLY COMPLETE |
 | Documentation / governance | SUBSTANTIALLY COMPLETE |
 | Build pipeline | SUBSTANTIALLY COMPLETE |
-| Tech stack & architecture decisions | RESOLVED THROUGH PHASE 2 SPRINT 002 (DEC-T01–DEC-T17 accepted) |
+| Tech stack & architecture decisions | RESOLVED THROUGH PHASE 2 (DEC-T01–DEC-T18 accepted) |
 | Campus production dataset | NOT YET POPULATED |
-| Demo dataset | 6 DEMO locations; 5 DEMO nodes, 5 DEMO segments and 5 DEMO anchors |
+| Demo/development dataset | 6 DEMO locations; 47 OSM-derived UNVERIFIED nodes, 54 segments and 6 UNVERIFIED anchors |
 | Field verification | NOT STARTED |
 | Deployment | NOT STARTED |
-| Test suite | 45 TESTS PASSING |
+| Test suite | 52 DJANGO + 3 JAVASCRIPT BEHAVIOUR TESTS PASSING |
 
 ---
 
@@ -40,7 +40,7 @@ See `docs/project/operations/BUILD_PIPELINE.md` for the full 5-phase plan.
 
 ```
 Phase 1 — Foundation & Map Experience          ACCEPTED
-Phase 2 — Routing & Navigation                 IN PROGRESS
+Phase 2 — Routing & Navigation                 ACCEPTED
 Phase 3 — Live Navigation & Core Product       NOT STARTED
 Phase 4 — Editor & Mapping Tools               NOT STARTED
 Phase 5 — Real YabaTech Data & Launch          NOT STARTED
@@ -95,11 +95,19 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 - Explicit invalid, unreachable and same-origin behavior
 - DEBUG-only selected-route inspection with 45 passing tests
 
+**Phase 2 / Sprint 003 — OWNER VERIFIED / ACCEPTED**
+- Normal-user Directions flow with explicit UI state ownership
+- Static blue start and red destination indicators plus route-aware framing
+- Responsive route summary, distance, approximate ETA and change/clear controls
+- OSM-derived primary development graph: 47 `UNVERIFIED` nodes, 54 segments and six anchors
+- Medical Centre routing restored through a deliberate non-verified anchor
+- 52 Django tests and 3 JavaScript behaviour tests passing at acceptance
+
 ---
 
 ## Active Work
 
-Phase 2 Sprint 002 is owner accepted. Phase 2 remains IN PROGRESS pending the user-facing route experience in Sprint 003.
+No implementation is active. Phase 2 is owner accepted. Phase 3 has not started.
 
 ---
 
@@ -111,7 +119,7 @@ No implementation blocker. The repeated campus-label issue is resolved by a dete
 
 ## Next Approved Task
 
-Phase 2 Sprint 003 — user-facing route experience and clearer origin/destination visualization. Do not implement until separately authorized under the Build Control Protocol.
+Phase 3 — Live Navigation & Core Product Systems — discussion and planning. Do not implement Phase 3 without a standalone `BUILD` command.
 
 ---
 

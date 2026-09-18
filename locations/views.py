@@ -12,6 +12,7 @@ from .models import Location
 MAP_CENTRE = {"longitude": 3.37424, "latitude": 6.51857}
 MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 MAPLIBRE_VERSION = "6.10.0"
+UI_ASSET_VERSION = "p2s3-osm-realism-4"
 
 
 @require_GET
@@ -23,10 +24,12 @@ def map_view(request):
             "map_centre": MAP_CENTRE,
             "map_style_url": MAP_STYLE_URL,
             "maplibre_version": MAPLIBRE_VERSION,
+            "ui_asset_version": UI_ASSET_VERSION,
             "categories": Location.Category.choices,
             "debug_network_url": "/api/debug/walkable-network/" if settings.DEBUG else "",
             "debug_route_anchors_url": "/api/debug/route-anchors/" if settings.DEBUG else "",
             "debug_route_url": "/api/debug/route/" if settings.DEBUG else "",
+            "route_url": "/api/routes/",
         },
     )
 
@@ -43,7 +46,7 @@ def location_collection(request):
     if category and category not in category_values:
         return JsonResponse({"error": "Unknown location category."}, status=400)
 
-    locations = Location.objects.filter(is_active=True).prefetch_related("aliases")
+    locations = Location.objects.filter(is_active=True).prefetch_related("aliases").select_related("network_anchor__node")
     if query:
         locations = locations.filter(
             Q(name__icontains=query) | Q(aliases__name__icontains=query)
@@ -53,6 +56,8 @@ def location_collection(request):
 
     features = []
     for location in locations:
+        anchor = getattr(location, "network_anchor", None)
+        routing_available = bool(anchor and anchor.is_active and anchor.node.is_active)
         features.append(
             {
                 "type": "Feature",
@@ -73,6 +78,7 @@ def location_collection(request):
                     "verification_state": location.verification_state,
                     "verification_label": location.get_verification_state_display(),
                     "aliases": list(location.aliases.values_list("name", flat=True)),
+                    "routing_available": routing_available,
                 },
             }
         )

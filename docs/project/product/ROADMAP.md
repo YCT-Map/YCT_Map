@@ -8,7 +8,7 @@ Only clearly known or approved work appears here. Speculative ideas belong in `B
 
 ## V1 — Core Campus Navigation
 
-**Status:** IN PROGRESS — Phase 1 accepted; Phase 2 routing foundation is next
+**Status:** IN PROGRESS — Phases 1 and 2 accepted; Phase 3 is next for discussion/planning
 
 **Goal:** A genuinely usable product that students, staff and visitors can use to navigate YabaTech.
 

@@ -54,6 +54,35 @@ class RoutingServiceTests(TestCase):
         self.assertTrue(payload["meta"]["eta_is_approximate"])
         self.assertEqual(payload["route"]["properties"]["route_state"], "DEMO")
 
+    def test_public_route_contract_excludes_graph_internals(self):
+        anchors = list(LocationNetworkAnchor.objects.order_by("location__name")[:2])
+        response = self.client.get("/api/routes/", {"origin": anchors[0].location_id, "destination": anchors[1].location_id})
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(set(payload), {"route", "summary"})
+        self.assertEqual(set(payload["route"]["properties"]), {"route_state"})
+        self.assertNotIn("node_ids", str(payload))
+        self.assertNotIn("segment_ids", str(payload))
+        self.assertTrue(payload["summary"]["eta_is_approximate"])
+
+    def test_public_route_same_origin_and_missing_anchor_states(self):
+        anchor = LocationNetworkAnchor.objects.first()
+        same = self.client.get("/api/routes/", {"origin": anchor.location_id, "destination": anchor.location_id})
+        missing = self.client.get("/api/routes/", {"origin": anchor.location_id, "destination": "10000000-0000-4000-8000-000000000006"})
+        self.assertEqual((same.status_code, same.json()["code"]), (409, "SAME_ORIGIN"))
+        self.assertEqual((missing.status_code, missing.json()["code"]), (422, "MISSING_ANCHOR"))
+
+    def test_location_contract_identifies_only_active_anchors(self):
+        response = self.client.get("/api/locations/")
+        by_id = {item["properties"]["id"]: item["properties"] for item in response.json()["features"]}
+        anchor = LocationNetworkAnchor.objects.first()
+        self.assertTrue(by_id[str(anchor.location_id)]["routing_available"])
+        anchor.is_active = False
+        anchor.save()
+        refreshed = self.client.get("/api/locations/").json()
+        refreshed_by_id = {item["properties"]["id"]: item["properties"] for item in refreshed["features"]}
+        self.assertFalse(refreshed_by_id[str(anchor.location_id)]["routing_available"])
+
     @override_settings(DEBUG=True)
     def test_same_origin_endpoint_returns_zero_distance_point(self):
         anchor = LocationNetworkAnchor.objects.first()
