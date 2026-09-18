@@ -9,11 +9,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-09-17 |
+| **Date** | 2026-09-18 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 2 — ROUTING & NAVIGATION |
-| **Pipeline Phase** | Phase 2 Sprint 001 OWNER ACCEPTED; Sprint 002 is next |
-| **Latest Meaningful Commit** | Phase 2 Sprint 001 milestone (`feat: establish walkable network and routing foundation`) |
+| **Pipeline Phase** | Phase 2 Sprint 002 OWNER ACCEPTED; Sprint 003 is next |
+| **Latest Meaningful Commit** | Phase 2 Sprint 002 milestone (`feat: add A* route calculation distance and baseline ETA`) |
 
 ---
 
@@ -21,16 +21,16 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | PHASE 2 SPRINT 001 OWNER ACCEPTED |
+| Application implementation | PHASE 2 SPRINT 002 OWNER ACCEPTED |
 | Product definition | SUBSTANTIALLY COMPLETE |
 | Documentation / governance | SUBSTANTIALLY COMPLETE |
 | Build pipeline | SUBSTANTIALLY COMPLETE |
-| Tech stack & architecture decisions | RESOLVED THROUGH PHASE 1 (DEC-T01–DEC-T15 accepted) |
+| Tech stack & architecture decisions | RESOLVED THROUGH PHASE 2 SPRINT 002 (DEC-T01–DEC-T17 accepted) |
 | Campus production dataset | NOT YET POPULATED |
-| Demo dataset | 6 SYNTHETIC DEMO LOCATIONS — local fixture |
+| Demo dataset | 6 DEMO locations; 5 DEMO nodes, 5 DEMO segments and 5 DEMO anchors |
 | Field verification | NOT STARTED |
 | Deployment | NOT STARTED |
-| Test suite | 23 TESTS PASSING |
+| Test suite | 45 TESTS PASSING |
 
 ---
 
@@ -87,11 +87,19 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 - Deterministic single campus label replacing the Phase 1 cosmetic carryover
 - 23 automated tests plus owner verification of the network, toggle and Phase 1 regressions
 
+**Phase 2 / Sprint 002 — OWNER VERIFIED / ACCEPTED**
+- A* shortest-distance routing with admissible Haversine heuristic
+- Ordered route reconstruction and traversal-oriented LineString assembly
+- Geometry-derived total distance and approximate `1.35 m/s` baseline ETA
+- Routing-owned DEMO destination anchors plus independent node routing
+- Explicit invalid, unreachable and same-origin behavior
+- DEBUG-only selected-route inspection with 45 passing tests
+
 ---
 
 ## Active Work
 
-Phase 2 Sprint 001 is owner accepted. Phase 2 remains IN PROGRESS; route selection has not been implemented.
+Phase 2 Sprint 002 is owner accepted. Phase 2 remains IN PROGRESS pending the user-facing route experience in Sprint 003.
 
 ---
 
@@ -103,7 +111,7 @@ No implementation blocker. The repeated campus-label issue is resolved by a dete
 
 ## Next Approved Task
 
-Phase 2 Sprint 002 — A* Route Calculation and Route Results. Do not implement until separately authorized under the Build Control Protocol.
+Phase 2 Sprint 003 — user-facing route experience and clearer origin/destination visualization. Do not implement until separately authorized under the Build Control Protocol.
 
 ---
 

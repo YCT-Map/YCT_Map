@@ -4,7 +4,7 @@
 
 ```
 Current phase:     PHASE 2 — ROUTING & NAVIGATION
-Implementation:    LOCATION, ALIAS, WALKABLE NODE + WALKABLE SEGMENT SUBSET IMPLEMENTED
+Implementation:    LOCATION, ALIAS, WALKABLE NETWORK + LOCATION ANCHOR SUBSET IMPLEMENTED
 ```
 
 This document describes the expected data model based on approved product decisions.
@@ -28,6 +28,8 @@ Building geometry, floors, internal locations, paths, contributions and verifica
 `WalkableSegment` stores a stable UUID, optional label, start/end node foreign keys, GeoJSON `LineString`, bidirectional flag, controlled verification state, active state and timestamps. Distance is derived from geometry rather than stored manually.
 
 The current routing fixture contains synthetic `DEMO` topology only. Its coordinates do not verify real campus paths or destination positions.
+
+Phase 2 Sprint 002 adds routing-owned `LocationNetworkAnchor`. It currently gives one active location one primary network-node connection. This keeps locations separate from graph junctions and can later evolve to multiple entrances without changing the A* node-to-node contract.
 
 ---
 
@@ -150,7 +152,7 @@ Promotion from UNVERIFIED to FIELD_VERIFIED requires deliberate editor action af
 
 ## Migrations
 
-`locations/migrations/0001_initial.py` creates `Location` and `LocationAlias`. `routing/migrations/0001_initial.py` creates `WalkableNode` and `WalkableSegment`. Synthetic records are loaded from explicit fixtures rather than embedded in migrations.
+`locations/migrations/0001_initial.py` creates `Location` and `LocationAlias`. Routing migrations create `WalkableNode`, `WalkableSegment` and `LocationNetworkAnchor`. Synthetic records are loaded from explicit fixtures rather than embedded in migrations.
 
 Never rewrite an already-applied migration. Correct data issues through new migrations.
 

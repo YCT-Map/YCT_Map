@@ -281,3 +281,45 @@ This addendum preserves the implementation-time record above and records the lat
 - Real pathways and destination positions remain subject to later population and field verification.
 - Approved milestone commit message: `feat: establish walkable network and routing foundation`.
 - Phase 2 Sprint 002 — A* Route Calculation and Route Results — is next. No Sprint 002 implementation is included in this milestone.
+
+---
+
+## Phase 2 — Sprint 002: A* Route Calculation, Distance & Baseline ETA
+
+**Date:** 2026-09-18
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+
+### Objective and Result
+
+Implemented an independent A* routing service over the accepted Sprint 001 graph foundation. Results contain ordered nodes and segments, traversal-oriented LineString geometry, geometry-derived total distance and approximate baseline ETA.
+
+### What Was Built
+
+- Pure A* with Haversine heuristic, predecessor reconstruction and deterministic stable-ID tie behavior.
+- Immutable route result plus invalid-node, missing-anchor and no-route errors.
+- Correct forward/reverse geometry assembly, junction deduplication and intermediate-vertex retention.
+- Approximate ETA based on the approved `1.35 m/s` fallback.
+- Routing-owned `LocationNetworkAnchor` model, migration and five DEMO anchors.
+- Node-to-node service independent of `Location`, plus a location-anchor adapter.
+- Narrow DEBUG endpoints and inspector for DEMO route selection, highlighting, distance and ETA.
+
+### Verification and Boundary
+
+All 45 automated tests pass, including the 23 prior tests. No GPS, live speed, progress, rerouting, turn instructions, final navigation sheet, real campus data, editor tooling or field verification was implemented. The route remains a calculation over synthetic DEMO topology, not verified campus guidance.
+
+Required owner evidence: `P2-S2-A-calculated-demo-route.png` and `P2-S2-B-route-distance-eta.png`.
+
+**Commit:** Not committed — owner review required.
+
+### Acceptance Addendum — 2026-09-18
+
+This addendum preserves the implementation-time record above and records the later owner decision without rewriting sprint history.
+
+- Phase 2 Sprint 002 was formally OWNER ACCEPTED.
+- The owner verified DEMO endpoint selection, successful A* calculation, distinct selected-route rendering, distance, approximate ETA, multiple inspection states and continued Phase 1/Sprint 001 behavior.
+- Current route and path geometry remains synthetic and geographically unverified; observed geographic inaccuracies are fixture limitations rather than routing-engine defects.
+- Sprint 003 must add a clear static start marker and red destination indicator. Static origin presentation must not imitate live GPS. A directional live-position triangle/chevron and heading remain conditional on reliable future live data.
+- Existing OSM/OpenFreeMap-visible paths may inform future graph construction, but rendered paths never become routing edges automatically. Explicit YCT Map geometry, editor review and separate field verification remain required.
+- Future editor validation should flag ordinary outdoor path/building-footprint intersections while supporting deliberate reviewed passage/corridor exceptions.
+- Approved milestone commit message: `feat: add A* route calculation distance and baseline ETA`.
+- Phase 2 Sprint 003 is next. No Sprint 003 implementation is included in this milestone.

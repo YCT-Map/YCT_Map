@@ -2,6 +2,7 @@ import { fetchLocations } from "./api.js";
 import { createDestinationPanel } from "./destination-panel.js";
 import { createMap } from "./map.js";
 import { createSearch } from "./search.js";
+import { createRouteInspector } from "./route-inspector.js";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -14,6 +15,8 @@ const config = {
   moduleUrl: shell.dataset.maplibreModuleUrl,
   campusBoundaryUrl: shell.dataset.campusBoundaryUrl,
   debugNetworkUrl: shell.dataset.debugNetworkUrl,
+  debugRouteAnchorsUrl: shell.dataset.debugRouteAnchorsUrl,
+  debugRouteUrl: shell.dataset.debugRouteUrl,
   centre: [Number(shell.dataset.centreLongitude), Number(shell.dataset.centreLatitude)],
 };
 
@@ -57,6 +60,12 @@ async function start() {
           mapError.hidden = false;
           setStatus("Demo destinations ready · map unavailable", "warning");
         },
+      });
+      await createRouteInspector({
+        element: document.querySelector("#route-inspector"),
+        anchorsUrl: config.debugRouteAnchorsUrl,
+        routeUrl: config.debugRouteUrl,
+        onRoute: (route) => mapController.showRoute(route),
       });
     } catch (error) {
       console.error("Map initialization failed", error);

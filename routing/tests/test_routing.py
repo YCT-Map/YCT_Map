@@ -50,6 +50,14 @@ class RoutingFoundationTests(TestCase):
         graph = build_graph()
         self.assertFalse(any(arc.segment_id == str(segment.id) for arcs in graph.adjacency.values() for arc in arcs))
 
+    def test_graph_ignores_inactive_node_and_its_segments(self):
+        node = WalkableNode.objects.first()
+        node.is_active = False
+        node.save()
+        graph = build_graph()
+        self.assertNotIn(str(node.id), graph.nodes)
+        self.assertFalse(any(arc.to_node_id == str(node.id) for arcs in graph.adjacency.values() for arc in arcs))
+
     def test_duplicate_reverse_segment_is_reported(self):
         segment = WalkableSegment.objects.first()
         duplicate = WalkableSegment(id="30000000-0000-0000-0000-000000000001", start_node=segment.end_node, end_node=segment.start_node,

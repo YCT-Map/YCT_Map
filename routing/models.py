@@ -4,6 +4,8 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
+from locations.models import Location
+
 from .geometry import distance_metres, length_metres
 
 
@@ -56,3 +58,21 @@ class WalkableSegment(models.Model):
         expected_end = (float(self.end_node.longitude), float(self.end_node.latitude))
         if distance_metres(points[0], expected_start) > 1 or distance_metres(points[-1], expected_end) > 1:
             raise ValidationError({"geometry": "LineString endpoints must match the selected nodes."})
+
+
+class LocationNetworkAnchor(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    location = models.OneToOneField(Location, on_delete=models.CASCADE, related_name="network_anchor")
+    node = models.ForeignKey(WalkableNode, on_delete=models.PROTECT, related_name="location_anchors")
+    verification_state = models.CharField(max_length=20, choices=VerificationState.choices)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.location} → {self.node}"
+
+    def clean(self):
+        super().clean()
+        if self.is_active and not self.node.is_active:
+            raise ValidationError({"node": "An active anchor requires an active walkable node."})

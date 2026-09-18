@@ -1,0 +1,7 @@
+[
+  {"model":"routing.locationnetworkanchor","pk":"30000000-0000-0000-0000-000000000001","fields":{"location":"10000000-0000-4000-8000-000000000001","node":"10000000-0000-0000-0000-000000000004","verification_state":"DEMO","is_active":true,"created_at":"2026-09-17T00:00:00Z","updated_at":"2026-09-17T00:00:00Z"}},
+  {"model":"routing.locationnetworkanchor","pk":"30000000-0000-0000-0000-000000000002","fields":{"location":"10000000-0000-4000-8000-000000000002","node":"10000000-0000-0000-0000-000000000002","verification_state":"DEMO","is_active":true,"created_at":"2026-09-17T00:00:00Z","updated_at":"2026-09-17T00:00:00Z"}},
+  {"model":"routing.locationnetworkanchor","pk":"30000000-0000-0000-0000-000000000003","fields":{"location":"10000000-0000-4000-8000-000000000003","node":"10000000-0000-0000-0000-000000000003","verification_state":"DEMO","is_active":true,"created_at":"2026-09-17T00:00:00Z","updated_at":"2026-09-17T00:00:00Z"}},
+  {"model":"routing.locationnetworkanchor","pk":"30000000-0000-0000-0000-000000000004","fields":{"location":"10000000-0000-4000-8000-000000000004","node":"10000000-0000-0000-0000-000000000001","verification_state":"DEMO","is_active":true,"created_at":"2026-09-17T00:00:00Z","updated_at":"2026-09-17T00:00:00Z"}},
+  {"model":"routing.locationnetworkanchor","pk":"30000000-0000-0000-0000-000000000005","fields":{"location":"10000000-0000-4000-8000-000000000005","node":"10000000-0000-0000-0000-000000000004","verification_state":"DEMO","is_active":true,"created_at":"2026-09-17T00:00:00Z","updated_at":"2026-09-17T00:00:00Z"}}
+]

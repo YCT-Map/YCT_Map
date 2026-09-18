@@ -363,3 +363,33 @@ Reason:      Automatic write-back would blur data ownership, bypass deliberate v
 Consequences: YCT Map may deliberately review and refresh OSM-derived reference geometry, but any contribution of verified public geography to OpenStreetMap must be a separate, intentional OSM editing workflow. No automatic OSM write-back or synchronization is permitted.
 Alternatives considered: Automatic two-way synchronization (rejected — unsafe and outside project scope), treating all visible base-map features as YCT Map-verified data (rejected — violates verification rules).
 ```
+
+---
+
+## DEC-T16
+
+```
+ID:          DEC-T16
+Date:        2026-09-18
+Status:      ACCEPTED
+Decision:    Static/manual route origins use a clear non-GPS start marker; destinations use a clear red destination indicator. Directional triangle/chevron and heading presentation are reserved for reliable future live geolocation/heading data.
+Context:     Sprint 002 proved route calculation but owner review identified a need for clearer endpoint presentation in Sprint 003.
+Reason:      A static point must not imply live position, movement or device orientation that the application does not possess.
+Consequences: Sprint 003 must visually distinguish static start, destination and calculated route. Phase 3 may add directional live-position presentation only with reliable data.
+Alternatives considered: Reusing a GPS-style marker for manual origins (rejected — misleading), always showing heading (rejected — invents unavailable orientation).
+```
+
+---
+
+## DEC-T17
+
+```
+ID:          DEC-T17
+Date:        2026-09-18
+Status:      ACCEPTED
+Decision:    OSM/OpenFreeMap-visible pathways may be mapping reference input, but YCT Map must own explicit routing graph geometry; editor review and field verification remain separate. Future validation flags ordinary outdoor path/building intersections with deliberate exceptions for real passages.
+Context:     Synthetic routing proved the software while highlighting the future cost of constructing accurate campus topology.
+Reason:      Reusing suitable published reference information reduces unnecessary redrawing without treating rendered cartography as verified routing data.
+Consequences: Import/construction must create explicit editable YCT Map records. Missing or incorrect paths remain correctable, Path Survey Mode may refine evidence, and footprint-intersection warnings require human review rather than unconditional rejection.
+Alternatives considered: Route directly over rendered base-map paths (rejected — no project ownership or verification), redraw every path without reference (rejected — unnecessary work), reject every footprint intersection (rejected — would exclude genuine passages/corridors).
+```

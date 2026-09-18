@@ -25,6 +25,8 @@ def map_view(request):
             "maplibre_version": MAPLIBRE_VERSION,
             "categories": Location.Category.choices,
             "debug_network_url": "/api/debug/walkable-network/" if settings.DEBUG else "",
+            "debug_route_anchors_url": "/api/debug/route-anchors/" if settings.DEBUG else "",
+            "debug_route_url": "/api/debug/route/" if settings.DEBUG else "",
         },
     )
 

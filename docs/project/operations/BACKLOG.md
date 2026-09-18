@@ -128,6 +128,8 @@ Required safeguards:
 - allow editors to flag an observed missing path;
 - never promote one raw GPS trace directly to `FIELD_VERIFIED`;
 - require editor review, map matching and confidence rules before survey status changes.
+- flag ordinary outdoor path geometry intersecting building footprints for review;
+- allow deliberate reviewed exceptions for genuine passages or corridors.
 
 ---
 

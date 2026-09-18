@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PHASE 2 / SPRINT 001
-Implementation:    SPRINT 001 OWNER ACCEPTED; ROUTE SELECTION DEFERRED
+Current phase:     PHASE 2 / SPRINT 002
+Implementation:    SPRINT 002 OWNER ACCEPTED; USER-FACING ROUTE UX NEXT
 ```
 
 This document records the approved routing behavior for YCT Map.
@@ -53,6 +53,8 @@ Use a campus network graph with Dijkstra / A* over YCT Map's connected walkable-
 
 Walking ETA uses `1.35 m/s` as the current default speed assumption and must be presented as approximate (DEC-T14).
 
+The default is a fallback rather than the final live-navigation mechanism. Phase 3 may derive a smoothed user-specific walking speed only from reliable movement updates, excluding GPS outliers and stationary periods, and must fall back to `1.35 m/s` when personal speed is not reliable.
+
 Routing remains outside Phase 1 Sprint 001.
 
 ---
@@ -74,6 +76,32 @@ The current purple network is synthetic and geographically unverified. Some segm
 - Diagnostics detect malformed geometry, self-edges and exact duplicate/reverse-duplicate segments.
 - A DEBUG-only endpoint and dashed overlay expose DEMO topology for inspection, not as a calculated route.
 - A* route selection, destination snapping, route results, distance totals and ETA remain deferred.
+
+## Sprint 002 Route Calculation
+
+- Pure A* uses geometry-derived arc distance as `g`, Haversine distance to the goal as admissible `h`, and prioritizes `f = g + h`.
+- Predecessor arcs reconstruct ordered nodes, segments and traversal-oriented geometry.
+- Geometry retains intermediate vertices and removes only duplicated shared junction coordinates.
+- `RouteResult` is immutable; invalid nodes, missing anchors and unreachable routes have distinct errors.
+- Same-origin routing succeeds with zero distance, no segments and zero ETA.
+- `LocationNetworkAnchor` connects a DEMO destination to one node without making `Location` graph topology.
+- Core routing remains independently callable with node IDs.
+- A DEBUG-only inspector highlights the selected subset separately from the full purple network and reports approximate distance/ETA.
+
+## Origin and Destination Presentation
+
+- A manual or otherwise static origin must use a clear start marker that does not imitate live GPS.
+- A destination must use a clear red destination indicator.
+- When Phase 3 introduces reliable live geolocation, the user's actual position may use a directional triangle or chevron.
+- Heading or orientation must be shown only when reliable live-position and heading information exists.
+
+These are approved Sprint 003 presentation requirements. They are not implemented by the Sprint 002 technical inspector.
+
+## Real Network Construction and Validation
+
+Existing OSM/OpenFreeMap-visible pathways may be used as reference input when constructing YCT Map's real walkable network; they do not automatically become routing edges. YCT Map must own, import or create explicit graph geometry, retain editor review, and keep field verification separate.
+
+Incorrect or missing paths must remain editable. Future Path Survey Mode may help verify and refine them. Editor/path validation should flag ordinary outdoor segments intersecting building footprints for review while allowing deliberate, reviewed exceptions for genuine passages or corridors.
 
 ---
 

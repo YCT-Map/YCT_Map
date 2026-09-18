@@ -8,8 +8,8 @@ The map is the primary interface. Students, staff and visitors can search campus
 
 ## Project Status
 
-**Phase:** PHASE 2 — ROUTING & NAVIGATION (SPRINT 001 OWNER ACCEPTED)
-**Application implementation:** PHASE 1 ACCEPTED; PHASE 2 SPRINT 001 ACCEPTED
+**Phase:** PHASE 2 — ROUTING & NAVIGATION (SPRINT 002 OWNER ACCEPTED)
+**Application implementation:** PHASE 1 ACCEPTED; PHASE 2 SPRINT 002 ACCEPTED
 **Product definition:** SUBSTANTIALLY COMPLETE
 **Documentation / governance:** IN PROGRESS
 **Campus production dataset:** NOT YET POPULATED
@@ -28,6 +28,7 @@ python -m pip install -r requirements.txt
 python manage.py migrate
 python manage.py loaddata demo_locations
 python manage.py loaddata demo_walkable_network
+python manage.py loaddata demo_route_anchors
 python manage.py runserver 127.0.0.1:8000
 ```
 

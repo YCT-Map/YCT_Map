@@ -10,6 +10,8 @@ const CAMPUS_LABEL_LAYER_ID = "yabatech-campus-label";
 const NETWORK_SOURCE_ID = "demo-walkable-network";
 const NETWORK_LINE_LAYER_ID = "demo-walkable-network-lines";
 const NETWORK_NODE_LAYER_ID = "demo-walkable-network-nodes";
+const ROUTE_SOURCE_ID = "calculated-demo-route";
+const ROUTE_LAYER_ID = "calculated-demo-route-line";
 
 async function loadCampusBoundary(url) {
   try {
@@ -157,6 +159,20 @@ export async function createMap({ container, config, features, onSelect, onReady
       });
     }
 
+    if (config.debugRouteUrl) {
+      map.addSource(ROUTE_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: ROUTE_LAYER_ID,
+        type: "line",
+        source: ROUTE_SOURCE_ID,
+        paint: {
+          "line-color": "#d9472f",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 14, 5, 18, 8],
+          "line-opacity": 0.96,
+        },
+      });
+    }
+
     map.addSource(SOURCE_ID, {
       type: "geojson",
       data: { type: "FeatureCollection", features: visibleFeatures },
@@ -277,5 +293,17 @@ export async function createMap({ container, config, features, onSelect, onReady
     source?.setData({ type: "FeatureCollection", features: visibleFeatures });
   }
 
-  return { focus, focusCampus, setVisibleFeatures, map };
+  function showRoute(routeFeature) {
+    if (!loaded || !map.getSource(ROUTE_SOURCE_ID)) return;
+    map.getSource(ROUTE_SOURCE_ID).setData({ type: "FeatureCollection", features: [routeFeature] });
+    const coordinates = routeFeature.geometry.coordinates;
+    const longitudes = coordinates.map(([longitude]) => longitude);
+    const latitudes = coordinates.map(([, latitude]) => latitude);
+    map.fitBounds(
+      [[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]],
+      { padding: campusPadding(), maxZoom: 18, duration: 700, essential: false },
+    );
+  }
+
+  return { focus, focusCampus, setVisibleFeatures, showRoute, map };
 }

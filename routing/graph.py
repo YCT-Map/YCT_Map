@@ -10,6 +10,7 @@ class GraphArc:
     to_node_id: str
     distance_metres: float
     geometry: tuple
+    verification_state: str = ""
 
 
 @dataclass(frozen=True)
@@ -26,7 +27,7 @@ def build_graph():
         start, end = str(segment.start_node_id), str(segment.end_node_id)
         points = tuple(tuple(point) for point in segment.geometry["coordinates"])
         distance = length_metres(segment.geometry)
-        adjacency[start].append(GraphArc(str(segment.id), end, distance, points))
+        adjacency[start].append(GraphArc(str(segment.id), end, distance, points, segment.verification_state))
         if segment.is_bidirectional:
-            adjacency[end].append(GraphArc(str(segment.id), start, distance, tuple(reversed(points))))
+            adjacency[end].append(GraphArc(str(segment.id), start, distance, tuple(reversed(points)), segment.verification_state))
     return RoutingGraph(nodes, {key: tuple(value) for key, value in adjacency.items()})

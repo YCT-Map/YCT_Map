@@ -15,8 +15,8 @@ Phase 3 — Live Navigation & Core Product       NOT STARTED
 Phase 4 — Editor & Mapping Tools               NOT STARTED
 Phase 5 — Real YabaTech Data, Verification & Launch   NOT STARTED
 
-Current:            PHASE 2 — SPRINT 001 OWNER ACCEPTED
-Next expected:      Phase 2 Sprint 002 planning / authorization
+Current:            PHASE 2 — SPRINT 002 OWNER ACCEPTED
+Next expected:      Phase 2 Sprint 003 discussion / authorization
 ```
 
 Status values in use: `NOT STARTED` `IN PROGRESS` `BLOCKED` `COMPLETE` `ACCEPTED`
@@ -225,7 +225,7 @@ Do not build during Phase 1:
 
 ## Phase 2 — Routing & Navigation
 
-**Status: IN PROGRESS — Sprint 001 OWNER ACCEPTED; Sprint 002 next**
+**Status: IN PROGRESS — Sprint 002 OWNER ACCEPTED; Sprint 003 next**
 **Depends on:** Phase 1 ACCEPTED
 
 ### Primary Goal

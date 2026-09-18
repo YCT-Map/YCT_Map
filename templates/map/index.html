@@ -12,6 +12,8 @@
     data-maplibre-module-url="https://unpkg.com/maplibre-gl@{{ maplibre_version }}/dist/maplibre-gl.mjs"
     data-campus-boundary-url="{% static 'yct_map/data/yabatech-campus-boundary.geojson' %}"
     data-debug-network-url="{{ debug_network_url }}"
+    data-debug-route-anchors-url="{{ debug_route_anchors_url }}"
+    data-debug-route-url="{{ debug_route_url }}"
     data-centre-longitude="{{ map_centre.longitude }}"
     data-centre-latitude="{{ map_centre.latitude }}"
   >
@@ -82,6 +84,26 @@
         DEMO walkable network
       </button>
       <small>Inspection only — no route calculated</small>
+    </aside>
+
+    <aside id="route-inspector" class="route-inspector" aria-labelledby="route-inspector-title" hidden>
+      <div class="route-inspector-heading">
+        <span class="demo-route-label">DEMO ROUTE</span>
+        <h2 id="route-inspector-title">A* route inspection</h2>
+      </div>
+      <form>
+        <label for="route-origin">Origin</label>
+        <select id="route-origin" required></select>
+        <label for="route-destination">Destination</label>
+        <select id="route-destination" required></select>
+        <button type="submit">Calculate DEMO route</button>
+      </form>
+      <p id="route-error" class="route-error" role="alert" hidden></p>
+      <div id="route-result" class="route-result" aria-live="polite" hidden>
+        <span><strong id="route-distance"></strong> walking distance</span>
+        <span><strong id="route-eta"></strong> approximate ETA</span>
+      </div>
+      <small>Synthetic inspection data — not verified campus navigation.</small>
     </aside>
 
     <section

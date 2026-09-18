@@ -960,3 +960,231 @@ They should also understand that technically correct graph construction does not
 Phase 2 Sprint 002 will use this accepted adjacency graph as the input to A* route calculation and route-result behavior. It must select a connected sequence of arcs, reconstruct ordered geometry and handle invalid or unreachable requests without confusing the full network with the chosen route.
 
 Sprint 002 implementation requires separate authorization under the Build Control Protocol. No Sprint 002 code is included in this milestone.
+
+## Phase 2 — Sprint 002: A* Route Calculation, Distance & Baseline ETA
+
+**Recorded status:** OWNER VERIFIED / ACCEPTED on 2026-09-18.
+
+### Purpose
+
+Sprint 002 taught YCT Map to choose a walkable route through the graph created in Sprint 001. The goal was not merely to draw a line between two destinations. The system had to select the lowest-distance connected sequence of graph arcs, preserve the geometry actually traversed, calculate total walking distance, and produce an approximate baseline ETA.
+
+This sprint remained a technical routing milestone. It did not build live GPS navigation, rerouting, final route guidance or verified campus paths.
+
+### User Outcome
+
+In the development route inspector, a reviewer can choose two anchored DEMO destinations, request a route, see the selected route highlighted separately from the complete network, and inspect its distance and approximate ETA.
+
+The interface continues to identify the result as a DEMO route over synthetic geometry. It does not claim that the displayed path follows real YabaTech walkways.
+
+### Starting State
+
+Sprint 001 provided persistent `WalkableNode` and `WalkableSegment` records, geometry-derived segment costs, directional graph arcs and a complete-network inspection overlay. It did not choose a path between nodes.
+
+Locations also remained separate from graph junctions. That separation was intentional: the graph service needed to remain useful for testing, future GPS snapping and manual origins without requiring a destination model.
+
+### What We Built
+
+- A pure A* shortest-path implementation.
+- Immutable route-result and explicit routing-error types.
+- Predecessor-based ordered node and arc reconstruction.
+- Route geometry assembly that supports forward and reverse traversal.
+- Total route distance from selected graph-arc costs.
+- Approximate ETA using the approved `1.35 m/s` fallback.
+- A routing-owned `LocationNetworkAnchor` relationship connecting DEMO destinations to graph nodes.
+- Node-to-node and location-to-location routing service entry points.
+- DEBUG-only endpoints for anchor discovery and calculated-route inspection.
+- A development route selector and solid red calculated-route layer distinct from the dashed purple complete network.
+- Tests for algorithm choice, geometry, directionality, inactive data, anchoring, ETA and API boundaries.
+
+### Technical Concepts Introduced
+
+**Shortest-path routing.** A shortest-path algorithm finds the connected route with the smallest total edge cost. In YCT Map, cost means geometry-derived walking metres. It does not mean fewest segments, fewest turns or the visually straightest line.
+
+**A* search.** A* combines known travel cost with an estimate of the remaining cost. It can avoid exploring irrelevant areas while still returning an optimal result when its heuristic is admissible.
+
+**g-score.** `g(n)` is the exact accumulated cost from the origin to candidate node `n`. Here it is the sum of the selected graph arcs' distances in metres.
+
+**h-score.** `h(n)` estimates the remaining cost from `n` to the goal. YCT Map uses straight-line Haversine distance.
+
+**f-score.** `f(n) = g(n) + h(n)`. The priority queue explores the candidate with the smallest expected total cost first.
+
+**Admissible heuristic.** A heuristic is admissible when it never overestimates the cheapest real path. Straight-line geographic distance cannot be longer than a walkable path that must bend around obstacles, so it is a safe lower bound when graph weights are real geometry lengths.
+
+**Predecessor reconstruction.** During search, YCT Map records which prior node and arc produced the best known cost. Once the goal is reached, those references are followed backwards and reversed into travel order.
+
+**Location anchoring.** A destination and a graph junction are different concepts. An anchor connects a destination's arrival relationship to a routing node without turning the `Location` record into graph topology.
+
+### How It Works Internally
+
+The routing service accepts stable start and goal node IDs. It rejects identifiers absent from the active graph. A priority queue begins with the start node. Each time A* examines an outgoing arc, it calculates a candidate `g-score`:
+
+```text
+candidate g = current g + arc distance
+candidate f = candidate g + Haversine(candidate node, goal)
+```
+
+If the candidate cost improves the best known cost for that node, the service stores the new score and predecessor arc. Stable node and segment IDs are used as deterministic tie-break information where practical.
+
+When the goal is reached, reconstruction produces ordered node IDs and arcs. Arc geometry is already oriented in travel direction by the graph builder. The assembler retains the first arc's full coordinate sequence and appends later sequences without repeating their shared first junction.
+
+The route distance is the sum of the chosen arcs. The heuristic is never used as final walking distance; it only guides search. ETA seconds are calculated as distance divided by `1.35 m/s`, then presented as approximate whole minutes.
+
+### Architecture / Components Involved
+
+```text
+Location -- LocationNetworkAnchor --> WalkableNode ID
+                                         |
+Manual node ID --------------------------+
+                                         v
+                                  RoutingGraph
+                                         |
+                                         v
+                                  A* algorithm
+                          g + admissible h -> f
+                                         |
+                               predecessor chain
+                                         v
+                                   RouteResult
+                    nodes + segments + geometry + metres + ETA
+                                         |
+                                         v
+                          DEBUG inspector / route layer
+```
+
+The algorithm depends on `RoutingGraph`, not Django queries or HTTP. The service layer builds the graph and adapts locations to node IDs. The view serializes only the narrow fields required by the development inspector.
+
+### Important Files
+
+- `routing/algorithm.py` — A* queue processing, scores and reconstruction.
+- `routing/results.py` — immutable result and explicit domain errors.
+- `routing/route_geometry.py` — continuous geometry assembly.
+- `routing/eta.py` — baseline speed and approximate display formatting.
+- `routing/services.py` — graph construction and location-anchor adapter.
+- `routing/models.py` — `LocationNetworkAnchor` alongside network models.
+- `routing/migrations/0002_locationnetworkanchor.py` — anchor schema.
+- `routing/fixtures/demo_route_anchors.json` — five synthetic destination connections.
+- `routing/views.py` — narrow DEBUG anchor and route contracts.
+- `routing/tests/test_algorithm.py` and `test_services.py` — algorithm and integration coverage.
+- `static/yct_map/js/route-inspector.js` — development selector and result state.
+- `static/yct_map/js/map.js` — selected-route source and solid route layer.
+
+### Data Flow
+
+```text
+1. Reviewer selects two DEMO destinations.
+2. Browser sends stable location UUIDs to the DEBUG route endpoint.
+3. Service resolves active LocationNetworkAnchor records.
+4. Anchors provide start and goal node UUIDs.
+5. Active database network becomes an in-memory RoutingGraph.
+6. A* selects the lowest-distance connected arc sequence.
+7. Predecessors reconstruct ordered nodes and arcs.
+8. Arc geometries are joined in traversal order.
+9. Selected arc distances are summed.
+10. Distance / 1.35 produces fallback ETA seconds.
+11. Endpoint returns an explicit route feature and result properties.
+12. Browser draws a solid red route and displays metres and approximate minutes.
+```
+
+### Decisions and Trade-offs
+
+**A* instead of plain Dijkstra.** Dijkstra is equivalent to using a zero heuristic and may inspect more of the graph. A* uses geographic knowledge to focus toward the goal while preserving correctness with an admissible heuristic.
+
+**Distance rather than hop count.** A route with four short segments may be better than a route with two long segments. Counting edges would optimize database structure rather than walking effort.
+
+**Explicit result dataclass instead of model serialization.** A route is a computed value, not a persisted Django row. An immutable contract prevents callers from depending on internal model objects.
+
+**Routing-owned anchor instead of `Location.arrival_node`.** The extra model keeps destination data and graph topology separate. The current one-to-one relationship supports one V1 arrival connection and can evolve toward multiple entrances later.
+
+**Explicit exceptions for failure states.** Invalid nodes, missing anchors and unreachable components are different conditions. Returning partial geometry or `None` would make those cases ambiguous.
+
+**Fallback ETA rather than pretend personalization.** `1.35 m/s` provides a consistent baseline, but it cannot represent every user. Live personalized estimates require reliable movement samples, GPS-noise rejection and stationary-period handling in a later phase.
+
+### Problems Encountered
+
+- Floating-point division produced `59.99999999999999` seconds for an exact conceptual minute in one test.
+- A same-origin route contains one coordinate, which is not a valid two-point GeoJSON `LineString`.
+- The preferred integrated browser connection remained unavailable, and the isolated browser again did not complete external OpenFreeMap style loading.
+
+No shortest-path correctness failure remained at acceptance.
+
+### How We Solved Them
+
+- The ETA test uses tolerance-based floating-point comparison rather than demanding binary equality.
+- The internal same-origin result remains a successful zero-distance route with one node and no arcs. Its debug serialization uses a GeoJSON `Point`, avoiding an invalid or invented line.
+- Algorithm, API and regression behavior were verified through the full automated suite and live local endpoint checks. The owner completed normal-browser visual verification of route selection, multiple states, distance and ETA.
+
+### Testing and Verification
+
+All 45 tests passed at acceptance. New coverage proves:
+
+- direct and multi-segment routes;
+- a longer-hop but lower-distance path beats a fewer-hop longer path;
+- deterministic equal-cost behavior;
+- predecessor reconstruction;
+- unreachable and same-origin handling;
+- one-way directionality;
+- inactive node and segment exclusion;
+- forward and reverse geometry order;
+- shared-junction deduplication;
+- intermediate-vertex preservation;
+- geometry-derived route distance and baseline ETA;
+- valid, missing and inactive anchors;
+- node routing without `Location` objects;
+- explicit DEBUG route contracts and their production exclusion.
+
+Django checks, migration drift, JavaScript syntax and Git whitespace checks passed. A local example traversed three nodes and two segments for `158.51 m` with an approximate `~2 min` ETA. Owner verification confirmed the visual route and earlier functionality.
+
+### Current Limitations
+
+- All current routes use synthetic, geographically unverified DEMO geometry.
+- Algorithm correctness cannot make an incorrect graph match the real campus.
+- The DEBUG inspector is not the final student navigation interface.
+- Static origin and destination endpoint markers require clearer Sprint 003 presentation.
+- There is no GPS, live heading, progress, rerouting or turn guidance.
+- The `1.35 m/s` ETA is a generic fallback, not a personal walking-speed measurement.
+- One primary network anchor per location is supported; multiple entrances are deferred.
+- Real pathways, entrances and destination positions still require editor review and field verification.
+
+### Evidence
+
+- **`P2-S2-A-calculated-demo-route.png`** demonstrates that A* selects and highlights one connected subset of the complete DEMO network. The solid calculated route remains visibly different from the dashed network.
+- **`P2-S2-B-route-distance-eta.png`** demonstrates the explicit result contract in the interface: selected DEMO endpoints, geometry-derived distance and approximate baseline ETA.
+
+The images prove calculation and presentation behavior. They do not prove real-campus path accuracy.
+
+### What Students Should Understand
+
+Students should be able to work through this small example:
+
+```text
+A --100 m--> D
+A -- 40 m--> B --30 m--> C --20 m--> D
+
+Direct-looking route A-D:         100 m, 1 edge
+Connected route A-B-C-D:           90 m, 3 edges
+
+A* must choose A-B-C-D because 90 m < 100 m.
+```
+
+The example shows why hop count is not walking distance. `g` tracks the 40, then 70, then 90 metres actually accumulated. `h` estimates remaining straight-line distance. `f` prioritizes the most promising candidate. The final answer comes from chosen graph arcs, never from the heuristic alone.
+
+Students should also understand that reverse traversal requires reversed geometry, not only reversed node IDs. Otherwise the result's coordinates would run opposite to travel. Finally, a mathematically optimal route is only useful if the graph correctly represents walkable reality.
+
+### Presentation / Defence Notes
+
+- **Why A*?** It preserves shortest-path correctness while using a geographic lower bound to guide exploration.
+- **Why is Haversine not the route distance?** It ignores path bends, obstacles and network connectivity. It is only the heuristic.
+- **Why not count segments?** Segment boundaries are modelling choices; metres represent actual graph cost.
+- **How is the route reconstructed?** Follow predecessor arcs from goal to start, then reverse the collected sequence.
+- **Why an anchor model?** Destinations and intersections have separate responsibilities and lifecycles.
+- **What happens when no route exists?** The service returns an explicit no-route condition rather than inventing a connection.
+- **What happens when start equals goal?** It returns success with zero metres, zero ETA and no traversal arcs.
+- **Is `1.35 m/s` final?** No. It is the approved fallback until reliable personal movement data exists.
+- **Can visible OSM paths be reused?** They may inform future mapping, but explicit YCT Map graph records, editor review and field verification are still required.
+
+### Next Sprint
+
+Phase 2 Sprint 003 will turn the technical route result into a clearer user-facing route experience. Approved endpoint presentation requires a distinct static start marker and red destination indicator. Static origins must not imitate live GPS; directional live-position and heading indicators remain reserved for reliable Phase 3 geolocation data.
+
+No Sprint 003 implementation is included in this accepted milestone.
