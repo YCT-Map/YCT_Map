@@ -8,14 +8,16 @@ Updated as issues are discovered. Do not list speculative concerns as confirmed 
 
 ## Current Phase
 
-PHASES 1 AND 2 are OWNER ACCEPTED. Phase 3 is not started.
+PHASES 1 AND 2 and Phase 3 Sprint 001 are OWNER ACCEPTED.
 
 ## Active Limitations
 
 - The 47-node/54-segment OSM-derived development network is `UNVERIFIED`; service-road walkability and physical access are not guaranteed.
 - Exact entrances and exits are not deeply mapped, and some destination arrival anchors remain approximate.
-- Browser GPS, live route progress, rerouting, Path Survey Mode and the complete editor mapping interface are not implemented.
+- Browser live-location display is implemented, but physical-phone GPS is not yet verified because no approved HTTPS test origin exists.
+- Live location is not yet a route origin; live route progress, rerouting, Path Survey Mode and the complete editor mapping interface are not implemented.
 - ETA uses the approximate `1.35 m/s` fallback rather than measured live walking speed.
+- When a worse incoming location sample is rejected, the previous better marker is correctly retained but the UI does not yet explicitly explain that decision.
 
 ---
 

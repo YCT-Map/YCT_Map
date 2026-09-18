@@ -420,6 +420,47 @@ input {
   align-items: center;
 }
 
+.user-location-controls {
+  position: absolute;
+  z-index: 4;
+  right: var(--safe-right);
+  bottom: calc(var(--safe-bottom) + 8.6rem);
+  display: grid;
+  gap: 0.45rem;
+  width: min(14.5rem, calc(100vw - 2rem));
+  padding: 0.65rem;
+  background: rgba(255, 255, 252, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-radius: 0.9rem;
+  box-shadow: 0 5px 16px rgba(13, 44, 32, 0.15);
+  backdrop-filter: blur(12px);
+}
+
+.locate-action,
+.location-session-actions button {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.7rem;
+  color: var(--green-800);
+  font-size: 0.72rem;
+  font-weight: 800;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  cursor: pointer;
+}
+
+.locate-action { display: flex; gap: 0.45rem; align-items: center; justify-content: center; color: white; background: var(--green-700); }
+.locate-action:disabled { color: var(--muted); background: #edf0ed; cursor: not-allowed; }
+.locate-icon { font-size: 1.1rem; }
+.location-session-actions { display: flex; gap: 0.4rem; }
+.location-session-actions button { flex: 1; }
+.user-location-controls p { margin: 0; color: var(--muted); font-size: 0.67rem; line-height: 1.35; }
+.user-location-controls small { color: #315d8f; font-size: 0.62rem; font-weight: 700; }
+.user-location-controls[data-state="permission-denied"] p,
+.user-location-controls[data-state="unavailable"] p,
+.user-location-controls[data-state="timed-out"] p { color: #8c4a22; }
+.user-location-controls[data-state="active"] { border-color: rgba(22, 119, 255, 0.28); }
+
 .network-inspector {
   position: absolute; z-index: 4; left: var(--safe-left); bottom: calc(var(--safe-bottom) + 3.2rem);
   display: grid; gap: 0.18rem; padding: 0.55rem 0.7rem; background: rgba(255,255,252,.94);
@@ -481,6 +522,7 @@ input {
 
 @media (max-width: 41.99rem) {
   .route-inspector { right: var(--safe-right); bottom: calc(var(--safe-bottom) + 7.3rem); max-height: 15rem; overflow-y: auto; }
+  .user-location-controls { right: var(--safe-right); bottom: calc(var(--safe-bottom) + 7.9rem); width: 12.5rem; }
 }
 
 .map-status {

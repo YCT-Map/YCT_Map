@@ -1,9 +1,10 @@
-import { fetchLocations } from "./api.js?v=p2s3-osm-realism-4";
-import { createDestinationPanel } from "./destination-panel.js?v=p2s3-osm-realism-4";
-import { createMap } from "./map.js?v=p2s3-osm-realism-4";
-import { createSearch } from "./search.js?v=p2s3-osm-realism-4";
-import { createRouteInspector } from "./route-inspector.js?v=p2s3-osm-realism-4";
-import { createUserNavigation } from "./user-navigation.js?v=p2s3-osm-realism-4";
+import { fetchLocations } from "./api.js?v=p3s1-live-location-1";
+import { createDestinationPanel } from "./destination-panel.js?v=p3s1-live-location-1";
+import { createMap } from "./map.js?v=p3s1-live-location-1";
+import { createSearch } from "./search.js?v=p3s1-live-location-1";
+import { createRouteInspector } from "./route-inspector.js?v=p3s1-live-location-1";
+import { createUserLocation } from "./user-location.js?v=p3s1-live-location-1";
+import { createUserNavigation } from "./user-navigation.js?v=p3s1-live-location-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -24,6 +25,7 @@ const config = {
 };
 
 let mapController = null;
+let userLocationController = null;
 
 function setInterfaceState(state) {
   shell.dataset.interfaceState = state;
@@ -79,6 +81,12 @@ async function start() {
       onSelect: selectDestination,
       onFilter: (matches) => mapController?.setVisibleFeatures(matches),
     });
+    userLocationController = createUserLocation({
+      element: document.querySelector("#user-location-controls"),
+      onPosition: (position, options) => mapController?.showUserLocation(position, options),
+      onClear: () => mapController?.clearUserLocation(),
+      onRecenter: () => mapController?.recenterUserLocation(),
+    });
     setInterfaceState("browsing");
 
     try {
@@ -93,6 +101,8 @@ async function start() {
           setStatus("Demo destinations ready · map unavailable", "warning");
         },
       });
+      const existingPosition = userLocationController.getAcceptedPosition();
+      if (existingPosition) mapController.showUserLocation(existingPosition, { focus: true });
       await createRouteInspector({
         element: document.querySelector("#route-inspector"),
         anchorsUrl: config.debugRouteAnchorsUrl,

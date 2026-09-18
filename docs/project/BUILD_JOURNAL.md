@@ -1208,3 +1208,181 @@ The local application can search and select six DEMO destinations, calculate rou
 ### Transition to Phase 3
 
 Phase 3 can build live navigation on a stable route contract and explicit frontend states. It must introduce permission-aware browser geolocation, reliable live-position semantics, progress and noise-tolerant rerouting without confusing manual/static origins with GPS. Field verification, Path Survey Mode and full editor mapping remain later responsibilities.
+
+## Phase 3 — Sprint 001: Live Location Foundation
+
+**Recorded status:** OWNER VERIFIED / ACCEPTED on 2026-09-18. **SIMULATED GEOLOCATION VERIFIED. PHYSICAL PHONE GPS NOT YET VERIFIED.**
+
+### Purpose
+
+This sprint established a trustworthy answer to “Where is the user now?” before attempting live-origin routing, route progress or rerouting. It introduced browser permission handling, transient position acquisition, accuracy-aware filtering, honest uncertainty presentation and a dedicated live-location marker.
+
+### User Outcome
+
+The user can deliberately press **Locate me**, respond to the browser permission prompt, see an accepted simulated campus position with an accuracy halo, recenter the map and stop location tracking. Permission denial and temporary failures leave search and manual Directions available.
+
+### Starting State
+
+Phase 2 could route between manually selected anchored DEMO destinations. It had a static blue `S` and red `D`, but no browser geolocation, live marker, accuracy model or watcher lifecycle. Ordinary-user coordinates had no approved reason to reach the backend or database.
+
+### What We Built
+
+- Explicit location states: idle, unsupported, requesting permission, locating, active, low accuracy, denied, unavailable, timed out and stopped.
+- Initial `getCurrentPosition()` acquisition followed by `watchPosition()` updates.
+- Separate raw-sample and accepted-display-position handling.
+- Validation for coordinates, accuracy, timestamps, heading and speed.
+- Accuracy bands and a 100 m display ceiling.
+- Retention of a previously better position when a substantially worse sample arrives.
+- Basic implausible-jump protection.
+- A blue live dot without heading and a chevron only with trustworthy movement heading.
+- A geographic accuracy halo, first reliable focus, recenter and stop controls.
+- Cleanup on stop, page visibility changes and permission revocation.
+- Behavior-level JavaScript tests alongside existing Django regressions.
+
+### Technical Concepts Introduced
+
+**Browser Geolocation API.** `getCurrentPosition()` requests a single reading and is useful for initial acquisition. `watchPosition()` continues delivering updates until its watcher is cleared. Neither proves that every delivered sample is accurate.
+
+**Permission states.** Permission is asynchronous and user-controlled. The application must remain useful when access is denied, unavailable, unsupported or slow.
+
+**Raw versus accepted position.** A raw sample is browser input. An accepted position is the location YCT Map has validated and chosen to display. Separating them prevents one poor measurement from immediately moving the marker.
+
+**Accuracy metadata.** The browser’s `accuracy` value describes an estimated uncertainty radius in metres. It is not a guarantee that the device lies exactly at the centre point.
+
+**Heading semantics.** Device heading and route bearing answer different questions. The chevron represents supplied movement heading only; it is never rotated merely because a route points in that direction.
+
+### How It Works Internally
+
+```text
+User presses Locate me
+          |
+          v
+ getCurrentPosition()
+          |
+          v
+      raw sample --------------------+
+          |                           |
+          v                           | rejected
+ coordinate/time/accuracy validation +--> keep last better position
+          |
+          v
+ accuracy + jump assessment
+          |
+          v
+ accepted display position
+       /        \
+      v          v
+ marker      accuracy halo
+          |
+          v
+ watchPosition() supplies later samples
+```
+
+`location-filter.js` normalizes browser values and applies pure validation. Samples worse than 100 m are not displayed. A new provisional sample does not replace an existing position of materially better quality. For movement updates, Haversine distance divided by elapsed time estimates apparent speed; an implausible jump above the generous 12 m/s guard is rejected unless accuracy improved substantially.
+
+This is display stabilization, not walking-speed estimation or stationary-state modelling.
+
+### Architecture / Components Involved
+
+```text
+navigator.geolocation
+        |
+        v
+ geolocation.js       acquisition + watcher lifecycle
+        |
+        v
+ location-filter.js   validation + quality decision
+        |
+        v
+ user-location.js     UI state + accepted position
+        |
+        v
+ map.js               dot/chevron + halo + recenter
+```
+
+The pipeline is entirely client-side. Django serves the interface but receives no Sprint 001 position payload.
+
+### Important Files
+
+- `static/yct_map/js/geolocation.js` — browser API wrapper, error normalization and watcher cleanup.
+- `static/yct_map/js/location-filter.js` — sample normalization, accuracy bands, Haversine movement and rejection rules.
+- `static/yct_map/js/user-location.js` — state machine, controls and accepted-position ownership.
+- `static/yct_map/js/map.js` — MapLibre sources/layers, metre-based halo and recenter behavior.
+- `static/yct_map/js/app.js` — composition with existing discovery and routing.
+- `templates/map/index.html` and `static/yct_map/css/app.css` — accessible controls, status and responsive presentation.
+- `tests/js/phase3-live-location.test.mjs` — deterministic acquisition/filtering/state tests.
+
+### Data Flow
+
+The browser supplies latitude, longitude, accuracy, timestamp and optional speed/heading. YCT Map keeps the latest raw input conceptually separate from the last accepted position. Only an accepted position reaches the map renderer. Stop clears both the watcher and displayed location.
+
+No coordinate is written to SQLite, local storage, session storage, analytics, a URL or a Django endpoint.
+
+### Decisions and Trade-offs
+
+**User-triggered permission.** The application asks only after a meaningful action, providing context and avoiding an intrusive page-load prompt.
+
+**High accuracy with controlled lifetime.** High-accuracy acquisition is appropriate for campus-scale positioning but may consume more power, so tracking is explicit, stoppable and paused while the page is hidden.
+
+**Keep the better position.** Stability and honesty are preferable to moving the marker for every sample. The trade-off is that the marker can appear unchanged; a future refinement should explain that a worse update was rejected.
+
+**No live-origin routing yet.** A GPS coordinate is not automatically a graph node. Safe routing requires segment projection, maximum snap distance and off-network behavior. Deferring that adapter prevents arbitrary snapping or false connectors through buildings.
+
+**No new persistence.** Live display does not require a schema or history. This reduces privacy risk and keeps Path Survey Mode—a future deliberate editor workflow—separate from ordinary navigation.
+
+### Problems Encountered
+
+The accepted behavior test demonstrated that a roughly 100 m sample should not replace an already accepted roughly 40 m position. The filter handled this correctly, but the UI currently gives no explicit explanation that the previous better location was retained.
+
+The automated in-app browser connection was unavailable during implementation verification. Repository tests, local HTTP checks and owner browser verification supplied the evidence; no unauthorized external exposure or tunnel was introduced.
+
+### How We Solved Them
+
+Accuracy classification and accepted-position ownership ensure poorer samples cannot casually displace better information. Watchers are cleared on stop and permission revocation, and hidden-page tracking is paused. The unexplained-retention copy improvement is documented as a minor non-blocking carryover rather than misrepresented as complete.
+
+### Testing and Verification
+
+At acceptance:
+
+- 52 Django tests passed;
+- 8 Node-executed JavaScript tests passed;
+- all JavaScript syntax checks passed;
+- Django system checks passed;
+- migration drift was absent;
+- Git whitespace checks passed;
+- localhost served the current asset version and live-location controls.
+
+The owner verified permission, simulated campus positioning, marker, halo, low-accuracy behavior, recenter, stop, denied fallback, preserved manual Directions and better-position retention.
+
+### Current Limitations
+
+- Physical-phone GPS is not verified because no approved HTTPS test origin exists.
+- Rejected-worse-sample retention is not yet explained explicitly in the UI.
+- Live position cannot yet be used as a route origin.
+- There is no graph snapping, progress, arrival detection, dynamic ETA or rerouting.
+- Indoor accuracy and real campus conditions remain unknown.
+
+### Evidence
+
+- **`P3-S1-A-live-location-marker.png`** demonstrates the simulated campus live marker, campus context and metre-based uncertainty halo.
+- **`P3-S1-B-location-permission-fallback.png`** demonstrates that denied/unavailable location is explained while manual Directions remains usable.
+
+Both images use simulated campus coordinates and do not capture the owner’s private real-world location. They prove simulated product behavior, not physical-device GPS performance.
+
+### What Students Should Understand
+
+Students should understand that browser GPS data is uncertain input rather than unquestionable truth. Accuracy metadata must influence presentation and filtering. A raw sample can be structurally valid yet still be unsuitable to replace a better accepted position. They should also understand that permission denial is a normal product state, cleanup matters for privacy and battery use, and a live map point is not automatically safe routing topology.
+
+### Presentation / Defence Notes
+
+- **Why use both acquisition methods?** One obtains the initial result; the watcher supplies controlled updates.
+- **Why keep raw and accepted positions?** It prevents bad samples from directly controlling the UI.
+- **Why does the halo change size?** Its geographic radius represents reported uncertainty in metres.
+- **Why is there sometimes a dot instead of a chevron?** Direction is shown only when the browser supplies credible movement heading.
+- **Was real phone GPS tested?** No. The accepted milestone is explicitly simulated geolocation verification.
+- **Where is location stored?** Nowhere persistent; it exists only in browser memory during the active session.
+- **Why can it not start a route?** Safe graph matching and off-network limits require a separate designed adapter.
+
+### Next Sprint
+
+Phase 3 Sprint 002 is next for discussion/planning. Its exact scope is not yet approved. Candidate follow-up work includes the retained-position explanation and a carefully bounded live-position-to-network adapter, but no Sprint 002 implementation is authorized by this milestone.

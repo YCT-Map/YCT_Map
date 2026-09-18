@@ -406,3 +406,47 @@ This addendum preserves the implementation and correction history above and reco
 - Accepted evidence is `P2-S3-A-navigation-route-endpoints.png`, `P2-S3-B-medical-centre-route.png`, supporting `P2-S3-C-osm-unverified-network.png`, and phase recording `P2-R-navigation-flow.mp4`.
 - Browser GPS, live progress, rerouting, Path Survey Mode, complete editor mapping, verified entrances and field-verified paths remain deferred.
 - Phase 3 is next for discussion/planning only. No Phase 3 implementation is included.
+
+---
+
+## Phase 3 — Sprint 001: Live Location Foundation
+
+**Date:** 2026-09-18
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+
+### Objective and Result
+
+Established a user-triggered, privacy-preserving browser geolocation pipeline that distinguishes raw samples from accepted display positions and represents location quality honestly. The sprint intentionally stops before live-origin routing, route progress and rerouting.
+
+### What Was Built
+
+- Explicit unsupported, idle, requesting, locating, active, low-accuracy, denied, unavailable, timed-out and stopped states.
+- `getCurrentPosition()` followed by a cleaned-up `watchPosition()` session with visibility pause/resume.
+- Pure coordinate, timestamp, accuracy, heading and apparent-jump validation.
+- Accuracy bands at 25 m, 60 m and a 100 m display ceiling.
+- A blue live dot when heading is unavailable and a chevron only when device heading and meaningful speed are present.
+- A restrained GeoJSON accuracy halo whose geographic radius follows the reported metre accuracy.
+- First-reliable-position focus, later marker-only updates and an explicit recenter control.
+- Stop behavior that clears the watcher and live map presentation.
+- No storage, backend request, migration, coordinate logging or route integration.
+
+### Verification and Boundary
+
+All 52 Django tests and 8 JavaScript tests pass. New behavior coverage exercises invalid samples, poor accuracy, stale readings, implausible jumps, heading reliability, unsupported geolocation, watcher cleanup and permission revocation, permission denial, accepted positions, recenter and stop. Existing manual routing remains the only route-origin mechanism.
+
+Localhost and simulated-browser review may verify UI behavior. Physical-phone GPS must be reported separately and remains unverified until an approved HTTPS origin exists. Required owner evidence should use simulated campus coordinates: `P3-S1-A-live-location-marker.png` and `P3-S1-B-location-permission-fallback.png`.
+
+`BUILD_JOURNAL.md` remains unchanged until owner acceptance. No commit has been created.
+
+### Acceptance Addendum — 2026-09-18
+
+This addendum records the owner decision without rewriting the implementation-time record.
+
+- Phase 3 Sprint 001 was formally OWNER ACCEPTED.
+- Verification status is `SIMULATED GEOLOCATION VERIFIED`; physical-phone GPS is not verified.
+- The owner verified Locate me, permission prompting, a simulated campus position, the blue live marker, metre-based halo, low-accuracy presentation, recenter, stop, denial fallback and preserved manual Directions.
+- A previously accepted position at approximately 40 m accuracy correctly remained displayed when a substantially worse approximately 100 m sample arrived.
+- Minor non-blocking carryover: explain in the UI when the previous better location is being retained after a worse sample is rejected.
+- Ordinary-user coordinates are not persisted, stored as history/breadcrumbs, added to analytics or sent to the backend. Evidence uses simulated campus coordinates.
+- Accepted evidence: `P3-S1-A-live-location-marker.png` and `P3-S1-B-location-permission-fallback.png`.
+- Phase 3 Sprint 002 is next for discussion/planning only. No Sprint 002 implementation is included.

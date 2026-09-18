@@ -79,6 +79,19 @@
       <span>You can still search and inspect all demonstration destinations.</span>
     </aside>
 
+    <aside id="user-location-controls" class="user-location-controls" data-state="idle" aria-label="Live location">
+      <button id="locate-me" class="locate-action" type="button">
+        <span class="locate-icon" aria-hidden="true">◎</span>
+        Locate me
+      </button>
+      <div class="location-session-actions">
+        <button id="recenter-me" type="button" hidden>Recenter on me</button>
+        <button id="stop-location" type="button" hidden>Stop location</button>
+      </div>
+      <p id="location-message" role="status" aria-live="polite">Location is optional and stays on this device.</p>
+      <small id="location-accuracy" hidden></small>
+    </aside>
+
     {% if debug_network_url %}<details id="debug-tools" class="debug-tools">
       <summary>Developer tools</summary>
     <aside id="network-inspector" class="network-inspector" aria-label="Demonstration network inspection" hidden>

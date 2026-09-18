@@ -11,9 +11,9 @@
 |-------|-------|
 | **Date** | 2026-09-18 |
 | **Branch** | `main` |
-| **Current Phase** | PHASE 2 — ROUTING & NAVIGATION — OWNER ACCEPTED |
-| **Pipeline Phase** | Phase 2 complete; Phase 3 awaits discussion/planning and a standalone BUILD command |
-| **Latest Meaningful Commit** | Phase 2 completion milestone (`feat: complete Phase 2 campus routing and navigation`) |
+| **Current Phase** | PHASE 3 — LIVE NAVIGATION & CORE PRODUCT SYSTEMS |
+| **Pipeline Phase** | Phase 3 Sprint 001 OWNER ACCEPTED; Sprint 002 awaits discussion/planning |
+| **Latest Meaningful Commit** | Phase 3 Sprint 001 milestone (`feat: establish live location foundation`) |
 
 ---
 
@@ -21,7 +21,7 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | PHASES 1 AND 2 OWNER ACCEPTED; PHASE 3 NOT STARTED |
+| Application implementation | PHASE 3 SPRINT 001 OWNER ACCEPTED |
 | Product definition | SUBSTANTIALLY COMPLETE |
 | Documentation / governance | SUBSTANTIALLY COMPLETE |
 | Build pipeline | SUBSTANTIALLY COMPLETE |
@@ -30,7 +30,7 @@
 | Demo/development dataset | 6 DEMO locations; 47 OSM-derived UNVERIFIED nodes, 54 segments and 6 UNVERIFIED anchors |
 | Field verification | NOT STARTED |
 | Deployment | NOT STARTED |
-| Test suite | 52 DJANGO + 3 JAVASCRIPT BEHAVIOUR TESTS PASSING |
+| Test suite | 52 DJANGO + 8 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -41,7 +41,7 @@ See `docs/project/operations/BUILD_PIPELINE.md` for the full 5-phase plan.
 ```
 Phase 1 — Foundation & Map Experience          ACCEPTED
 Phase 2 — Routing & Navigation                 ACCEPTED
-Phase 3 — Live Navigation & Core Product       NOT STARTED
+Phase 3 — Live Navigation & Core Product       IN PROGRESS
 Phase 4 — Editor & Mapping Tools               NOT STARTED
 Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 ```
@@ -101,25 +101,33 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 - Responsive route summary, distance, approximate ETA and change/clear controls
 - OSM-derived primary development graph: 47 `UNVERIFIED` nodes, 54 segments and six anchors
 - Medical Centre routing restored through a deliberate non-verified anchor
-- 52 Django tests and 3 JavaScript behaviour tests passing at acceptance
+- 52 Django tests and 3 JavaScript behaviour tests passing at Phase 2 acceptance
+
+**Phase 3 / Sprint 001 — OWNER VERIFIED / ACCEPTED**
+- User-triggered transient browser geolocation with explicit permission/error states
+- Raw-sample validation, accuracy bands and noisy-jump protection
+- Blue live dot or trustworthy-heading chevron with metre-based accuracy halo
+- First-position focus, recenter and stop/cleanup behavior
+- SIMULATED GEOLOCATION VERIFIED; physical-phone GPS not yet verified
+- 52 Django tests and 8 JavaScript tests passing at acceptance
 
 ---
 
 ## Active Work
 
-No implementation is active. Phase 2 is owner accepted. Phase 3 has not started.
+No implementation is active. Phase 3 Sprint 001 is OWNER ACCEPTED. Live position remains display-only and transient; Sprint 002 has not started.
 
 ---
 
 ## Known Blockers
 
-No implementation blocker. The repeated campus-label issue is resolved by a deterministic point label.
+Physical-phone GPS remains unverified because no owner-approved HTTPS test origin exists. When a worse sample is rejected in favor of the last better accepted position, the UI does not yet explicitly explain that retention decision.
 
 ---
 
 ## Next Approved Task
 
-Phase 3 — Live Navigation & Core Product Systems — discussion and planning. Do not implement Phase 3 without a standalone `BUILD` command.
+Phase 3 Sprint 002 discussion/planning. Its scope requires owner approval and a standalone `BUILD` command.
 
 ---
 

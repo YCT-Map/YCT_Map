@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PHASE 2 / SPRINT 003 — OWNER ACCEPTED
-Implementation:    PHASE 2 ROUTING AND USER-FACING NAVIGATION COMPLETE
+Current phase:     PHASE 3 / SPRINT 001 — OWNER ACCEPTED
+Implementation:    LIVE-LOCATION DISPLAY ACCEPTED; LIVE-ORIGIN ROUTING DEFERRED
 ```
 
 This document records the approved routing behavior for YCT Map.
@@ -94,7 +94,7 @@ The importer preserves OSM way/node references, source way version and timestamp
 
 - A manual or otherwise static origin must use a clear start marker that does not imitate live GPS.
 - A destination must use a clear red destination indicator.
-- When Phase 3 introduces reliable live geolocation, the user's actual position may use a directional triangle or chevron.
+- Reliable live geolocation uses a directional triangle or chevron only when the browser supplies trustworthy movement heading; otherwise it uses a dot.
 - Heading or orientation must be shown only when reliable live-position and heading information exists.
 
 These approved Sprint 003 presentation requirements are implemented separately from the Sprint 002 technical inspector.
@@ -112,6 +112,12 @@ The OSM realism pass did not replace or repair A*. A* was already returning the 
 Existing OSM/OpenFreeMap-visible pathways may be used as reference input when constructing YCT Map's real walkable network; they do not automatically become routing edges. YCT Map must own, import or create explicit graph geometry, retain editor review, and keep field verification separate.
 
 Incorrect or missing paths must remain editable. Future Path Survey Mode may help verify and refine them. Editor/path validation should flag ordinary outdoor segments intersecting building footprints for review while allowing deliberate, reviewed exceptions for genuine passages or corridors.
+
+## Phase 3 Live-Location Boundary
+
+Sprint 001 keeps accepted browser positions transient and client-side. It does not pass arbitrary GPS coordinates into A* or create temporary graph nodes. Manual location anchors remain the only public route origins.
+
+A future live-origin sprint should project an accepted coordinate onto an eligible segment, enforce a short quality-aware maximum snap distance, and fail safely when the user is outside the mapped network. It must not invent a straight connector through buildings or snap hundreds of metres to an arbitrary node.
 
 ---
 

@@ -150,11 +150,16 @@ class MapPageTests(TestCase):
         self.assertContains(response, 'data-route-url="/api/routes/"')
         self.assertContains(response, 'id="destination-directions"')
         self.assertContains(response, 'id="user-route-panel"')
-        self.assertContains(response, "app.js?v=p2s3-osm-realism-4")
-        self.assertContains(response, "app.css?v=p2s3-osm-realism-4")
+        self.assertContains(response, "app.js?v=p3s1-live-location-1")
+        self.assertContains(response, "app.css?v=p3s1-live-location-1")
+        self.assertContains(response, 'id="user-location-controls"')
+        self.assertContains(response, 'id="locate-me"')
+        self.assertContains(response, 'id="recenter-me"')
+        self.assertContains(response, 'id="stop-location"')
+        self.assertContains(response, "Location is optional and stays on this device.")
         self.assertNotContains(response, "A* route inspection")
 
-    def test_sprint_003_modules_use_the_same_cache_version(self):
+    def test_current_modules_use_the_same_cache_version(self):
         app_path = settings.BASE_DIR / "static/yct_map/js/app.js"
         app_source = app_path.read_text(encoding="utf-8")
 
@@ -164,9 +169,16 @@ class MapPageTests(TestCase):
             "map.js",
             "search.js",
             "route-inspector.js",
+            "user-location.js",
             "user-navigation.js",
         ):
-            self.assertIn(f'{module}?v=p2s3-osm-realism-4', app_source)
+            self.assertIn(f'{module}?v=p3s1-live-location-1', app_source)
+
+        user_location_source = (
+            settings.BASE_DIR / "static/yct_map/js/user-location.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("location-filter.js?v=p3s1-live-location-1", user_location_source)
+        self.assertIn("geolocation.js?v=p3s1-live-location-1", user_location_source)
 
     def test_campus_orientation_boundary_is_the_approved_osm_polygon(self):
         boundary_path = settings.BASE_DIR / "static/yct_map/data/yabatech-campus-boundary.geojson"

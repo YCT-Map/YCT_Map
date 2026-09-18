@@ -18,6 +18,26 @@ const USER_ROUTE_LAYER_ID = "user-demo-route-line";
 const USER_ENDPOINT_SOURCE_ID = "user-route-endpoints";
 const USER_ENDPOINT_CIRCLE_LAYER_ID = "user-route-endpoint-circles";
 const USER_ENDPOINT_LABEL_LAYER_ID = "user-route-endpoint-labels";
+const USER_LOCATION_SOURCE_ID = "live-user-location";
+const USER_ACCURACY_SOURCE_ID = "live-user-accuracy";
+const USER_ACCURACY_LAYER_ID = "live-user-accuracy-fill";
+const USER_LOCATION_DOT_LAYER_ID = "live-user-location-dot";
+const USER_LOCATION_CHEVRON_LAYER_ID = "live-user-location-chevron";
+
+function accuracyPolygon(position, points = 48) {
+  const latitudeRadians = position.latitude * Math.PI / 180;
+  const latitudeDegreesPerMetre = 1 / 111_320;
+  const longitudeDegreesPerMetre = 1 / (111_320 * Math.max(Math.cos(latitudeRadians), 0.01));
+  const coordinates = [];
+  for (let index = 0; index <= points; index += 1) {
+    const angle = index / points * Math.PI * 2;
+    coordinates.push([
+      position.longitude + Math.cos(angle) * position.accuracyMetres * longitudeDegreesPerMetre,
+      position.latitude + Math.sin(angle) * position.accuracyMetres * latitudeDegreesPerMetre,
+    ]);
+  }
+  return { type: "Feature", geometry: { type: "Polygon", coordinates: [coordinates] }, properties: {} };
+}
 
 async function loadCampusBoundary(url) {
   try {
@@ -110,6 +130,7 @@ export async function createMap({ container, config, features, onSelect, onReady
   let loaded = false;
   let pendingFocus = null;
   let selectedFeatureId = "";
+  let latestUserPosition = null;
 
   const map = new maplibregl.Map({
     container,
@@ -205,6 +226,19 @@ export async function createMap({ container, config, features, onSelect, onReady
       layout: { "text-field": ["match", ["get", "role"], "destination", "D", "S"], "text-size": 11, "text-font": ["Noto Sans Regular"], "text-allow-overlap": true, "text-ignore-placement": true },
       paint: { "text-color": "#fff" } });
 
+    map.addSource(USER_ACCURACY_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({ id: USER_ACCURACY_LAYER_ID, type: "fill", source: USER_ACCURACY_SOURCE_ID,
+      paint: { "fill-color": "#1677ff", "fill-opacity": 0.12, "fill-outline-color": "rgba(22,119,255,.42)" } });
+    map.addSource(USER_LOCATION_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({ id: USER_LOCATION_DOT_LAYER_ID, type: "circle", source: USER_LOCATION_SOURCE_ID,
+      filter: ["!", ["has", "heading"]],
+      paint: { "circle-radius": 9, "circle-color": "#1677ff", "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
+    map.addLayer({ id: USER_LOCATION_CHEVRON_LAYER_ID, type: "symbol", source: USER_LOCATION_SOURCE_ID,
+      filter: ["has", "heading"],
+      layout: { "text-field": "▲", "text-size": 22, "text-rotate": ["get", "heading"], "text-rotation-alignment": "map",
+        "text-allow-overlap": true, "text-ignore-placement": true },
+      paint: { "text-color": "#1677ff", "text-halo-color": "#fff", "text-halo-width": 2 } });
+
     map.addSource(SOURCE_ID, {
       type: "geojson",
       data: { type: "FeatureCollection", features: visibleFeatures },
@@ -267,6 +301,8 @@ export async function createMap({ container, config, features, onSelect, onReady
     }
     map.moveLayer(USER_ENDPOINT_CIRCLE_LAYER_ID);
     map.moveLayer(USER_ENDPOINT_LABEL_LAYER_ID);
+    map.moveLayer(USER_LOCATION_DOT_LAYER_ID);
+    map.moveLayer(USER_LOCATION_CHEVRON_LAYER_ID);
 
     for (const layerId of [CIRCLE_LAYER_ID, LABEL_LAYER_ID]) {
       map.on("click", layerId, (event) => {
@@ -358,5 +394,32 @@ export async function createMap({ container, config, features, onSelect, onReady
     map.getSource(USER_ENDPOINT_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
   }
 
-  return { focus, focusCampus, setVisibleFeatures, showRoute, showUserRoute, clearUserRoute, map };
+  function showUserLocation(position, { focus: shouldFocus = false } = {}) {
+    latestUserPosition = position;
+    if (!loaded) return;
+    const properties = { accuracy: position.accuracyMetres };
+    if (position.headingDegrees !== null) properties.heading = position.headingDegrees;
+    map.getSource(USER_LOCATION_SOURCE_ID).setData({ type: "FeatureCollection", features: [{
+      type: "Feature", geometry: { type: "Point", coordinates: [position.longitude, position.latitude] }, properties,
+    }] });
+    map.getSource(USER_ACCURACY_SOURCE_ID).setData({ type: "FeatureCollection", features: [accuracyPolygon(position)] });
+    if (shouldFocus) recenterUserLocation();
+  }
+
+  function recenterUserLocation() {
+    if (!loaded || !latestUserPosition) return false;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    map.easeTo({ center: [latestUserPosition.longitude, latestUserPosition.latitude], zoom: Math.max(map.getZoom(), 17),
+      duration: reducedMotion ? 0 : 650, essential: false });
+    return true;
+  }
+
+  function clearUserLocation() {
+    latestUserPosition = null;
+    map.getSource(USER_LOCATION_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
+    map.getSource(USER_ACCURACY_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
+  }
+
+  return { focus, focusCampus, setVisibleFeatures, showRoute, showUserRoute, clearUserRoute,
+    showUserLocation, recenterUserLocation, clearUserLocation, map };
 }

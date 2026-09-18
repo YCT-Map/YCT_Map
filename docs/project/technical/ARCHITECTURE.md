@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:         PHASE 2 — ROUTING & NAVIGATION — OWNER ACCEPTED
-Application code:      PHASE 2 COMPLETE; PHASE 3 NOT STARTED
+Current phase:         PHASE 3 — LIVE NAVIGATION & CORE PRODUCT SYSTEMS
+Application code:      SPRINT 001 LIVE-LOCATION FOUNDATION OWNER ACCEPTED
 ```
 
 This document records approved architectural decisions and expected system design.
@@ -43,6 +43,10 @@ YCT Map is a web-based application consisting of:
 **APPROVED decision (DEC-T01):** Responsive HTML5, CSS, and modular JavaScript with MapLibre GL JS for interactive map rendering.
 
 **CURRENT implementation:** Django-rendered HTML, mobile-first CSS and native ES modules. MapLibre GL JS `6.10.0` is loaded from a pinned CDN URL. Search remains usable when map initialization fails.
+
+Phase 3 Sprint 001 separates browser acquisition (`geolocation.js`), pure validation/filtering (`location-filter.js`), location UI state (`user-location.js`) and MapLibre rendering (`map.js`). Ordinary-user position exists only in browser memory and is not sent to Django or persisted.
+
+There is no location-history model, breadcrumb storage or raw-coordinate analytics. Simulated campus coordinates were used for acceptance evidence; physical-device GPS remains unverified pending an approved HTTPS origin.
 
 ---
 
@@ -174,7 +178,9 @@ The browser frontend, public location and route endpoints, local database, routi
 - Indoor mapping is not in V1
 - Routing uses paths maintained in YCT Map data — quality depends on field verification
 - Current OSM-derived routing paths and anchors are `UNVERIFIED`; service-road access and exact entrances require later review and field survey
-- No browser GPS, route progress or rerouting exists yet
+- Browser live-location acquisition/display exists; route progress and rerouting do not
+- Browser live-location display is implemented, but physical-phone GPS remains unverified until an approved HTTPS test origin is available
+- Live location is not yet matched to the routing graph and cannot yet be selected as a route origin
 - Building geometry relies on available data; complex irregular polygons may be simplified initially
 
 ---

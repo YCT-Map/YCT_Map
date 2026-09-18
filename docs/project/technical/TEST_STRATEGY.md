@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PHASE 2 — OWNER ACCEPTED
-Implementation:    PHASE 2 SUITE ACTIVE; PHASE 3 NOT STARTED
+Current phase:     PHASE 3 — SPRINT 001 OWNER ACCEPTED
+Implementation:    PHASE 2 REGRESSIONS + LIVE-LOCATION BEHAVIOUR SUITE ACTIVE
 ```
 
 This document defines the intended testing approach for YCT Map.
@@ -94,5 +94,9 @@ Sprint 003 second owner-review correction: 49 Django tests and 3 Node-executed J
 OSM network realism pass: 52 Django tests and 3 JavaScript behaviour tests pass. New tests cover deterministic reviewed-snapshot conversion, provenance, restriction rejection, transactional replacement, 47-node/54-segment persistence, six anchors and Medical Centre routing availability. All fifteen destination pairs are routable in the loaded development graph.
 
 Phase 2 final acceptance retains those 52 Django and 3 JavaScript behaviour tests as the milestone baseline. Backend/static checks alone did not catch the owner-visible Sprint 003 transition problem, so behavior-level JavaScript tests now execute the destination-to-navigation state flow, cancellation and clearing rather than checking only source strings or response markup.
+
+Phase 3 Sprint 001 implementation: 52 Django tests and 8 Node-executed JavaScript tests pass. New coverage validates malformed samples, accuracy quality, stale samples, noisy jumps, trustworthy heading, unsupported browsers, watcher cleanup including permission revocation, permission denial, marker callbacks, recentering and stop behavior. Browser simulation and later physical-phone GPS verification remain separately reported.
+
+Owner acceptance records `SIMULATED GEOLOCATION VERIFIED`. It does not record physical-phone GPS verification. The owner also confirmed that an accepted approximately 40 m position remains displayed when a substantially worse approximately 100 m sample arrives.
 
 Coverage includes model validation, aliases, DEMO fixture integrity, map-page configuration, explicit GeoJSON serialization, partial/case-insensitive name search, alias search, category filtering, empty results, invalid input and read-only endpoint behavior.
