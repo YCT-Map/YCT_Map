@@ -198,3 +198,24 @@ Phase 3 is OWNER ACCEPTED / COMPLETE. Live positions, route progress and rerouti
 ## Conflicts / Open Questions
 
 No unresolved Sprint 001 architecture decision remains. The exact future spatial/PostGIS representation is deliberately deferred until routing/path requirements require it.
+
+---
+
+## Phase 4 Sprint 001 Editor Foundation
+
+The custom editor is a server-rendered Django interface under `/editor/`. Django session authentication, CSRF middleware and model permissions form the security boundary; hiding a control is never treated as authorization.
+
+`Location` continues as the UUID outdoor-place identity so routing anchors and contribution foreign keys remain stable. The new domain fields are physical place type, multi-category membership, publication lifecycle, representative point and audit actors. Legacy category and entrance-coordinate fields remain intentionally available only for Phase 1–3 compatibility and are not routing entrance replacements.
+
+```
+Authenticated Editor
+        |
+        v
+permission-gated Django view -> explicit ModelForm -> Location + aliases/categories
+                                                     |
+                         Published + complete only --+--> public GeoJSON
+                                                     |
+                         LocationNetworkAnchor ------+--> routing graph
+```
+
+The Editor group is provisioned after migrations with only the required location/alias/category-view permissions. Administrators retain account and taxonomy administration through Django admin. No public registration, entrance model, internal-place model or field-capture system exists in Sprint 001.

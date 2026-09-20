@@ -15,7 +15,7 @@ def route_between_locations(origin_location_id, destination_location_id):
     anchors = LocationNetworkAnchor.objects.filter(
         location_id__in=[origin_location_id, destination_location_id],
         is_active=True,
-        location__is_active=True,
+        location__publication_status="PUBLISHED",
         node__is_active=True,
     ).select_related("location", "node")
     by_location = {str(anchor.location_id): anchor for anchor in anchors}
@@ -32,7 +32,7 @@ def route_from_live_position(longitude, latitude, accuracy_metres, destination_l
     destination = LocationNetworkAnchor.objects.filter(
         location_id=destination_location_id,
         is_active=True,
-        location__is_active=True,
+        location__publication_status="PUBLISHED",
         node__is_active=True,
     ).select_related("location", "node").first()
     if not destination:

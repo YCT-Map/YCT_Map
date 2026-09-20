@@ -1,0 +1,50 @@
+{% extends "editor/base.html" %}
+{% block title %}{% if creating %}Add place{% else %}{{ place.name }}{% endif %}{% endblock %}
+{% block content %}
+  <div class="editor-heading"><div><p class="editor-eyebrow">Outdoor place</p><h1>{% if creating %}Add place{% else %}{{ place.name }}{% endif %}</h1><p>Representative points describe map position. Routing continues to use the separate network anchor.</p></div><a href="{% url 'editor:place-list' %}">Back to places</a></div>
+  <form method="post" class="editor-form editor-place-form" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors or aliases.non_form_errors %}<div class="editor-error" role="alert">{{ form.non_field_errors }}{{ aliases.non_form_errors }}</div>{% endif %}
+    <section class="editor-card">
+      <h2>Place details</h2>
+      {% for field in form %}
+        <div class="editor-field{% if field.errors %} has-error{% endif %}">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {{ field.errors }}
+        </div>
+      {% endfor %}
+    </section>
+    <section class="editor-card">
+      <div class="editor-section-heading"><div><h2>Aliases and codes</h2><p>Common names, abbreviations, codes, and alternate spellings remain searchable.</p></div></div>
+      {{ aliases.management_form }}
+      <div class="alias-list">
+        {% for alias_form in aliases %}
+          <div class="alias-row">
+            {{ alias_form.id }}
+            <div><label for="{{ alias_form.name.id_for_label }}">Alias</label>{{ alias_form.name }}{{ alias_form.name.errors }}</div>
+            <div><label for="{{ alias_form.alias_kind.id_for_label }}">Kind</label>{{ alias_form.alias_kind }}{{ alias_form.alias_kind.errors }}</div>
+            {% if alias_form.instance.pk %}<div class="alias-delete"><label for="{{ alias_form.DELETE.id_for_label }}">Remove</label>{{ alias_form.DELETE }}</div>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="editor-card editor-point-status">
+      <h2>Representative point</h2>
+      {% if place.has_representative_point %}<p><strong>Set</strong> — retained from the current place data.</p>{% else %}<p><strong>Not set</strong> — this place must remain Draft until map/current-location capture is implemented.</p>{% endif %}
+      <small>Raw coordinates are intentionally not exposed in the ordinary editor workflow.</small>
+    </section>
+    {% if can_edit %}<button class="editor-primary" type="submit">Save place</button>{% endif %}
+  </form>
+  {% if not creating and can_edit %}
+    <section class="editor-card editor-lifecycle">
+      <h2>Lifecycle</h2>
+      {% if place.publication_status != "ARCHIVED" %}
+        <form method="post" action="{% url 'editor:place-archive' place.id %}">{% csrf_token %}<button class="editor-danger" type="submit">Archive place</button></form>
+      {% else %}
+        <form method="post" action="{% url 'editor:place-reactivate' place.id %}">{% csrf_token %}<button type="submit" name="publication_status" value="DRAFT">Reactivate as Draft</button>{% if place.has_representative_point %}<button type="submit" name="publication_status" value="PUBLISHED">Reactivate as Published</button>{% endif %}</form>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

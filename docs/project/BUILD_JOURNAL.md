@@ -1942,3 +1942,171 @@ YCT Map now supports searchable DEMO destinations, OSM-derived `UNVERIFIED` camp
 ### Transition to the Next Phase
 
 Phase 4 will establish authenticated editor and campus-data tooling. It must preserve the distinction between moderation, editor review and `FIELD_VERIFIED` data. Physical-device verification, real campus population, entrance/internal-place tools, path editing and Path Survey Mode remain future work.
+
+## Phase 4 — Sprint 001: Editor Access & Campus-Place Foundation
+
+**Recorded status:** OWNER ACCEPTED on 2026-09-20. Phase 4 remains IN PROGRESS.
+
+### Purpose
+
+This sprint established a secure editor entry point and evolved the original demonstration-oriented destination model into the foundation for maintaining outdoor campus places. It deliberately stopped before entrances, floors, internal places, map placement or real campus population.
+
+### User Outcome
+
+A trusted project member can sign in to a purpose-built YCT Map Editor, create a metadata-only Draft outdoor place, choose its physical type and multiple functional categories, add typed aliases or codes, edit it later, and keep it safely outside the public map until it is complete and deliberately published.
+
+### Starting State
+
+The public product already depended on `Location` UUIDs. Search, destination cards, contribution targets, six route anchors, manual routing, live navigation and rerouting all referenced those records. `Location` had one legacy category, required fields named as entrance coordinates, one active flag and no product-level editor. Django authentication existed for admin moderation, but there was no ordinary campus-data workflow.
+
+### What We Built
+
+- An additive evolution of `Location`, preserving its model name and UUID primary key.
+- Seven controlled physical place types.
+- Twelve controlled functional `Category` records and a many-to-many place relationship.
+- Typed aliases for common names, abbreviations, codes, alternate spellings and other names.
+- independent Draft, Published and Archived lifecycle states.
+- nullable representative coordinates, separate from route arrival.
+- nullable `created_by` and `updated_by` audit actors.
+- a least-privilege Editor group.
+- custom login, dashboard, place list and place create/edit interfaces.
+- archive/reactivate behavior without ordinary Location deletion.
+- staged schema and data migrations that preserved all accepted DEMO records and relationships.
+
+### Technical Concepts Introduced
+
+**Incremental schema evolution** changes a model while preserving its identity and relationships. This is safer than replacing a working model when other tables, URLs, fixtures and client contracts already depend on it.
+
+**Physical type and functional category are different axes.** A Building describes what a place physically is. Medical or Library & Study describes what users do or find there. Keeping those concepts separate prevents combinations such as a food area being forced into a “Food Building” type.
+
+**Many-to-many classification** allows one place to serve several purposes without comma-separated strings or duplicated place records.
+
+**Publication and verification are independent.** Publication controls visibility. Verification describes evidence quality. A record may be Published and UNVERIFIED; publishing never makes it FIELD_VERIFIED.
+
+**Authentication and authorization are different.** A session proves who is signed in. Server-side permissions decide what that user may do.
+
+### How It Works Internally
+
+```text
+Administrator provisions account / Editor group
+                    |
+                    v
+             Django login + session
+                    |
+                    v
+       permission-protected editor view
+                    |
+          explicit ModelForm fields
+                    |
+        +-----------+------------+
+        |                        |
+     Location              LocationAlias
+        |
+        +---- many-to-many ---- Category
+        |
+        +---- LocationNetworkAnchor ---- routing graph
+
+Public query: Published + representative point -> GeoJSON/search
+Editor query: Draft + Published + Archived      -> place management
+```
+
+The editor never accepts actor IDs from the browser. Django assigns `created_by` and `updated_by` from `request.user`. State-changing operations use POST and CSRF validation. Public endpoints filter lifecycle state on the server rather than relying on hidden frontend elements.
+
+### Architecture / Components Involved
+
+The existing `locations` application now owns the editor forms, URLs and views as well as the public location endpoint. Django auth supplies users, sessions, groups and permissions. `Category` is database-backed so administrators can control activation and order, while `PlaceType` remains stable code-level `TextChoices`.
+
+Routing remains a separate concern. `LocationNetworkAnchor` still connects a published Location to a graph node. The representative point is only the location shown on the map and is not reinterpreted as an entrance or routing endpoint.
+
+### Important Files
+
+- `locations/models.py` — evolved place, category, alias, lifecycle and audit schema.
+- `locations/forms.py` — allowlisted place fields, active categories, compatibility mapping and alias formset validation.
+- `locations/editor_views.py` — authenticated and permission-checked editor behavior.
+- `locations/editor_urls.py` — the `/editor/` route family.
+- `templates/editor/` — custom login, dashboard, list and form UI.
+- `locations/migrations/0002_campus_place_foundation.py` — additive schema operations.
+- `locations/migrations/0003_seed_and_backfill_campus_places.py` — controlled taxonomy and existing-data backfill.
+- `locations/tests/test_editor.py` — authentication, authorization, CRUD, migration-result and security coverage.
+
+### Data Flow
+
+An editor submits only approved form fields. Django validates name, type, active categories, lifecycle and aliases, then assigns the authenticated actor. New records begin as Draft and UNVERIFIED. Because Draft is excluded from the public queryset, incomplete metadata cannot leak into search or route selection.
+
+Existing published DEMO records follow the compatibility path. Their legacy coordinates were copied into representative coordinates, old categories were mapped into the new many-to-many taxonomy, and original UUIDs remained unchanged. Public serialization continues returning the legacy category properties used by the accepted frontend while also exposing the richer type and category structure.
+
+### Decisions and Trade-offs
+
+**Evolve `Location`, do not replace it.** A new `CampusPlace` model would require copying identities, bridging foreign keys and temporarily supporting two destination systems. The product term is Place/Outdoor Place, while the stable Django name remains `Location`.
+
+**Preserve UUID identity.** Names, codes and aliases can change. UUIDs are referenced by routes, contributions, fixtures, APIs and browser state, so preserving them avoids broken relationships and redirects.
+
+**Database Categories, code-level place types.** Categories need multiple selection, activation and ordering. Physical types are few and stable, so `TextChoices` prevents taxonomy drift.
+
+**Aliases are searchable metadata, not identity.** The same code may legitimately be ambiguous across places. Duplicate aliases are therefore blocked only case-insensitively within the same Location.
+
+**Drafts may omit coordinates.** Project members can prepare names, categories and aliases before field capture. Safety comes from excluding Drafts publicly, not from inventing coordinates.
+
+**Avoid ordinary hard deletion.** Places may accumulate anchors, contributions and verification history. Archive preserves those relationships and provides a reversible removal workflow.
+
+### Problems Encountered
+
+The new top-level `Category` model initially collided in Python class scope with the historical nested `Location.Category` compatibility enum. Migration generation correctly failed before writing a migration.
+
+The first alias formset test also found that an unused extra row appeared changed because the alias-kind field had a default. That caused an empty optional row to demand a name.
+
+During owner-review preparation, port 8000 served a stale pre-Sprint-001 development process while the current build was verified on port 8001. This was an environment/process-state issue, not a URL implementation defect.
+
+### How We Solved Them
+
+The many-to-many relationship uses the explicit string target `locations.Category`, removing the class-scope ambiguity without renaming either approved concept.
+
+The alias ModelForm now treats a new row with no alias name as unchanged. Named rows still require a controlled kind and pass model/formset duplicate validation.
+
+The current server was verified on a separate port during review. Final acceptance cleanup confirmed that no YCT Map development-server process or listener remained, avoiding termination of an unknown process.
+
+### Testing and Verification
+
+At acceptance, 94 Django tests and 34 JavaScript tests passed. JavaScript syntax for 13 modules, Python compilation, Django system checks, migration drift and Git whitespace checks passed.
+
+The owner manually verified signed-out redirect, authorized login, the custom Places UI, preservation of six DEMO records, creation of a synthetic coordinate-free Draft, physical type, multiple categories, typed aliases/codes, Draft and UNVERIFIED presentation, exclusion from public map/search including alias search, DEMO search/navigation and manual routing.
+
+Automated tests—not owner observation—verify login failure, inactive users, safe redirects, POST logout, CSRF, permission boundaries, direct request authorization, taxonomy restrictions, alias collisions, archive/reactivate, migration preservation, publication validation and the complete Phase 1–3 regression suite.
+
+### Current Limitations
+
+- No entrance or multiple-entrance model exists yet.
+- Representative points are not routing arrivals.
+- No floors, internal places or Places-inside directory exists.
+- No map-click or current-location editor capture exists.
+- Contribution resolution still requires future explicit editor tooling.
+- Legacy category, entrance-coordinate and active fields remain compatibility state.
+- No real campus data population or field verification has begun.
+- Detailed before/after change history remains later work; Sprint 001 records creator/updater actors and timestamps.
+
+### Evidence
+
+- **`P4-S1-A-editor-place-form.png`** demonstrates the authenticated editor context, physical type, multiple categories, typed aliases, Draft state and deliberately unset representative point.
+- **`P4-S1-B-editor-place-list.png`** demonstrates the six preserved Published/DEMO records and the synthetic Draft/UNVERIFIED test place in the custom management UI.
+- Supporting evidence retains login, public-search exclusion and DEMO route regression without replacing the two primary images.
+
+### What Students Should Understand
+
+Students should understand that working production-shaped models usually evolve incrementally once stable IDs, foreign keys, routing anchors and accepted behavior depend on them. A conceptually cleaner replacement can create more risk than an additive transition.
+
+They should be able to distinguish physical classification from functional discovery, publication from verification, representative map position from route arrival, authentication from authorization, and aliases from identity. They should also understand why migration tests must prove preservation rather than only proving that new empty tables work.
+
+### Presentation / Defence Notes
+
+- **Why keep the name Location?** It preserves code and migration stability; user-facing language can still say Place.
+- **Why preserve UUIDs?** Routes, contributions and APIs already reference them.
+- **Why not make category a comma-separated field?** Many-to-many relations enforce controlled reusable values and support proper filtering.
+- **Why can Draft omit a point?** Metadata preparation may precede field mapping, and Draft is not public.
+- **Why is Published not FIELD_VERIFIED?** Visibility and evidence quality answer different questions.
+- **Why retain old fields?** Removing replacements and compatibility in one sprint would create unnecessary regression and rollback risk.
+- **Why does Editor not use Django admin?** The custom UI is task-oriented; admin remains for trusted account and taxonomy administration.
+- **Was archive/reactivate manually verified?** No. It is automated-test verified under the accepted boundary.
+
+### Next Sprint
+
+Phase 4 remains IN PROGRESS. Sprint 002 may be discussed next, but no implementation is authorized by this acceptance. Entrances, entrance-aware routing and the remaining Phase 4 tools stay deferred until their own approved plan and BUILD command.

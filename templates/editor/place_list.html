@@ -1,0 +1,23 @@
+{% extends "editor/base.html" %}
+{% block title %}Places{% endblock %}
+{% block content %}
+  <div class="editor-heading"><div><p class="editor-eyebrow">Outdoor places</p><h1>Places</h1><p>Draft, published, and archived records are retained here. Only published, complete places enter the public map.</p></div>{% if perms.locations.add_location %}<a class="editor-primary" href="{% url 'editor:place-create' %}">Add place</a>{% endif %}</div>
+  <div class="editor-table-wrap">
+    <table class="editor-table">
+      <thead><tr><th>Name</th><th>Type</th><th>Categories</th><th>Publication</th><th>Verification</th><th>Updated</th><th></th></tr></thead>
+      <tbody>
+      {% for place in places %}
+        <tr>
+          <td><strong>{{ place.name }}</strong></td>
+          <td>{{ place.get_place_type_display }}</td>
+          <td>{% for category in place.categories.all %}<span class="editor-tag">{{ category.name }}</span>{% empty %}<span class="editor-muted">None</span>{% endfor %}</td>
+          <td><span class="editor-state editor-state--{{ place.publication_status|lower }}">{{ place.get_publication_status_display }}</span></td>
+          <td>{{ place.get_verification_state_display }}</td>
+          <td>{{ place.updated_at|date:"j M Y, H:i" }}</td>
+          <td><a href="{% url 'editor:place-detail' place.id %}">{% if perms.locations.change_location %}Edit{% else %}View{% endif %}</a></td>
+        </tr>
+      {% empty %}<tr><td colspan="7">No places have been created.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

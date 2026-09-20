@@ -50,7 +50,11 @@ def location_collection(request):
     if category and category not in category_values:
         return JsonResponse({"error": "Unknown location category."}, status=400)
 
-    locations = Location.objects.filter(is_active=True).prefetch_related("aliases").select_related("network_anchor__node")
+    locations = Location.objects.filter(
+        publication_status=Location.PublicationStatus.PUBLISHED,
+        representative_latitude__isnull=False,
+        representative_longitude__isnull=False,
+    ).prefetch_related("aliases", "categories").select_related("network_anchor__node")
     if query:
         locations = locations.filter(
             Q(name__icontains=query) | Q(aliases__name__icontains=query)
@@ -68,10 +72,7 @@ def location_collection(request):
                 "id": str(location.id),
                 "geometry": {
                     "type": "Point",
-                    "coordinates": [
-                        float(location.entrance_longitude),
-                        float(location.entrance_latitude),
-                    ],
+                    "coordinates": [float(location.representative_longitude), float(location.representative_latitude)],
                 },
                 "properties": {
                     "id": str(location.id),
@@ -82,6 +83,12 @@ def location_collection(request):
                     "verification_state": location.verification_state,
                     "verification_label": location.get_verification_state_display(),
                     "aliases": list(location.aliases.values_list("name", flat=True)),
+                    "categories": [
+                        {"slug": item.slug, "name": item.name}
+                        for item in location.categories.all()
+                    ],
+                    "place_type": location.place_type,
+                    "place_type_label": location.get_place_type_display(),
                     "routing_available": routing_available,
                 },
             }

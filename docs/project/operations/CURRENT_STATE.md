@@ -11,9 +11,9 @@
 |-------|-------|
 | **Date** | 2026-09-18 |
 | **Branch** | `main` |
-| **Current Phase** | PHASE 3 — LIVE NAVIGATION & CORE PRODUCT SYSTEMS |
-| **Pipeline Phase** | PHASE 3 OWNER ACCEPTED / COMPLETE |
-| **Latest Meaningful Commit** | Phase 3 Sprint 004 milestone (`feat: complete Phase 3 live navigation and contributions`) |
+| **Current Phase** | PHASE 4 — EDITOR & MAPPING TOOLS |
+| **Pipeline Phase** | PHASE 4 SPRINT 001 OWNER ACCEPTED / COMPLETE |
+| **Latest Meaningful Commit** | Phase 4 specification baseline (`docs: establish Phase 4 campus data and editor specification`) |
 
 ---
 
@@ -21,7 +21,7 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | PHASE 3 OWNER ACCEPTED / COMPLETE |
+| Application implementation | PHASE 4 SPRINT 001 OWNER ACCEPTED / COMPLETE; PHASE 4 IN PROGRESS |
 | Product definition | SUBSTANTIALLY COMPLETE |
 | Documentation / governance | SUBSTANTIALLY COMPLETE |
 | Build pipeline | SUBSTANTIALLY COMPLETE |
@@ -30,7 +30,7 @@
 | Demo/development dataset | 6 DEMO locations; 47 OSM-derived UNVERIFIED nodes, 54 segments and 6 UNVERIFIED anchors |
 | Field verification | NOT STARTED |
 | Deployment | NOT STARTED |
-| Test suite | 74 DJANGO + 34 JAVASCRIPT TESTS PASSING |
+| Test suite | 94 DJANGO + 34 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -42,7 +42,7 @@ See `docs/project/operations/BUILD_PIPELINE.md` for the full 5-phase plan.
 Phase 1 — Foundation & Map Experience          ACCEPTED
 Phase 2 — Routing & Navigation                 ACCEPTED
 Phase 3 — Live Navigation & Core Product       ACCEPTED
-Phase 4 — Editor & Mapping Tools               NOT STARTED
+Phase 4 — Editor & Mapping Tools               IN PROGRESS — SPRINT 001 ACCEPTED
 Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 ```
 
@@ -145,7 +145,7 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ## Active Work
 
-Phase 3 Sprint 004 and Phase 3 are OWNER ACCEPTED / COMPLETE. The owner-approved Phase 4 campus-data/editor specification is integrated at `docs/project/phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`. Phase 4 implementation has not started.
+Phase 4 Sprint 001 is OWNER ACCEPTED / COMPLETE. It established additive campus-place fields, controlled multi-categories, aliases with kinds, Draft/Published/Archived lifecycle, audit actors, least-privilege Editor permissions and a custom authenticated place editor. Phase 4 remains IN PROGRESS; no real campus population, entrances or entrance-aware routing has started.
 
 ---
 
@@ -157,7 +157,7 @@ Physical-phone GPS/navigation/rerouting remains unverified because no owner-appr
 
 ## Next Approved Task
 
-Phase 4 sprint discussion/planning against the approved specification. Implementation still requires an approved sprint plan and standalone `BUILD` command.
+Phase 4 Sprint 002 discussion/planning. Implementation still requires an approved sprint plan and standalone `BUILD` command.
 
 ---
 

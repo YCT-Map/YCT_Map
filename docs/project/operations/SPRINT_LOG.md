@@ -532,3 +532,45 @@ Next: owner verifies the Sprint 004 flows and captures `P3-S4-A-anonymous-contri
 - Approval records an accepted report for later authenticated editor action; it does not mutate live map data or grant `FIELD_VERIFIED` status.
 - Physical-phone GPS/navigation/rerouting, OSM-derived graph geometry and all campus data remain unverified in the field.
 - Phase 4 implementation has not started.
+---
+
+## Phase 4 — Sprint 001: Editor Access & Campus-Place Foundation
+
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+**Date:** 2026-09-20
+
+### Objective
+
+Establish trusted editor access and evolve the existing UUID `Location` model into an extensible outdoor-place foundation without disrupting accepted public map, routing or contribution behavior.
+
+### Implementation Record
+
+- Evolved `Location` in place with controlled physical place types, multi-category membership, Draft/Published/Archived lifecycle, nullable representative points and nullable creator/updater actors.
+- Retained legacy `category`, `entrance_latitude` and `entrance_longitude` as explicitly deprecated compatibility fields; no historical migration or UUID was rewritten.
+- Added twelve controlled functional Category records through a data migration and backfilled existing DEMO records, representative coordinates and lifecycle state.
+- Added typed aliases with per-place case-insensitive duplicate prevention while allowing aliases to collide across different places.
+- Added a least-privilege Editor group, Django session login, POST/CSRF logout and server-side permission enforcement.
+- Added a custom responsive editor dashboard, place list, metadata/alias form and archive/reactivate actions. Draft creation requires no raw coordinate input and remains non-public.
+- Preserved `LocationNetworkAnchor`, route destination resolution, contribution foreign keys, historical contribution categories and moderation semantics.
+- No entrances, entrance-aware routing, internal places, field capture, real campus population or Sprint 002 functionality was introduced.
+- Full verification currently passes with 94 Django tests and 34 JavaScript tests. Owner visual review is still required.
+- `BUILD_JOURNAL.md` remains unchanged until owner acceptance.
+
+### Evidence Required After Acceptance
+
+- `P4-S1-A-editor-place-form.png`
+- `P4-S1-B-editor-place-list.png`
+
+### Next Step
+
+Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automatically.
+
+### Acceptance Addendum — 2026-09-20
+
+- Phase 4 Sprint 001 was formally OWNER ACCEPTED / COMPLETE; Phase 4 remains IN PROGRESS.
+- The owner verified signed-out login redirection, authorized authentication, the custom Places interface, six preserved DEMO records, a synthetic metadata-only Draft, physical type, multiple categories, typed aliases/codes, Draft and UNVERIFIED state, public search exclusion and existing DEMO search/navigation/manual routing.
+- Archive/reactivate, login failure, inactive-user behavior, safe redirects, POST logout, permission boundaries, direct-request authorization, taxonomy restrictions, alias collisions, migration preservation, publication validation, CSRF and the full Phase 1–3 regression suite remain automated-test verification rather than owner-manual claims.
+- Accepted evidence: `P4-S1-A-editor-place-form.png` and `P4-S1-B-editor-place-list.png`, with supporting login, public-search exclusion and route-regression evidence.
+- Final verification is 94 Django tests and 34 JavaScript tests with syntax, compilation, system checks, migration drift and whitespace checks clean.
+- No entrances, floors, internal places, entrance-aware routing, field capture, contribution resolution, real campus population or field verification exists yet.
+- Sprint 002 is ready for discussion only and requires its own approved plan and standalone `BUILD` command.

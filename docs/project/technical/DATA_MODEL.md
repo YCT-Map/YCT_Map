@@ -3,25 +3,27 @@
 ## Status
 
 ```
-Current phase:     PHASE 2 — OWNER ACCEPTED
-Implementation:    LOCATION, ALIAS, WALKABLE NETWORK, PROVENANCE + LOCATION ANCHOR SUBSET IMPLEMENTED
+Current phase:     PHASE 4 SPRINT 001 — OWNER ACCEPTED / COMPLETE
+Implementation:    CAMPUS-PLACE FOUNDATION + EXISTING ROUTING/CONTRIBUTION MODELS IMPLEMENTED
 ```
 
 This document describes the expected data model based on approved product decisions.
 
-> **Phase 4 authority notice:** The future-model sketches below predate the owner-approved [`../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`](../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md). For Phase 4 planning, that specification supersedes the sketches wherever they assume one category, one entrance, a building-only parent concept, a simple floor string/count, or moderation that directly publishes data. No Phase 4 model design or migration has begun.
+> **Phase 4 authority notice:** The owner-approved [`../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`](../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md) is authoritative. Sprint 001 implements only the outdoor-place/editor foundation; entrances, internal places, floors and field tooling remain deferred.
 
 Implemented subsets are identified below; later entities remain design intent.
 
 All field names and types are indicative — actual implementation may differ.
 
-## Current Sprint 001 Implementation
+## Current Phase 4 Sprint 001 Implementation
 
-`Location` currently implements UUID identity, name, controlled category, short description, decimal entrance latitude/longitude, controlled verification state, active state and timestamps.
+`Location` remains the stable UUID outdoor-place identity. It now includes a controlled physical place type, multiple functional `Category` records, Draft/Published/Archived publication state, nullable representative coordinates, independent verification state, nullable creator/updater actors and timestamps.
 
-`LocationAlias` provides a one-to-many alias relationship with a per-location uniqueness constraint.
+`LocationAlias` retains its one-to-many relationship and adds controlled alias kinds. Alias names are case-insensitively unique only within one place; the same alias may identify multiple places in search.
 
-Building geometry, floors, internal locations, paths, contributions and verification-user relationships remain planned and were intentionally not created during Sprint 001.
+The legacy `Location.category`, `entrance_latitude` and `entrance_longitude` fields are intentionally retained as deprecated compatibility fields through Sprint 001. Existing records were backfilled into the new category relation and representative point. New editor/domain behavior treats the new fields as authoritative. Representative points are not routing entrances.
+
+Only complete `PUBLISHED` places enter the public API. Draft and Archived records remain editor-only. Publication state remains independent from `DEMO`, `UNVERIFIED` and `FIELD_VERIFIED`.
 
 ## Current Phase 2 Implementation
 
@@ -158,7 +160,7 @@ Promotion from UNVERIFIED to FIELD_VERIFIED requires deliberate editor action af
 
 ## Migrations
 
-`locations/migrations/0001_initial.py` creates `Location` and `LocationAlias`. Routing migrations create `WalkableNode`, `WalkableSegment` and `LocationNetworkAnchor`. Synthetic records are loaded from explicit fixtures rather than embedded in migrations.
+`locations/migrations/0001_initial.py` creates the historical `Location` and `LocationAlias` schema. `0002_campus_place_foundation.py` adds the Phase 4 structures without removing compatibility fields. `0003_seed_and_backfill_campus_places.py` seeds the controlled categories and backfills existing records. Routing migrations create `WalkableNode`, `WalkableSegment` and `LocationNetworkAnchor`. Synthetic destination records remain explicit fixtures; the migration only evolves existing rows safely.
 
 Never rewrite an already-applied migration. Correct data issues through new migrations.
 

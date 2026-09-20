@@ -1,0 +1,9 @@
+{% extends "editor/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+  <div class="editor-heading"><div><p class="editor-eyebrow">Campus data</p><h1>Editor dashboard</h1><p>Manage outdoor places without changing routing entrances or field-verification state.</p></div></div>
+  <section class="editor-dashboard-grid">
+    {% if perms.locations.add_location %}<a class="editor-action-card" href="{% url 'editor:place-create' %}"><strong>Add place</strong><span>Create a non-public draft with controlled metadata.</span></a>{% endif %}
+    <a class="editor-action-card" href="{% url 'editor:place-list' %}"><strong>Places</strong><span>Review {{ place_count }} place{{ place_count|pluralize }} · {{ draft_count }} draft{{ draft_count|pluralize }}</span></a>
+  </section>
+{% endblock %}

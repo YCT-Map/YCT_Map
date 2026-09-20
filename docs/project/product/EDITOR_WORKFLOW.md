@@ -63,12 +63,16 @@ See `docs/project/governance/DEFINITION_OF_DONE.md` for the full SOFTWARE VERIFI
 
 ## Editor Interface
 
-Implementation has not started. The editor interface is PLANNED to include:
+Phase 4 Sprint 001 implements the authenticated foundation at `/editor/`:
 
-- Dashboard showing pending contributions
-- Location management interface
-- Path/route management interface
-- Contribution review queue
-- Verification workflow
+- login and POST-only logout;
+- a small dashboard;
+- outdoor-place list;
+- Draft place creation;
+- place metadata editing;
+- controlled physical place type;
+- multiple functional categories;
+- typed aliases/codes;
+- archive and deliberate reactivation.
 
-Exact implementation details to be determined during the build phase.
+Draft and Archived places remain outside the public map. Raw coordinate input is deliberately absent; map/current-location placement, entrances, internal places, contribution resolution, path editing and verification tools remain later Phase 4 work.

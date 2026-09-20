@@ -12,11 +12,11 @@ There is no other authoritative pipeline document. Do not create competing pipel
 Phase 1 — Foundation & Map Experience          ACCEPTED
 Phase 2 — Routing & Navigation                 ACCEPTED
 Phase 3 — Live Navigation & Core Product       ACCEPTED
-Phase 4 — Editor & Mapping Tools               NOT STARTED
+Phase 4 — Editor & Mapping Tools               IN PROGRESS — SPRINT 001 ACCEPTED
 Phase 5 — Real YabaTech Data, Verification & Launch   NOT STARTED
 
-Current:            PHASE 3 — OWNER ACCEPTED / COMPLETE
-Next expected:      Phase 4 specification integration and planning
+Current:            PHASE 4 SPRINT 001 — OWNER ACCEPTED / COMPLETE
+Next expected:      Phase 4 Sprint 002 discussion/planning
 ```
 
 Status values in use: `NOT STARTED` `IN PROGRESS` `BLOCKED` `COMPLETE` `ACCEPTED`
@@ -385,7 +385,7 @@ Physical-phone GPS/navigation/rerouting and field verification remain explicitly
 
 ## Phase 4 — Editor & Mapping Tools
 
-**Status: NOT STARTED**
+**Status: IN PROGRESS — Sprint 001 OWNER ACCEPTED / COMPLETE**
 **Depends on:** Phase 3 ACCEPTED
 
 ### Primary Goal

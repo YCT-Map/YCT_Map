@@ -90,7 +90,7 @@ def submit_contribution(request):
     target_id = payload.get("target_location")
     if target_id:
         try:
-            target = Location.objects.get(pk=target_id, is_active=True)
+            target = Location.objects.get(pk=target_id, publication_status=Location.PublicationStatus.PUBLISHED)
         except (Location.DoesNotExist, ValueError, ValidationError):
             return _error("The selected place is unavailable.", "INVALID_TARGET",
                           fields={"target_location": ["Choose an active place."]})

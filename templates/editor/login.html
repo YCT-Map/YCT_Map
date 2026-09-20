@@ -1,0 +1,18 @@
+{% extends "editor/base.html" %}
+{% block title %}Editor login{% endblock %}
+{% block content %}
+  <section class="editor-card editor-login-card">
+    <p class="editor-eyebrow">Trusted team access</p>
+    <h1>Sign in to YCT Map Editor</h1>
+    <p>Editor accounts are provisioned by an administrator. Public map users do not need an account.</p>
+    {% if form.errors %}<p class="editor-error" role="alert">The username or password was not accepted.</p>{% endif %}
+    <form method="post" class="editor-form">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <div><label for="{{ form.username.id_for_label }}">Username</label>{{ form.username }}</div>
+      <div><label for="{{ form.password.id_for_label }}">Password</label>{{ form.password }}</div>
+      <button class="editor-primary" type="submit">Sign in</button>
+    </form>
+    <a class="editor-back" href="/">← Return to public map</a>
+  </section>
+{% endblock %}

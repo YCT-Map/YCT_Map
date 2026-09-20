@@ -7,7 +7,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
-from locations.models import Location, LocationAlias
+from locations.models import Category, Location, LocationAlias
 
 
 class LocationModelTests(TestCase):
@@ -18,6 +18,10 @@ class LocationModelTests(TestCase):
             "description": "Synthetic test destination.",
             "entrance_latitude": Decimal("6.518570"),
             "entrance_longitude": Decimal("3.374240"),
+            "representative_latitude": Decimal("6.518570"),
+            "representative_longitude": Decimal("3.374240"),
+            "publication_status": Location.PublicationStatus.PUBLISHED,
+            "is_active": True,
             "verification_state": Location.VerificationState.DEMO,
         }
         values.update(overrides)
@@ -41,6 +45,29 @@ class LocationModelTests(TestCase):
 
         self.assertEqual(list(location.aliases.all()), [alias])
 
+    def test_draft_can_omit_representative_point(self):
+        location = self.make_location(
+            publication_status=Location.PublicationStatus.DRAFT,
+            representative_latitude=None,
+            representative_longitude=None,
+        )
+        location.full_clean()
+
+    def test_published_place_requires_representative_point(self):
+        location = self.make_location(representative_latitude=None, representative_longitude=None)
+        with self.assertRaises(ValidationError):
+            location.full_clean()
+
+    def test_alias_collision_is_local_to_place_and_case_insensitive(self):
+        first = self.make_location(name="First")
+        second = self.make_location(name="Second")
+        LocationAlias.objects.create(location=first, name="NASB")
+        duplicate = LocationAlias(location=first, name=" nasb ")
+        with self.assertRaises(ValidationError):
+            duplicate.full_clean()
+        allowed = LocationAlias(location=second, name="NASB", alias_kind=LocationAlias.Kind.CODE)
+        allowed.full_clean()
+
 
 class LocationEndpointTests(TestCase):
     @classmethod
@@ -51,6 +78,10 @@ class LocationEndpointTests(TestCase):
             description="Synthetic library.",
             entrance_latitude=Decimal("6.518720"),
             entrance_longitude=Decimal("3.374110"),
+            representative_latitude=Decimal("6.518720"),
+            representative_longitude=Decimal("3.374110"),
+            publication_status=Location.PublicationStatus.PUBLISHED,
+            is_active=True,
             verification_state=Location.VerificationState.DEMO,
         )
         LocationAlias.objects.create(location=cls.library, name="DEMO — Reading Room")
@@ -60,6 +91,10 @@ class LocationEndpointTests(TestCase):
             description="Synthetic café.",
             entrance_latitude=Decimal("6.518300"),
             entrance_longitude=Decimal("3.374780"),
+            representative_latitude=Decimal("6.518300"),
+            representative_longitude=Decimal("3.374780"),
+            publication_status=Location.PublicationStatus.PUBLISHED,
+            is_active=True,
             verification_state=Location.VerificationState.DEMO,
         )
         Location.objects.create(
@@ -68,6 +103,7 @@ class LocationEndpointTests(TestCase):
             entrance_latitude=Decimal("6.518000"),
             entrance_longitude=Decimal("3.374000"),
             verification_state=Location.VerificationState.DEMO,
+            publication_status=Location.PublicationStatus.ARCHIVED,
             is_active=False,
         )
 
@@ -95,6 +131,9 @@ class LocationEndpointTests(TestCase):
                 "verification_state",
                 "verification_label",
                 "aliases",
+                "categories",
+                "place_type",
+                "place_type_label",
                 "routing_available",
             },
         )
@@ -130,6 +169,18 @@ class LocationEndpointTests(TestCase):
 
         self.assertEqual(invalid_category.status_code, 400)
         self.assertEqual(long_query.status_code, 400)
+
+    def test_draft_is_excluded_even_if_legacy_active_flag_is_true(self):
+        Location.objects.create(
+            name="Draft place",
+            category=Location.Category.BUILDING,
+            publication_status=Location.PublicationStatus.DRAFT,
+            representative_latitude=Decimal("6.518000"),
+            representative_longitude=Decimal("3.374000"),
+            is_active=True,
+        )
+        names = [item["properties"]["name"] for item in self.client.get(self.url).json()["features"]]
+        self.assertNotIn("Draft place", names)
 
     def test_endpoint_is_read_only(self):
         response = self.client.post(self.url)
@@ -213,3 +264,7 @@ class DemoFixtureTests(TestCase):
         self.assertTrue(
             all(item.verification_state == Location.VerificationState.DEMO for item in locations)
         )
+        self.assertTrue(all(item.publication_status == Location.PublicationStatus.PUBLISHED for item in locations))
+        self.assertTrue(all(item.has_representative_point for item in locations))
+        self.assertTrue(all(item.categories.exists() for item in locations))
+        self.assertEqual(Category.objects.count(), 12)

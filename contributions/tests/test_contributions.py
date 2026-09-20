@@ -18,6 +18,8 @@ class ContributionSubmissionTests(TestCase):
         self.location = Location.objects.create(
             name="DEMO — Library", category=Location.Category.LIBRARY,
             entrance_latitude="6.518500", entrance_longitude="3.374200",
+            representative_latitude="6.518500", representative_longitude="3.374200",
+            publication_status=Location.PublicationStatus.PUBLISHED, is_active=True,
             verification_state=Location.VerificationState.DEMO,
         )
 

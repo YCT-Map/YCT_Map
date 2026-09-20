@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PRE-BUILD / FOUNDATION
-Implementation:    NOT STARTED
+Current phase:     PHASE 4 SPRINT 001 — OWNER ACCEPTED / COMPLETE
+Implementation:    EDITOR SESSION AUTHENTICATION + MODEL PERMISSIONS IMPLEMENTED
 ```
 
 This document records the security model for YCT Map based on approved product decisions.
@@ -32,6 +32,10 @@ This document records the security model for YCT Map based on approved product d
 | Add/edit locations | Authenticated editors and admins |
 | Verify locations (FIELD_VERIFIED) | Authenticated editors and admins |
 | Manage editor accounts | Authenticated admins |
+
+Sprint 001 provides a custom `/editor/` interface protected by Django sessions and server-side model permissions. The least-privilege `Editor` group can view/add/change places, maintain aliases and view controlled categories, but cannot hard-delete places, modify taxonomy, manage users/groups/permissions, access arbitrary Django admin records or grant itself privileges. Administrators remain active staff superusers for V1 account and taxonomy administration.
+
+All editor state changes use POST and CSRF protection. Login redirects accept only safe local destinations. Draft and Archived places are excluded by public queries on the server, and actor audit fields are assigned from the authenticated request rather than form data.
 
 The contribution submission flow must not require any login.
 

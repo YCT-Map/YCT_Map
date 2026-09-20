@@ -5,9 +5,14 @@
     "fields": {
       "name": "DEMO — School Building",
       "category": "building",
+      "place_type": "BUILDING",
+      "categories": ["academic"],
+      "publication_status": "PUBLISHED",
       "description": "Synthetic teaching-space destination used to demonstrate YCT Map search and selection.",
       "entrance_latitude": "6.519180",
       "entrance_longitude": "3.373620",
+      "representative_latitude": "6.519180",
+      "representative_longitude": "3.373620",
       "verification_state": "DEMO",
       "is_active": true,
       "created_at": "2026-09-17T00:00:00Z",
@@ -20,9 +25,14 @@
     "fields": {
       "name": "DEMO — Library",
       "category": "library",
+      "place_type": "BUILDING",
+      "categories": ["library-study"],
+      "publication_status": "PUBLISHED",
       "description": "Synthetic library destination. This record is not a verified real campus location.",
       "entrance_latitude": "6.518720",
       "entrance_longitude": "3.374110",
+      "representative_latitude": "6.518720",
+      "representative_longitude": "3.374110",
       "verification_state": "DEMO",
       "is_active": true,
       "created_at": "2026-09-17T00:00:00Z",
@@ -35,9 +45,14 @@
     "fields": {
       "name": "DEMO — Café",
       "category": "food",
+      "place_type": "FACILITY",
+      "categories": ["food-snacks"],
+      "publication_status": "PUBLISHED",
       "description": "Synthetic food destination included only to exercise category-driven discovery.",
       "entrance_latitude": "6.518300",
       "entrance_longitude": "3.374780",
+      "representative_latitude": "6.518300",
+      "representative_longitude": "3.374780",
       "verification_state": "DEMO",
       "is_active": true,
       "created_at": "2026-09-17T00:00:00Z",
@@ -50,9 +65,14 @@
     "fields": {
       "name": "DEMO — Administration",
       "category": "office",
+      "place_type": "BUILDING",
+      "categories": ["administration"],
+      "publication_status": "PUBLISHED",
       "description": "Synthetic administrative destination for interface testing.",
       "entrance_latitude": "6.517910",
       "entrance_longitude": "3.373850",
+      "representative_latitude": "6.517910",
+      "representative_longitude": "3.373850",
       "verification_state": "DEMO",
       "is_active": true,
       "created_at": "2026-09-17T00:00:00Z",
@@ -65,9 +85,14 @@
     "fields": {
       "name": "DEMO — Hostel",
       "category": "hostel",
+      "place_type": "BUILDING",
+      "categories": ["accommodation"],
+      "publication_status": "PUBLISHED",
       "description": "Synthetic accommodation destination; it does not identify a real hostel.",
       "entrance_latitude": "6.518950",
       "entrance_longitude": "3.375100",
+      "representative_latitude": "6.518950",
+      "representative_longitude": "3.375100",
       "verification_state": "DEMO",
       "is_active": true,
       "created_at": "2026-09-17T00:00:00Z",
@@ -80,9 +105,14 @@
     "fields": {
       "name": "DEMO — Medical Centre",
       "category": "health",
+      "place_type": "BUILDING",
+      "categories": ["medical"],
+      "publication_status": "PUBLISHED",
       "description": "Synthetic health destination used to demonstrate location details.",
       "entrance_latitude": "6.517620",
       "entrance_longitude": "3.374530",
+      "representative_latitude": "6.517620",
+      "representative_longitude": "3.374530",
       "verification_state": "DEMO",
       "is_active": true,
       "created_at": "2026-09-17T00:00:00Z",
@@ -94,7 +124,8 @@
     "pk": 1,
     "fields": {
       "location": "10000000-0000-4000-8000-000000000001",
-      "name": "DEMO — Lecture Block"
+      "name": "DEMO — Lecture Block",
+      "alias_kind": "COMMON_NAME"
     }
   },
   {
@@ -102,7 +133,8 @@
     "pk": 2,
     "fields": {
       "location": "10000000-0000-4000-8000-000000000002",
-      "name": "DEMO — Reading Room"
+      "name": "DEMO — Reading Room",
+      "alias_kind": "COMMON_NAME"
     }
   },
   {
@@ -110,7 +142,8 @@
     "pk": 3,
     "fields": {
       "location": "10000000-0000-4000-8000-000000000003",
-      "name": "DEMO — Canteen"
+      "name": "DEMO — Canteen",
+      "alias_kind": "COMMON_NAME"
     }
   },
   {
@@ -118,7 +151,8 @@
     "pk": 4,
     "fields": {
       "location": "10000000-0000-4000-8000-000000000004",
-      "name": "DEMO — Admin Office"
+      "name": "DEMO — Admin Office",
+      "alias_kind": "COMMON_NAME"
     }
   }
 ]

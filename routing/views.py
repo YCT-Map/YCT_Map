@@ -40,7 +40,7 @@ def demo_route_anchors(request):
     _require_debug()
     anchors = LocationNetworkAnchor.objects.filter(
         is_active=True,
-        location__is_active=True,
+        location__publication_status=Location.PublicationStatus.PUBLISHED,
         node__is_active=True,
     ).select_related("location", "node").order_by("location__name")
     response = JsonResponse({
@@ -102,8 +102,8 @@ def public_route(request):
     if origin_id == destination_id:
         return JsonResponse({"error": "Your starting point and destination are the same.", "code": "SAME_ORIGIN"}, status=409)
     try:
-        origin = Location.objects.get(id=origin_id, is_active=True)
-        destination = Location.objects.get(id=destination_id, is_active=True)
+        origin = Location.objects.get(id=origin_id, publication_status=Location.PublicationStatus.PUBLISHED)
+        destination = Location.objects.get(id=destination_id, publication_status=Location.PublicationStatus.PUBLISHED)
         result = route_between_locations(origin_id, destination_id)
     except (ValidationError, ValueError, Location.DoesNotExist, InvalidNodeError) as error:
         return JsonResponse({"error": "The selected route endpoints are invalid.", "code": "INVALID_ENDPOINT"}, status=400)
