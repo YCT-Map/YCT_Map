@@ -9,6 +9,8 @@ Implementation:    LOCATION, ALIAS, WALKABLE NETWORK, PROVENANCE + LOCATION ANCH
 
 This document describes the expected data model based on approved product decisions.
 
+> **Phase 4 authority notice:** The future-model sketches below predate the owner-approved [`../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`](../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md). For Phase 4 planning, that specification supersedes the sketches wherever they assume one category, one entrance, a building-only parent concept, a simple floor string/count, or moderation that directly publishes data. No Phase 4 model design or migration has begun.
+
 Implemented subsets are identified below; later entities remain design intent.
 
 All field names and types are indicative — actual implementation may differ.

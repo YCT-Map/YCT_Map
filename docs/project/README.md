@@ -97,6 +97,12 @@ Records technical architecture decisions. Must distinguish CURRENT from PLANNED.
 | `TEST_STRATEGY.md` | Testing approach, frameworks, gates | Per test infrastructure change |
 | `CODE_STYLE.md` | Code conventions for this repository | Per convention change |
 
+### phase4/ — Approved Phase 4 Product/Data Contract
+
+| Document | Purpose | Update Frequency |
+|----------|---------|-----------------|
+| [`CAMPUS_DATA_AND_EDITOR_SPEC.md`](phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md) | Authoritative campus-place, entrance, internal-place and editor-workflow baseline | Only through explicit owner change control |
+
 ---
 
 ### operations/ — Current State and History

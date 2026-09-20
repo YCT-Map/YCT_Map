@@ -42,12 +42,12 @@ Status:     OPEN
 
 ```
 ID:         BL-002
-Idea:       Multiple entrances per building
+Idea:       Multiple entrances per outdoor place
 Reason:     Some buildings have multiple meaningful entrance points. A single entrance may not be optimal for all routes.
 Priority:   MEDIUM
-Dependency: V1 routing complete
-Release:    V1.1 or V2
-Status:     OPEN
+Dependency: Phase 4 campus-place foundation
+Release:    V1 / Phase 4
+Status:     APPROVED IN PHASE 4 SPECIFICATION — pending implementation planning
 ```
 
 ---

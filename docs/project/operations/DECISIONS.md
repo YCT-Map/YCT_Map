@@ -109,6 +109,8 @@ Consequences: Some large buildings may have a non-optimal entrance for certain a
 Alternatives considered: Multiple entrances from V1 (deferred).
 ```
 
+**Supersession addendum — 2026-09-18:** This historical decision is superseded for Phase 4 and V1 campus-data design by the owner-approved [`../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`](../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md). Outdoor places must support multiple named entrances while retaining one primary/default routing entrance. The original record remains above to preserve decision history.
+
 ---
 
 ## DEC-007

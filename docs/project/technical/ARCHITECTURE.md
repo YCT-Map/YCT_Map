@@ -9,6 +9,8 @@ Application code:      SPRINT 001 LIVE-LOCATION FOUNDATION OWNER ACCEPTED
 
 This document records approved architectural decisions and expected system design.
 
+Phase 4 campus-place and editor modeling is governed by [`../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`](../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md). That owner-approved contract supersedes earlier building-only, single-category and single-entrance planning assumptions; implementation has not started.
+
 Sections are clearly marked CURRENT or PLANNED. Nothing is described as implemented unless it is.
 
 ---

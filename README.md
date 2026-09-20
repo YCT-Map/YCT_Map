@@ -58,4 +58,5 @@ If you are a coding agent, read [`AGENTS.md`](AGENTS.md) first.
 | [`docs/project/operations/CURRENT_STATE.md`](docs/project/operations/CURRENT_STATE.md) | Current project state |
 | [`docs/project/product/PROJECT_BRIEF.md`](docs/project/product/PROJECT_BRIEF.md) | What YCT Map is |
 | [`docs/project/product/V1_SCOPE.md`](docs/project/product/V1_SCOPE.md) | V1 scope and non-goals |
+| [`docs/project/phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`](docs/project/phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md) | Owner-approved Phase 4 campus-data and editor contract |
 | [`docs/project/governance/ENGINEERING_RULES.md`](docs/project/governance/ENGINEERING_RULES.md) | Implementation rules |

@@ -107,6 +107,10 @@ The normal-user controller owns explicit `browsing`, `destination-selected`, `ch
 
 The OSM realism pass did not replace or repair A*. A* was already returning the shortest route in the supplied graph. Replacing unrealistic synthetic geometry with a more plausible reviewed OSM-derived graph improved visible routes because route quality depends on input topology as well as algorithm correctness.
 
+## Phase 4 Entrance and Internal-Destination Contract
+
+The owner-approved Phase 4 specification separates an outdoor place's representative map point from its routing entrances. An outdoor place may have multiple named entrances with one primary/default entrance. An internal destination remains searchable without indoor route geometry: routing uses its specifically associated entrance when present, otherwise the parent outdoor place's primary entrance. These behaviors are approved intent only and are not implemented yet.
+
 ## Real Network Construction and Validation
 
 Existing OSM/OpenFreeMap-visible pathways may be used as reference input when constructing YCT Map's real walkable network; they do not automatically become routing edges. YCT Map must own, import or create explicit graph geometry, retain editor review, and keep field verification separate.

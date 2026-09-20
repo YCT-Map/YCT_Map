@@ -400,13 +400,16 @@ Phase 4 builds the tools the team will use during the real campus population pha
 - Location add / edit / delete
 - Category management
 - Alias management
+- Place types and multiple functional categories
 - Verification state management (DEMO / UNVERIFIED / FIELD_VERIFIED)
-- Main entrance / arrival-point setting via map interface
+- Multiple named entrances, including one primary/default arrival point
+- Representative place point kept separate from routing entrances
 - Internal location management (departments, offices, classrooms, lecture rooms)
 - Parent building relationships
 - Floor information
 - Map-based location selection (click/tap to set coordinates)
 - Current-location selection where useful
+- Combined current-location capture for a place and its initial primary entrance, with accuracy display and manual correction
 - Missing-location representation
 - Irregular building geometry support where needed (polygon points, not assumed rectangular)
 - Walkable path add / edit / delete
@@ -454,7 +457,7 @@ Full real campus population still belongs to Phase 5. Demo data remains in use d
 - [ ] Editor authentication works
 - [ ] Location CRUD works as approved
 - [ ] Internal locations can be attached to parent buildings with floor information
-- [ ] Entrances can be set via map interface
+- [ ] Multiple entrances and a primary arrival entrance can be set via map/current-location workflows
 - [ ] Paths can be added, edited and deleted
 - [ ] Verification state can be set (and requires deliberate action for FIELD_VERIFIED)
 - [ ] Contribution review workflow is complete (all five actions work)
@@ -580,7 +583,7 @@ A real YabaTech student can open the deployed application and use YCT Map to fin
 - Search by name, alias, category
 - Physical locations (buildings, schools, gates, hostels, libraries, sports areas, food, medical, admin, other)
 - Internal locations (departments, offices, classrooms, lecture rooms) with parent building and floor
-- One primary arrival point per location
+- Multiple entrances per outdoor place, with one primary/default arrival point
 - Manual starting-point selection
 - Optional current-location (GPS)
 - Route visualization on map
@@ -602,7 +605,6 @@ A real YabaTech student can open the deployed application and use YCT Map to fin
 - Native Android / iOS apps
 - Student user accounts
 - Detailed indoor floor-plan navigation
-- Multiple entrances per building
 - Location photographs
 - Offline maps
 - Voice navigation

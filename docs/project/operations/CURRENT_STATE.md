@@ -145,7 +145,7 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ## Active Work
 
-Phase 3 Sprint 004 and Phase 3 are OWNER ACCEPTED / COMPLETE. Anonymous reports enter a pending-only moderation queue; approval records a decision but does not mutate public map data. The accepted phase includes simulated live navigation and rerouting, not physical-phone verification.
+Phase 3 Sprint 004 and Phase 3 are OWNER ACCEPTED / COMPLETE. The owner-approved Phase 4 campus-data/editor specification is integrated at `docs/project/phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`. Phase 4 implementation has not started.
 
 ---
 
@@ -157,7 +157,7 @@ Physical-phone GPS/navigation/rerouting remains unverified because no owner-appr
 
 ## Next Approved Task
 
-Phase 4 specification integration and planning may proceed when explicitly requested. Phase 4 implementation still requires its own approved plan and standalone `BUILD` command.
+Phase 4 sprint discussion/planning against the approved specification. Implementation still requires an approved sprint plan and standalone `BUILD` command.
 
 ---
 

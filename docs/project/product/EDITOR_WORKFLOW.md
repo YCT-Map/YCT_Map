@@ -27,14 +27,14 @@ When reviewing a public submission, an editor may:
 
 | Action | Description |
 |--------|-------------|
-| **Approve** | Accept the submission as-is and apply it to the campus data |
-| **Edit and Approve** | Correct the submission first, then apply it |
+| **Approve** | Accept the report as useful input for later editor resolution; do not automatically mutate public campus data |
+| **Edit and Approve** | Resolve the report through an authenticated editor action, preserving review history |
 | **Merge** | Combine with an existing duplicate record |
 | **Reject** | Dismiss the submission with an optional reason |
 | **Flag** | Mark for further review by another editor or administrator |
 | **Add Missing Info** | Supplement incomplete submission data before approving |
 
-Approved submissions may be applied to the campus dataset, but approval does not automatically make them `FIELD_VERIFIED`. Field verification remains a separate deliberate action after trusted physical confirmation.
+Approved submissions may later be applied through an explicit authenticated editor action, but moderation approval itself does not automatically publish data and never makes it `FIELD_VERIFIED`. Field verification remains a separate deliberate action after trusted physical confirmation.
 Rejected submissions are archived, not permanently deleted.
 
 ---
