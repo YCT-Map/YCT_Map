@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.test import Client
 from django.urls import reverse
 
-from locations.models import Category, Location, LocationAlias
+from locations.models import Category, Entrance, Floor, InternalPlace, Location, LocationAlias
 
 
 class EditorAccessTests(TestCase):
@@ -201,3 +201,111 @@ class CampusPlaceMigrationResultTests(TestCase):
         self.assertTrue(all(item.verification_state == Location.VerificationState.DEMO for item in locations))
         self.assertTrue(all(item.has_representative_point for item in locations))
         self.assertEqual(LocationAlias.objects.filter(location__in=locations).count(), 4)
+
+
+class Sprint002EditorRegressionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.editor = get_user_model().objects.create_user("sprint2-editor", password="Strong-test-password-42")
+        cls.editor.groups.add(Group.objects.get(name="Editor"))
+        cls.place = Location.objects.create(name="TEST — Library", place_type=Location.PlaceType.BUILDING)
+        cls.other_place = Location.objects.create(name="TEST — Other", place_type=Location.PlaceType.BUILDING)
+
+    def setUp(self):
+        self.client.force_login(self.editor)
+
+    def test_place_detail_renders_floor_and_floor_edit_url(self):
+        floor = Floor.objects.create(location=self.place, level=0, label="Ground Floor")
+        edit_url = reverse("editor:floor-edit", args=(self.place.id, floor.id))
+
+        response = self.client.get(reverse("editor:place-detail", args=(self.place.id,)))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ground Floor")
+        self.assertContains(response, edit_url)
+        edit_response = self.client.get(edit_url)
+        self.assertEqual(edit_response.status_code, 200)
+        self.assertEqual(edit_response.context["form"].instance.location_id, self.place.id)
+
+    def test_floor_create_then_edit_preserves_uuid(self):
+        create_response = self.client.post(
+            reverse("editor:floor-create", args=(self.place.id,)),
+            {"level": "0", "label": "Ground Floor", "display_order": "0", "is_active": "on"},
+        )
+        floor = Floor.objects.get(location=self.place, level=0)
+        self.assertRedirects(create_response, reverse("editor:place-detail", args=(self.place.id,)))
+        self.assertEqual(self.client.get(reverse("editor:place-detail", args=(self.place.id,))).status_code, 200)
+        original_id = floor.id
+
+        response = self.client.post(
+            reverse("editor:floor-edit", args=(self.place.id, floor.id)),
+            {"level": "1", "label": "First Floor", "display_order": "1", "is_active": "on"},
+        )
+        self.assertRedirects(response, reverse("editor:place-detail", args=(self.place.id,)))
+        floor.refresh_from_db()
+        self.assertEqual(floor.id, original_id)
+        self.assertEqual((floor.level, floor.label), (1, "First Floor"))
+
+    def test_floor_edit_rejects_cross_parent_uuid(self):
+        floor = Floor.objects.create(location=self.other_place, level=0, label="Ground Floor")
+        response = self.client.get(reverse("editor:floor-edit", args=(self.place.id, floor.id)))
+        self.assertEqual(response.status_code, 404)
+
+    def test_floor_level_is_unique_per_parent_but_reusable_elsewhere(self):
+        Floor.objects.create(location=self.place, level=0, label="Ground Floor")
+        duplicate = self.client.post(
+            reverse("editor:floor-create", args=(self.place.id,)),
+            {"level": "0", "label": "Another Ground", "display_order": "0", "is_active": "on"},
+        )
+        self.assertEqual(duplicate.status_code, 200)
+        self.assertContains(duplicate, "already exists")
+        Floor.objects.create(location=self.other_place, level=0, label="Ground Floor")
+        self.assertEqual(Floor.objects.filter(level=0).count(), 2)
+
+    def test_entrance_selector_contract_and_required_coordinates(self):
+        url = reverse("editor:entrance-create", args=(self.place.id,))
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="entrance-map"')
+        self.assertContains(response, "editor-entrance-map.js")
+        self.assertContains(response, 'type="hidden" name="latitude" id="id_latitude"', html=False)
+        self.assertContains(response, 'type="hidden" name="longitude" id="id_longitude"', html=False)
+        self.assertNotContains(response, 'type="number"')
+
+        missing = self.client.post(url, {
+            "name": "Side Entrance", "entrance_type": Entrance.Type.SIDE,
+            "is_active": "on", "verification_state": Location.VerificationState.UNVERIFIED,
+        })
+        self.assertEqual(missing.status_code, 200)
+        self.assertContains(missing, "Choose an entrance point on the map before saving.")
+        self.assertFalse(Entrance.objects.filter(location=self.place).exists())
+
+    def test_valid_entrance_coordinates_persist_and_initialize_edit_selector(self):
+        response = self.client.post(reverse("editor:entrance-create", args=(self.place.id,)), {
+            "name": "Side Entrance", "entrance_type": Entrance.Type.SIDE,
+            "latitude": "6.518321", "longitude": "3.374654", "is_active": "on",
+            "verification_state": Location.VerificationState.UNVERIFIED,
+        })
+        entrance = Entrance.objects.get(location=self.place)
+        self.assertRedirects(response, reverse("editor:place-detail", args=(self.place.id,)))
+        self.assertEqual(entrance.latitude, Decimal("6.518321"))
+        self.assertEqual(entrance.longitude, Decimal("3.374654"))
+        edit = self.client.get(reverse("editor:entrance-edit", args=(self.place.id, entrance.id)))
+        self.assertContains(edit, 'data-latitude="6.518321"')
+        self.assertContains(edit, 'data-longitude="3.374654"')
+
+    def test_all_sprint002_nested_editor_routes_reverse_and_render(self):
+        entrance = Entrance.objects.create(location=self.place, name="Main", latitude=Decimal("6.518000"), longitude=Decimal("3.374000"))
+        floor = Floor.objects.create(location=self.place, level=0, label="Ground")
+        internal = InternalPlace.objects.create(location=self.place, floor=floor, name="Room G1", internal_type=InternalPlace.Type.CLASSROOM)
+        urls = (
+            reverse("editor:entrance-create", args=(self.place.id,)),
+            reverse("editor:entrance-edit", args=(self.place.id, entrance.id)),
+            reverse("editor:floor-create", args=(self.place.id,)),
+            reverse("editor:floor-edit", args=(self.place.id, floor.id)),
+            reverse("editor:internal-create", args=(self.place.id,)),
+            reverse("editor:internal-edit", args=(self.place.id, internal.id)),
+        )
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 200)

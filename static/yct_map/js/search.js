@@ -3,7 +3,7 @@ function searchableText(feature) {
   return [feature.properties.name, ...aliases].join(" ").toLocaleLowerCase();
 }
 
-export function createSearch({ features, onSelect, onFilter }) {
+export function createSearch({ features, onSelect, onFilter, searchUrl = "", requestSearch = fetch }) {
   const form = document.querySelector("#search-form");
   const input = document.querySelector("#location-search");
   const clearButton = document.querySelector("#clear-search");
@@ -13,25 +13,33 @@ export function createSearch({ features, onSelect, onFilter }) {
   const count = document.querySelector("#results-count");
   const categoryButtons = [...document.querySelectorAll("[data-category]")];
   let activeCategory = "";
+  let remoteResults = [];
+  let sequence = 0;
 
-  const filterFeatures = () => {
+  const localFeatures = () => {
     const query = input.value.trim().toLocaleLowerCase();
-    return features.filter((feature) => {
-      const matchesQuery = !query || searchableText(feature).includes(query);
-      const matchesCategory = !activeCategory || feature.properties.category === activeCategory;
-      return matchesQuery && matchesCategory;
-    });
+    return features.filter((feature) => (!query || searchableText(feature).includes(query)) &&
+      (!activeCategory || feature.properties.category === activeCategory));
   };
+  const internalFeatures = () => remoteResults.map((item) => {
+    const parent = features.find((feature) => feature.properties.id === item.parent?.id);
+    return {type: "Feature", id: item.id, geometry: parent?.geometry || null, properties: {
+      ...item, category_label: item.internal_type_label,
+      description: [item.parent?.name && `Inside ${item.parent.name}`, item.floor?.label,
+        item.room_code, item.direction_note].filter(Boolean).join(" · "),
+    }};
+  });
 
-  const render = ({ reveal = true } = {}) => {
-    const matches = filterFeatures();
+  function closeResults() { results.hidden = true; input.setAttribute("aria-expanded", "false"); }
+  function render({reveal = true} = {}) {
+    const local = localFeatures();
+    const matches = [...local, ...internalFeatures()];
     list.replaceChildren();
     clearButton.hidden = input.value.length === 0;
-
-    if (matches.length === 0) {
+    if (!matches.length) {
       const empty = document.createElement("div");
       empty.className = "results-empty";
-      empty.innerHTML = "<strong>No demo destinations found.</strong><span>Try another name or category.</span>";
+      empty.innerHTML = "<strong>No destinations found.</strong><span>Try another name, room code, or category.</span>";
       list.append(empty);
       summary.textContent = "No matching destinations";
     } else {
@@ -39,82 +47,50 @@ export function createSearch({ features, onSelect, onFilter }) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "result-item";
-        button.innerHTML = `
-          <span class="result-marker result-marker--${feature.properties.category}" aria-hidden="true"></span>
-          <span class="result-copy">
-            <strong></strong>
-            <small></small>
-          </span>
-          <span class="result-arrow" aria-hidden="true">→</span>
-        `;
+        button.innerHTML = '<span class="result-marker" aria-hidden="true"></span><span class="result-copy"><strong></strong><small></small></span><span class="result-arrow" aria-hidden="true">→</span>';
         button.querySelector("strong").textContent = feature.properties.name;
-        button.querySelector("small").textContent = `${feature.properties.category_label} · DEMO`;
-        button.addEventListener("click", () => {
-          onSelect(feature);
-          closeResults();
-        });
+        button.querySelector("small").textContent = feature.properties.destination_type === "internal"
+          ? feature.properties.subtitle : `${feature.properties.category_label} · ${feature.properties.verification_label || "Campus place"}`;
+        button.addEventListener("click", () => { onSelect(feature); closeResults(); });
         list.append(button);
       }
-      summary.textContent = input.value.trim() ? "Search results" : "Demonstration destinations";
+      summary.textContent = input.value.trim() ? "Search results" : "Campus destinations";
     }
-
     count.textContent = String(matches.length);
     input.setAttribute("aria-expanded", String(reveal));
     results.hidden = !reveal;
-    onFilter(matches);
+    onFilter(local);
     return matches;
-  };
-
-  const closeResults = () => {
-    results.hidden = true;
-    input.setAttribute("aria-expanded", "false");
-  };
-
-  input.addEventListener("input", () => render());
-  input.addEventListener("focus", () => render());
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      closeResults();
-      input.blur();
-    }
-    if (event.key === "ArrowDown" && !results.hidden) {
-      event.preventDefault();
-      list.querySelector("button")?.focus();
-    }
-  });
-
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const matches = render();
-    if (matches.length === 1) {
-      onSelect(matches[0]);
-      closeResults();
-    }
-  });
-
-  clearButton.addEventListener("click", () => {
-    input.value = "";
-    input.focus();
-    render();
-  });
-
-  for (const button of categoryButtons) {
-    button.addEventListener("click", () => {
-      activeCategory = button.dataset.category;
-      for (const candidate of categoryButtons) {
-        const isActive = candidate === button;
-        candidate.classList.toggle("is-active", isActive);
-        candidate.setAttribute("aria-pressed", String(isActive));
-      }
-      render({ reveal: true });
-    });
   }
 
-  document.addEventListener("pointerdown", (event) => {
-    if (!event.target.closest(".discovery")) {
-      closeResults();
-    }
+  async function updateSearch() {
+    const current = ++sequence;
+    const query = input.value.trim();
+    remoteResults = [];
+    render();
+    if (!searchUrl || !query) return;
+    try {
+      const response = await requestSearch(`${searchUrl}?q=${encodeURIComponent(query)}`, {headers: {Accept: "application/json"}});
+      const payload = await response.json();
+      if (response.ok && current === sequence) {
+        remoteResults = (payload.results || []).filter((item) => item.destination_type === "internal");
+        render();
+      }
+    } catch (_) { /* Outdoor search remains usable when this endpoint is unavailable. */ }
+  }
+  input.addEventListener("input", updateSearch);
+  input.addEventListener("focus", () => render());
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { closeResults(); input.blur(); }
+    if (event.key === "ArrowDown" && !results.hidden) { event.preventDefault(); list.querySelector("button")?.focus(); }
   });
-
-  return { render, closeResults };
+  form.addEventListener("submit", (event) => { event.preventDefault(); const matches = render(); if (matches.length === 1) { onSelect(matches[0]); closeResults(); } });
+  clearButton.addEventListener("click", () => { input.value = ""; remoteResults = []; input.focus(); render(); });
+  for (const button of categoryButtons) button.addEventListener("click", () => {
+    activeCategory = button.dataset.category;
+    for (const candidate of categoryButtons) { const active = candidate === button; candidate.classList.toggle("is-active", active); candidate.setAttribute("aria-pressed", String(active)); }
+    render({reveal: true});
+  });
+  document.addEventListener("pointerdown", (event) => { if (!event.target.closest(".discovery")) closeResults(); });
+  return {render, closeResults};
 }

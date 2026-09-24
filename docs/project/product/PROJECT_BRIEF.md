@@ -44,7 +44,7 @@ See `docs/project/product/V1_SCOPE.md`.
 - Student user accounts or profiles
 - Navigation outside YabaTech campus boundaries
 - Detailed indoor floor plans
-- Multiple entrances per building
+- Detailed indoor turn-by-turn navigation between rooms
 - Location photographs
 - Offline maps
 - Voice navigation

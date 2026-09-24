@@ -47,7 +47,7 @@ Reason:     Some buildings have multiple meaningful entrance points. A single en
 Priority:   MEDIUM
 Dependency: Phase 4 campus-place foundation
 Release:    V1 / Phase 4
-Status:     APPROVED IN PHASE 4 SPECIFICATION — pending implementation planning
+Status:     IMPLEMENTED IN PHASE 4 SPRINT 002 — owner acceptance deferred
 ```
 
 ---
@@ -117,7 +117,7 @@ Reason:     Survey tooling can help the team identify walked, unwalked and poten
 Priority:   HIGH
 Dependency: Phase 2 walkable-path network and Phase 4 authenticated editor tooling
 Release:    Phase 4 tooling; Phase 5 field use
-Status:     APPROVED / DEFERRED
+Status:     APPROVED — NEXT FOR PHASE 4 SPRINT 004 PRE-BUILD REVIEW
 ```
 
 Required safeguards:

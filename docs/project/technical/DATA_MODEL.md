@@ -9,7 +9,15 @@ Implementation:    CAMPUS-PLACE FOUNDATION + EXISTING ROUTING/CONTRIBUTION MODEL
 
 This document describes the expected data model based on approved product decisions.
 
-> **Phase 4 authority notice:** The owner-approved [`../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`](../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md) is authoritative. Sprint 001 implements only the outdoor-place/editor foundation; entrances, internal places, floors and field tooling remain deferred.
+> **Phase 4 authority notice:** The owner-approved [`../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`](../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md) is authoritative. Sprint 002 implements entrances, floors and internal places; advanced field tooling remains deferred.
+
+## Current Phase 4 Sprint 002 Implementation
+
+`Entrance` has stable UUID identity, a parent Location, custom name, controlled broad type, required point, active/primary flags, independent verification and audit fields. A conditional database constraint permits at most one active primary entrance per Location. Zero entrances remains valid for published records, but routing is then unavailable.
+
+`Floor` is a signed numeric level plus editable label/display order and active state, unique by parent and level. `InternalPlace` has stable UUID identity, controlled type, parent, optional floor while Draft, room/wing/direction metadata, optional same-parent routing entrance, publication state, verification and audit fields. Published internal places require an active same-parent floor, but not a route-ready entrance. `InternalPlaceAlias` preserves independent searchable aliases without changing outdoor aliases.
+
+`EntranceNetworkAnchor` connects an Entrance to one active WalkableNode. A destination advertises routing only when resolution produces a valid active arrival entrance and anchor (or the explicitly temporary legacy fallback). Publication and `FIELD_VERIFIED` status neither imply nor are implied by routing readiness.
 
 Implemented subsets are identified below; later entities remain design intent.
 
@@ -160,7 +168,9 @@ Promotion from UNVERIFIED to FIELD_VERIFIED requires deliberate editor action af
 
 ## Migrations
 
-`locations/migrations/0001_initial.py` creates the historical `Location` and `LocationAlias` schema. `0002_campus_place_foundation.py` adds the Phase 4 structures without removing compatibility fields. `0003_seed_and_backfill_campus_places.py` seeds the controlled categories and backfills existing records. Routing migrations create `WalkableNode`, `WalkableSegment` and `LocationNetworkAnchor`. Synthetic destination records remain explicit fixtures; the migration only evolves existing rows safely.
+`locations/migrations/0001_initial.py` creates the historical `Location` and `LocationAlias` schema. `0002_campus_place_foundation.py` and `0003_seed_and_backfill_campus_places.py` establish Sprint 001. `0004_entrance_floor_internalplace_internalplacealias_and_more.py` adds Sprint 002 domain records. Routing `0004_entrancenetworkanchor.py` adds entrance anchoring and `0005_backfill_demo_entrances.py` creates one compatible primary entrance per existing anchored DEMO destination without changing UUIDs or graph nodes.
+
+Sprint 003 adds nullable, history-preserving routing `created_by`/`updated_by` actors in routing migration `0006`, and repeatable `ContributionResolution` audit actions in contributions migration `0002`. A resolution points to exactly one affected campus record (or none for an explicit no-change action). Approval, resolution, publication, verification and routing availability remain independent states.
 
 Never rewrite an already-applied migration. Correct data issues through new migrations.
 

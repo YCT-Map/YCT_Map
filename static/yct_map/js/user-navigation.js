@@ -30,7 +30,7 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   function requestLiveRoute(position) {
     return requestRoute(liveRouteUrl, { method: "POST", headers: {
       Accept: "application/json", "Content-Type": "application/json", "X-CSRFToken": csrfToken(),
-    }, body: JSON.stringify({ destination: destination.properties.id, position: {
+    }, body: JSON.stringify({ destination: destination.properties.destination_key || destination.properties.id, position: {
       latitude: position.latitude, longitude: position.longitude, accuracy_metres: position.accuracyMetres,
     } }) });
   }
@@ -79,7 +79,7 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       let response;
       if (useLive) response = await requestLiveRoute(livePosition);
       else {
-        const parameters = new URLSearchParams({ origin: originSelect.value, destination: destination.properties.id });
+        const parameters = new URLSearchParams({ origin: originSelect.value, destination: destination.properties.destination_key || destination.properties.id });
         response = await requestRoute(`${routeUrl}?${parameters}`, { headers: { Accept: "application/json" } });
       }
       const payload = await response.json();

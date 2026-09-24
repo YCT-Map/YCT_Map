@@ -2110,3 +2110,144 @@ They should be able to distinguish physical classification from functional disco
 ### Next Sprint
 
 Phase 4 remains IN PROGRESS. Sprint 002 may be discussed next, but no implementation is authorized by this acceptance. Entrances, entrance-aware routing and the remaining Phase 4 tools stay deferred until their own approved plan and BUILD command.
+
+## Phase 4 — Sprint 003: Field Capture, Contribution Resolution and Path Editing
+
+**Recorded status:** OWNER ACCEPTED / CLOSED on 2026-09-24. Phase 4 remains IN PROGRESS. Sprint 002 owner acceptance remains deferred.
+
+### Purpose
+
+This sprint connected the editor foundation to field-oriented map placement and direct routing-graph maintenance. It also introduced an explicit audit bridge between an approved public contribution and later authenticated campus-data work. It did not implement evidence-based field verification or Path Survey Mode.
+
+### User Outcome
+
+An authorized Editor can place or update a Location representative point using a map or one current-location sample, optionally and explicitly copy that point to a primary entrance, inspect the active routing network on a map, add/edit nodes and LineString segments, split a segment transactionally, and record one or more resolution actions for an approved contribution.
+
+### Starting State
+
+Sprint 001 supplied authenticated place editing. The implemented but acceptance-deferred Sprint 002 work supplied Entrances, Floors, Internal Places, entrance-aware destination resolution and a reusable entrance map selector. The public application already routed through a 47-node/54-segment OSM-derived UNVERIFIED graph. Representative-point capture, contribution-resolution history and purpose-built path editing did not yet exist.
+
+### What We Built
+
+- Representative-point map placement using the existing MapLibre point-selector controller.
+- One-shot browser current-location capture with visible permission, accuracy, failure and retry states.
+- Explicit confirmation before a representative point may replace an existing active primary entrance point.
+- A contribution-resolution model and permission-gated approved-contribution queue supporting multiple audit actions.
+- Routing node and segment editor forms with authenticated actor fields.
+- A lightweight active-graph map overview with OSM/manual provenance distinction.
+- Connected-node coordinate locking, model-backed GeoJSON editing and concrete deactivation-impact information.
+- Explicit transactional segment splitting that retains the original segment as inactive history.
+- Stability corrections for publication validation, internal aliases, verification boundaries and source preservation.
+
+### Technical Concepts Introduced
+
+**One-shot capture** uses `getCurrentPosition` for a deliberate measurement. It does not leave a background watcher running. Accuracy is evidence about uncertainty, not a guarantee that a coordinate is correct.
+
+**Provisional map placement** means a captured coordinate may be adjusted before saving and always remains UNVERIFIED. Merely standing near a place or path is not verification.
+
+**Graph editing** changes nodes, segment endpoints and LineString geometry consumed by A*. A visual line must serialize into the same model field Django validates; drawing and persistence cannot use competing representations.
+
+**Transactional splitting** transforms one active edge into a new junction and two edges as one database operation. Any failure rolls back the complete transformation.
+
+**Resolution is an audit event, not publication.** Contribution approval permits editor review. A `ContributionResolution` records what an editor later did, while publication and FIELD_VERIFIED remain separate decisions.
+
+### How It Works Internally
+
+```text
+Place editor
+   +-- map click --------------------------+
+   +-- getCurrentPosition -> accuracy -----+--> hidden representative point
+                                             -> server validation
+                                             -> Location remains UNVERIFIED
+                                             -> optional confirmed primary-entrance copy
+
+Path editor -> node choices + map vertices -> GeoJSON LineString
+                                           -> model endpoint/active-node validation
+                                           -> WalkableSegment -> existing graph/A*
+
+Approved Contribution -> explicit editor work -> ContributionResolution history
+                                              X automatic publish/verification
+```
+
+### Architecture / Components Involved
+
+`locations` owns the authenticated editor views and place/entrance/internal-place forms. `routing` owns nodes, segments, anchors, geometry validation, graph building and split operations. `contributions` owns immutable submitted reports and repeatable resolution actions. MapLibre/OpenFreeMap provide editor visualization but never become the owned routing graph.
+
+Editor permissions are Django model/custom permissions enforced by decorators. Hidden controls are not security boundaries. Audit actors are assigned from `request.user`, remain nullable for historical/imported records and are not accepted from browser payloads.
+
+### Important Files
+
+- `locations/editor_views.py` — editor orchestration, permission checks and transactional workflows.
+- `locations/forms.py` — place capture, ownership-constrained choices and validation.
+- `routing/editor_forms.py` — node/segment model-backed editor contracts.
+- `routing/editor_services.py` — impact reporting and atomic splitting.
+- `contributions/models.py` and `contributions/editor_forms.py` — repeatable resolution records.
+- `static/yct_map/js/editor-place-map.js` — one-shot capture and accuracy states.
+- `static/yct_map/js/editor-segment-map.js` — endpoint-preserving LineString construction.
+- `static/yct_map/js/editor-path-overview.js` — active graph visualization.
+- `locations/tests/test_sprint3_editor.py` — correction and stability regressions.
+
+### Data Flow
+
+For current-location capture, the browser requests exactly one sample. Samples above 100 m accuracy are not accepted as the provisional point. Accepted coordinates populate hidden six-decimal fields and the shared selector marker. Django validates ranges and forces changed field-capture data to UNVERIFIED.
+
+For a segment, the browser starts geometry at the selected start node, ends at the selected end node and inserts optional intermediate vertices before the end. The JSON is submitted through the actual `geometry` model form field. Django verifies LineString shape, positive length, active endpoints, distinct nodes and endpoint proximity before saving.
+
+### Decisions and Trade-offs
+
+- Reuse the entrance selector rather than introduce another map-selection architecture.
+- Keep raw coordinates hidden from the ordinary workflow while retaining server authority.
+- Reject accuracy worse than 100 m instead of pretending a poor sample is a useful place point.
+- Lock connected node coordinates; coordinated geometry change uses explicit segment operations.
+- Preserve OSM provenance on metadata edits. Geometry changes demote verification to UNVERIFIED; split replacements identify their parent segment.
+- Keep graph overview lightweight rather than building a GIS workstation.
+- Permit multiple contribution-resolution actions because one report may require several deliberate campus-data changes.
+
+### Problems Encountered
+
+The representative map initially imported the wrong MapLibre bundle, and its failure also prevented the current-location button listener from being registered. Segment drawing populated an auxiliary field too late for Django model validation. An invalid publication form mutated the in-memory status and caused destination resolution to query a record that remained Draft in the database.
+
+The final stability sweep also found premature ordinary-form access to FIELD_VERIFIED, provenance being overwritten during metadata-only graph edits, duplicate internal aliases needing consistent formset validation and direct invalid reactivation leaking model validation.
+
+### How We Solved Them
+
+The representative controller now uses the proven `.mjs` MapLibre module and initializes geolocation independently. Segment geometry is the real model-backed JSON field. Routing readiness checks persisted state and renders unavailable routing normally. Verification controls were removed until Sprint 004 supplies evidence-based transitions. Existing provenance is preserved, aliases share duplicate validation, and reactivation errors return through normal editor messaging.
+
+### Testing and Verification
+
+The final suite contains 120 passing Django tests and 44 passing JavaScript tests. Django system checks, migration drift, Python compilation, JavaScript syntax and Git whitespace checks pass.
+
+Owner testing confirmed checkbox alignment, entrance placement/editing, representative-map loading/manual placement/persistence, responsive current-location capture, rejection of an approximately 212 m sample, floor editing and internal-place creation. Detailed contribution-resolution owner QA is deliberately deferred. No physical-device campus survey or field verification occurred.
+
+### Current Limitations
+
+- OSM-derived geometry, anchors and manually captured data remain UNVERIFIED.
+- Current-location capture records a point but does not retain accuracy evidence as a persisted survey record.
+- There is no survey session, breadcrumb persistence, pause/resume lifecycle or trace matching yet.
+- Detailed contribution-resolution owner QA is deferred.
+- Sprint 002 owner acceptance remains deferred even though its implementation is retained and regression-tested.
+- The local editor depends on external MapLibre/OpenFreeMap assets.
+
+### Evidence
+
+Owner browser retesting demonstrated the working representative selector, persisted point and visible rejection of an approximately 212 m current-location sample. The accepted closure request did not assign formal Sprint 003 evidence filenames, so this journal does not invent them.
+
+### What Students Should Understand
+
+Students should understand why GPS accuracy must affect acceptance, why a captured point is not automatically verified, and why representative location, entrance arrival, publication, routing availability and verification are independent state dimensions.
+
+They should also understand that the browser and server must agree on one geometry contract, graph changes require transactional integrity, connected-node movement can invalidate several edges, provenance should survive ordinary edits, and public contribution approval is different from applying or verifying data.
+
+### Presentation / Defence Notes
+
+- **Why reject 212 m accuracy?** The uncertainty is too large for campus-place mapping; accepting it would create false precision.
+- **Why use getCurrentPosition?** Place capture is a deliberate single measurement. Continuous breadcrumbs belong to an explicit survey session.
+- **Why not mark captured data FIELD_VERIFIED?** A coordinate sample alone provides neither identity nor access/path evidence.
+- **Why lock connected nodes?** Moving one coordinate without updating attached LineStrings breaks graph geometry.
+- **Why keep the original split segment?** Inactive history makes the transformation auditable and reversible by an informed editor.
+- **Does approving a contribution change the map?** No. Resolution, publication and verification are separate explicit actions.
+- **Was Sprint 002 accepted here?** No. Its functionality is present, but its owner acceptance remains deferred.
+
+### Next Sprint
+
+Phase 4 Sprint 004 requires a pre-build review before implementation. It should define persisted survey sessions/samples/evidence, privacy and retention rules, accuracy/outlier handling, partial-session recovery, trace-to-segment matching, manual ambiguity review and an explicit FIELD_VERIFIED transition. No Sprint 004 implementation is authorized without its approved plan and standalone `BUILD` command.

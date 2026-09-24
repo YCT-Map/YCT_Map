@@ -109,9 +109,17 @@ The OSM realism pass did not replace or repair A*. A* was already returning the 
 
 ## Phase 4 Entrance and Internal-Destination Contract
 
-The owner-approved Phase 4 specification separates an outdoor place's representative map point from its routing entrances. An outdoor place may have multiple named entrances with one primary/default entrance. An internal destination remains searchable without indoor route geometry: routing uses its specifically associated entrance when present, otherwise the parent outdoor place's primary entrance. These behaviors are approved intent only and are not implemented yet.
+The owner-approved Phase 4 specification separates an outdoor place's representative map point from its routing entrances. Sprint 002 implements multiple named entrances with at most one active primary/default entrance. An internal destination routes through its active same-parent entrance when selected, otherwise through the parent's primary entrance. It does not create indoor route geometry.
+
+Publication is not a routing assertion. Published outdoor and internal destinations remain searchable when entrance or anchor resolution is incomplete. Their public contract reports `routing_available=false` with a specific reason and the client disables Directions. Cross-parent, inactive and malformed relationships are rejected rather than silently falling back. A route-ready destination requires a valid active arrival entrance and active graph anchor; verification remains independent.
 
 ## Real Network Construction and Validation
+
+### Phase 4 Sprint 003 Path Editing Boundary
+
+Authenticated Editors may add/edit `UNVERIFIED` nodes and segments without changing the graph model used by A*. Connected nodes are coordinate-locked because an uncoordinated drag would invalidate attached LineString endpoints. Segment deactivation warnings report concrete remaining endpoint degree and active entrance/location anchors; stored data cannot truthfully claim whether a segment is part of a currently displayed route.
+
+Segment splitting is explicit and transactional: lock the active original, validate a point within five metres and away from endpoints, create one UNVERIFIED node and two endpoint-consistent UNVERIFIED segments, then retain the original as inactive history. No automatic OSM synchronization or field-verification promotion occurs.
 
 Existing OSM/OpenFreeMap-visible pathways may be used as reference input when constructing YCT Map's real walkable network; they do not automatically become routing edges. YCT Map must own, import or create explicit graph geometry, retain editor review, and keep field verification separate.
 

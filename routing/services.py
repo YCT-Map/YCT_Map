@@ -5,6 +5,7 @@ from .graph import GraphArc, RoutingGraph, build_graph
 from .matching import find_safe_network_match
 from .models import LocationNetworkAnchor, VerificationState
 from .results import MissingAnchorError
+from .destinations import resolve_destination
 
 
 def route_between_nodes(start_node_id, goal_node_id):
@@ -28,15 +29,20 @@ def route_between_locations(origin_location_id, destination_location_id):
     return find_route(build_graph(), origin.node_id, destination.node_id)
 
 
+def route_to_destination(origin_location_id, destination_key):
+    origin = resolve_destination(origin_location_id)
+    destination = resolve_destination(destination_key)
+    if not origin.routing_available:
+        raise MissingAnchorError(origin.unavailable_reason)
+    if not destination.routing_available:
+        raise MissingAnchorError(destination.unavailable_reason)
+    return find_route(build_graph(), origin.node.id, destination.node.id), origin, destination
+
+
 def route_from_live_position(longitude, latitude, accuracy_metres, destination_location_id):
-    destination = LocationNetworkAnchor.objects.filter(
-        location_id=destination_location_id,
-        is_active=True,
-        location__publication_status="PUBLISHED",
-        node__is_active=True,
-    ).select_related("location", "node").first()
-    if not destination:
-        raise MissingAnchorError("The destination has no active network anchor.")
+    destination = resolve_destination(destination_location_id)
+    if not destination.routing_available:
+        raise MissingAnchorError(destination.unavailable_reason)
 
     match = find_safe_network_match(longitude, latitude, accuracy_metres)
     graph = build_graph()
@@ -54,5 +60,5 @@ def route_from_live_position(longitude, latitude, accuracy_metres, destination_l
     arcs.append(GraphArc(str(segment.id), str(segment.end_node_id), match.distance_to_end,
                          match.geometry_to_end, segment.verification_state))
     adjacency[virtual_id] = tuple(arcs)
-    result = find_route(RoutingGraph(nodes, adjacency), virtual_id, destination.node_id)
-    return result, match, destination.location
+    result = find_route(RoutingGraph(nodes, adjacency), virtual_id, destination.node.id)
+    return result, match, destination

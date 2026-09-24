@@ -9,7 +9,8 @@ from .eta import format_approximate_eta
 from .models import LocationNetworkAnchor, VerificationState, WalkableNode, WalkableSegment
 from .matching import InsufficientAccuracyError, LivePositionError, NoSafeNetworkMatchError
 from .results import InvalidNodeError, MissingAnchorError, NoRouteError
-from .services import route_between_locations, route_from_live_position
+from .services import route_between_locations, route_from_live_position, route_to_destination
+from .destinations import destination_summary
 from locations.models import Location
 
 
@@ -102,13 +103,11 @@ def public_route(request):
     if origin_id == destination_id:
         return JsonResponse({"error": "Your starting point and destination are the same.", "code": "SAME_ORIGIN"}, status=409)
     try:
-        origin = Location.objects.get(id=origin_id, publication_status=Location.PublicationStatus.PUBLISHED)
-        destination = Location.objects.get(id=destination_id, publication_status=Location.PublicationStatus.PUBLISHED)
-        result = route_between_locations(origin_id, destination_id)
+        result, origin_resolution, destination_resolution = route_to_destination(origin_id, destination_id)
     except (ValidationError, ValueError, Location.DoesNotExist, InvalidNodeError) as error:
         return JsonResponse({"error": "The selected route endpoints are invalid.", "code": "INVALID_ENDPOINT"}, status=400)
-    except MissingAnchorError:
-        return JsonResponse({"error": "One of these destinations is not connected to the walkable network yet.", "code": "MISSING_ANCHOR"}, status=422)
+    except MissingAnchorError as error:
+        return JsonResponse({"error": str(error), "code": "MISSING_ANCHOR"}, status=422)
     except NoRouteError:
         return JsonResponse({"error": "No walkable route is available between these destinations.", "code": "NO_ROUTE"}, status=404)
 
@@ -118,8 +117,8 @@ def public_route(request):
     response = JsonResponse({
         "route": {"type": "Feature", "geometry": geometry, "properties": {"route_state": route_state}},
         "summary": {
-            "origin": {"id": str(origin.id), "name": origin.name},
-            "destination": {"id": str(destination.id), "name": destination.name},
+            "origin": destination_summary(origin_resolution),
+            "destination": destination_summary(destination_resolution),
             "distance_metres": round(result.distance_metres, 2),
             "eta_label": format_approximate_eta(result.eta_seconds),
             "eta_is_approximate": True,
@@ -151,8 +150,8 @@ def public_route_from_position(request):
         return JsonResponse({"error": str(error), "code": error.code}, status=422)
     except LivePositionError as error:
         return JsonResponse({"error": str(error), "code": error.code}, status=400)
-    except MissingAnchorError:
-        return JsonResponse({"error": "The destination is not connected to the walkable network yet.",
+    except MissingAnchorError as error:
+        return JsonResponse({"error": str(error),
                              "code": "MISSING_DESTINATION_ANCHOR"}, status=422)
     except (ValidationError, ValueError, InvalidNodeError):
         return JsonResponse({"error": "The live route request is invalid.", "code": "INVALID_POSITION"}, status=400)
@@ -165,7 +164,7 @@ def public_route_from_position(request):
         "route": {"type": "Feature", "geometry": geometry, "properties": {"route_state": "UNVERIFIED", "origin_type": "live"}},
         "summary": {
             "origin": {"name": "Your location", "type": "live"},
-            "destination": {"id": str(destination.id), "name": destination.name},
+            "destination": destination_summary(destination),
             "total_distance_metres": round(result.distance_metres, 2),
             "remaining_distance_metres": round(result.distance_metres, 2),
             "eta_label": format_approximate_eta(result.eta_seconds),

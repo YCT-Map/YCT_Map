@@ -1,7 +1,7 @@
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
-from .models import Category, Location, LocationAlias
+from .models import Category, Entrance, Floor, InternalPlace, InternalPlaceAlias, Location, LocationAlias
 
 
 LEGACY_CATEGORY_PRIORITY = (
@@ -15,12 +15,18 @@ LEGACY_CATEGORY_PRIORITY = (
 
 
 class LocationForm(forms.ModelForm):
+    capture_primary_entrance = forms.BooleanField(required=False, label="Use this point for the primary entrance")
+    confirm_primary_overwrite = forms.BooleanField(required=False, label="Replace the existing primary entrance point")
+
     class Meta:
         model = Location
-        fields = ("name", "description", "place_type", "categories", "publication_status")
+        fields = ("name", "description", "place_type", "categories", "publication_status",
+                  "representative_latitude", "representative_longitude")
         widgets = {
             "description": forms.Textarea(attrs={"rows": 4}),
             "categories": forms.CheckboxSelectMultiple,
+            "representative_latitude": forms.HiddenInput,
+            "representative_longitude": forms.HiddenInput,
         }
 
     def __init__(self, *args, **kwargs):
@@ -29,6 +35,18 @@ class LocationForm(forms.ModelForm):
         self.fields["publication_status"].choices = Location.PublicationStatus.choices
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", "editor-input")
+
+    def clean(self):
+        cleaned = super().clean()
+        latitude, longitude = cleaned.get("representative_latitude"), cleaned.get("representative_longitude")
+        if (latitude is None) != (longitude is None):
+            raise forms.ValidationError("Choose a complete representative point on the map.")
+        if cleaned.get("capture_primary_entrance") and latitude is None:
+            raise forms.ValidationError("Choose a map point before creating or updating a primary entrance.")
+        existing_primary = self.instance.pk and self.instance.entrances.filter(is_primary=True, is_active=True).exists()
+        if existing_primary and cleaned.get("capture_primary_entrance") and not cleaned.get("confirm_primary_overwrite"):
+            raise forms.ValidationError("Confirm before replacing the existing primary entrance point.")
+        return cleaned
 
     def clean_name(self):
         name = self.cleaned_data["name"].strip()
@@ -102,4 +120,61 @@ LocationAliasFormSet = inlineformset_factory(
     fields=("name", "alias_kind"),
     extra=2,
     can_delete=True,
+)
+
+
+class EntranceForm(forms.ModelForm):
+    class Meta:
+        model = Entrance
+        fields = ("name", "entrance_type", "latitude", "longitude", "is_primary", "is_active")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.setdefault("class", "editor-input")
+        self.fields["latitude"].widget = forms.HiddenInput()
+        self.fields["longitude"].widget = forms.HiddenInput()
+
+
+class FloorForm(forms.ModelForm):
+    class Meta:
+        model = Floor
+        fields = ("level", "label", "display_order", "is_active")
+
+    def clean_level(self):
+        level = self.cleaned_data["level"]
+        location_id = self.instance.location_id
+        if location_id:
+            duplicate = Floor.objects.filter(location_id=location_id, level=level)
+            if self.instance.pk:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                raise forms.ValidationError("A floor with this level already exists for this place.")
+        return level
+
+
+class InternalPlaceForm(forms.ModelForm):
+    class Meta:
+        model = InternalPlace
+        fields = ("name", "internal_type", "floor", "room_code", "wing_section", "direction_note",
+                  "routing_entrance", "publication_status")
+        widgets = {"direction_note": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, location=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.location = location or getattr(self.instance, "location", None)
+        if self.location and self.location.pk:
+            self.fields["floor"].queryset = self.location.floors.order_by("display_order", "level")
+            self.fields["routing_entrance"].queryset = self.location.entrances.filter(is_active=True)
+        else:
+            self.fields["floor"].queryset = Floor.objects.none()
+            self.fields["routing_entrance"].queryset = Entrance.objects.none()
+        self.fields["routing_entrance"].empty_label = "Use parent primary entrance"
+        for field in self.fields.values():
+            field.widget.attrs.setdefault("class", "editor-input")
+
+
+InternalPlaceAliasFormSet = inlineformset_factory(
+    InternalPlace, InternalPlaceAlias, formset=AliasFormSet,
+    fields=("name", "alias_kind"), extra=2, can_delete=True,
 )

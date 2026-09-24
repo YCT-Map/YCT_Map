@@ -5,7 +5,8 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxLengthValidator, MaxValueValidator, MinValueValidator
 from django.db import models
 
-from locations.models import Location
+from locations.models import Entrance, Location
+from routing.models import WalkableNode, WalkableSegment
 
 
 class Contribution(models.Model):
@@ -49,6 +50,7 @@ class Contribution(models.Model):
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["status", "created_at"])]
+        permissions = [("resolve_contribution", "Can resolve approved contributions into campus records")]
 
     def clean(self):
         super().clean()
@@ -70,3 +72,39 @@ class Contribution(models.Model):
 
     def __str__(self):
         return f"{self.get_contribution_type_display()} — {self.id}"
+
+
+class ContributionResolution(models.Model):
+    class Action(models.TextChoices):
+        CREATED = "CREATED", "Created a campus record"
+        UPDATED = "UPDATED", "Updated a campus record"
+        DEACTIVATED = "DEACTIVATED", "Deactivated a campus record"
+        NO_CHANGE = "NO_CHANGE", "Reviewed; no campus-data change"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    contribution = models.ForeignKey(Contribution, on_delete=models.PROTECT, related_name="resolutions")
+    action = models.CharField(max_length=16, choices=Action.choices)
+    location = models.ForeignKey(Location, null=True, blank=True, on_delete=models.PROTECT, related_name="contribution_resolutions")
+    entrance = models.ForeignKey(Entrance, null=True, blank=True, on_delete=models.PROTECT, related_name="contribution_resolutions")
+    walkable_node = models.ForeignKey(WalkableNode, null=True, blank=True, on_delete=models.PROTECT, related_name="contribution_resolutions")
+    walkable_segment = models.ForeignKey(WalkableSegment, null=True, blank=True, on_delete=models.PROTECT, related_name="contribution_resolutions")
+    note = models.TextField(max_length=1000)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="contribution_resolutions", editable=False)
+    resolved_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["resolved_at"]
+
+    def clean(self):
+        super().clean()
+        if self.contribution_id and self.contribution.status != Contribution.Status.APPROVED:
+            raise ValidationError({"contribution": "Only approved contributions can be resolved."})
+        target_count = sum(value is not None for value in (
+            self.location_id, self.entrance_id, self.walkable_node_id, self.walkable_segment_id
+        ))
+        expected = 0 if self.action == self.Action.NO_CHANGE else 1
+        if target_count != expected:
+            raise ValidationError("Choose exactly one affected record, or none for a no-change resolution.")
+        if not self.note.strip():
+            raise ValidationError({"note": "Explain the resolution action."})

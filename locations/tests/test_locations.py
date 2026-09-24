@@ -135,6 +135,10 @@ class LocationEndpointTests(TestCase):
                 "place_type",
                 "place_type_label",
                 "routing_available",
+                "routing_unavailable_reason",
+                "destination_key",
+                "destination_type",
+                "places_inside_count",
             },
         )
         self.assertNotIn("created_at", feature["properties"])
@@ -201,8 +205,8 @@ class MapPageTests(TestCase):
         self.assertContains(response, 'data-route-url="/api/routes/"')
         self.assertContains(response, 'id="destination-directions"')
         self.assertContains(response, 'id="user-route-panel"')
-        self.assertContains(response, "app.js?v=p3s4-contributions-1")
-        self.assertContains(response, "app.css?v=p3s4-contributions-1")
+        self.assertContains(response, "app.js?v=p4s2-entrances-internal-places-1")
+        self.assertContains(response, "app.css?v=p4s2-entrances-internal-places-1")
         self.assertContains(response, 'data-contribution-url="/api/contributions/"')
         self.assertContains(response, 'id="contribution-panel"')
         self.assertContains(response, 'data-live-route-url="/api/routes/from-position/"')
@@ -227,7 +231,7 @@ class MapPageTests(TestCase):
             "user-navigation.js",
             "contributions.js",
         ):
-            self.assertIn(f'{module}?v=p3s4-contributions-1', app_source)
+            self.assertIn(f'{module}?v=p4s2-entrances-internal-places-1', app_source)
 
         user_location_source = (
             settings.BASE_DIR / "static/yct_map/js/user-location.js"

@@ -9,10 +9,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-09-18 |
+| **Date** | 2026-09-24 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 4 — EDITOR & MAPPING TOOLS |
-| **Pipeline Phase** | PHASE 4 SPRINT 001 OWNER ACCEPTED / COMPLETE |
+| **Pipeline Phase** | PHASE 4 SPRINT 003 OWNER ACCEPTED / CLOSED |
 | **Latest Meaningful Commit** | Phase 4 specification baseline (`docs: establish Phase 4 campus data and editor specification`) |
 
 ---
@@ -21,7 +21,7 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | PHASE 4 SPRINT 001 OWNER ACCEPTED / COMPLETE; PHASE 4 IN PROGRESS |
+| Application implementation | PHASE 4 SPRINT 003 OWNER ACCEPTED / CLOSED; SPRINT 002 ACCEPTANCE DEFERRED |
 | Product definition | SUBSTANTIALLY COMPLETE |
 | Documentation / governance | SUBSTANTIALLY COMPLETE |
 | Build pipeline | SUBSTANTIALLY COMPLETE |
@@ -30,7 +30,7 @@
 | Demo/development dataset | 6 DEMO locations; 47 OSM-derived UNVERIFIED nodes, 54 segments and 6 UNVERIFIED anchors |
 | Field verification | NOT STARTED |
 | Deployment | NOT STARTED |
-| Test suite | 94 DJANGO + 34 JAVASCRIPT TESTS PASSING |
+| Test suite | 120 DJANGO + 44 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -42,7 +42,7 @@ See `docs/project/operations/BUILD_PIPELINE.md` for the full 5-phase plan.
 Phase 1 — Foundation & Map Experience          ACCEPTED
 Phase 2 — Routing & Navigation                 ACCEPTED
 Phase 3 — Live Navigation & Core Product       ACCEPTED
-Phase 4 — Editor & Mapping Tools               IN PROGRESS — SPRINT 001 ACCEPTED
+Phase 4 — Editor & Mapping Tools               IN PROGRESS — SPRINT 003 ACCEPTED; SPRINT 002 ACCEPTANCE DEFERRED
 Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 ```
 
@@ -145,7 +145,7 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ## Active Work
 
-Phase 4 Sprint 001 is OWNER ACCEPTED / COMPLETE. It established additive campus-place fields, controlled multi-categories, aliases with kinds, Draft/Published/Archived lifecycle, audit actors, least-privilege Editor permissions and a custom authenticated place editor. Phase 4 remains IN PROGRESS; no real campus population, entrances or entrance-aware routing has started.
+Phase 4 Sprint 003 is OWNER ACCEPTED / CLOSED. It adds UNVERIFIED one-shot field capture with manual map adjustment, explicit contribution-resolution history, and permission-gated routing node/segment editing with connected-node locking, concrete anchor/connectivity impact reporting and transactional segment splitting. Sprint 002 product work remains intact and its owner acceptance is intentionally deferred; detailed contribution-resolution owner QA is also deferred.
 
 ---
 
@@ -157,7 +157,7 @@ Physical-phone GPS/navigation/rerouting remains unverified because no owner-appr
 
 ## Next Approved Task
 
-Phase 4 Sprint 002 discussion/planning. Implementation still requires an approved sprint plan and standalone `BUILD` command.
+Phase 4 Sprint 004 pre-build review for evidence-based verification and Path Survey Mode. Do not implement until its plan is reviewed, owner decisions are resolved and a standalone `BUILD` is issued.
 
 ---
 

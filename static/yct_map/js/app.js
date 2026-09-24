@@ -1,11 +1,11 @@
-import { fetchLocations } from "./api.js?v=p3s4-contributions-1";
-import { createContributions } from "./contributions.js?v=p3s4-contributions-1";
-import { createDestinationPanel } from "./destination-panel.js?v=p3s4-contributions-1";
-import { createMap } from "./map.js?v=p3s4-contributions-1";
-import { createSearch } from "./search.js?v=p3s4-contributions-1";
-import { createRouteInspector } from "./route-inspector.js?v=p3s4-contributions-1";
-import { createUserLocation } from "./user-location.js?v=p3s4-contributions-1";
-import { createUserNavigation } from "./user-navigation.js?v=p3s4-contributions-1";
+import { fetchLocations } from "./api.js?v=p4s2-entrances-internal-places-1";
+import { createContributions } from "./contributions.js?v=p4s2-entrances-internal-places-1";
+import { createDestinationPanel } from "./destination-panel.js?v=p4s2-entrances-internal-places-1";
+import { createMap } from "./map.js?v=p4s2-entrances-internal-places-1";
+import { createSearch } from "./search.js?v=p4s2-entrances-internal-places-1";
+import { createRouteInspector } from "./route-inspector.js?v=p4s2-entrances-internal-places-1";
+import { createUserLocation } from "./user-location.js?v=p4s2-entrances-internal-places-1";
+import { createUserNavigation } from "./user-navigation.js?v=p4s2-entrances-internal-places-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -15,6 +15,7 @@ let navigationController = null;
 
 const config = {
   locationsUrl: shell.dataset.locationsUrl,
+  searchUrl: shell.dataset.searchUrl,
   styleUrl: shell.dataset.mapStyleUrl,
   moduleUrl: shell.dataset.maplibreModuleUrl,
   campusBoundaryUrl: shell.dataset.campusBoundaryUrl,
@@ -98,6 +99,7 @@ async function start() {
 
     createSearch({
       features,
+      searchUrl: config.searchUrl,
       onSelect: selectDestination,
       onFilter: (matches) => mapController?.setVisibleFeatures(matches),
     });

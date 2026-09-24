@@ -1,6 +1,7 @@
 {% extends "editor/base.html" %}
 {% block title %}Places{% endblock %}
 {% block content %}
+  <p><a href="{% url 'editor:dashboard' %}">← Back to editor</a></p>
   <div class="editor-heading"><div><p class="editor-eyebrow">Outdoor places</p><h1>Places</h1><p>Draft, published, and archived records are retained here. Only published, complete places enter the public map.</p></div>{% if perms.locations.add_location %}<a class="editor-primary" href="{% url 'editor:place-create' %}">Add place</a>{% endif %}</div>
   <div class="editor-table-wrap">
     <table class="editor-table">

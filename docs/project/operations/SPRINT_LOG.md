@@ -574,3 +574,62 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Final verification is 94 Django tests and 34 JavaScript tests with syntax, compilation, system checks, migration drift and whitespace checks clean.
 - No entrances, floors, internal places, entrance-aware routing, field capture, contribution resolution, real campus population or field verification exists yet.
 - Sprint 002 is ready for discussion only and requires its own approved plan and standalone `BUILD` command.
+
+---
+
+## Phase 4 — Sprint 002: Entrances, Floors, Internal Places & Entrance-Aware Destinations
+
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+**Date:** 2026-09-20
+
+- Added persisted Entrance, Floor, InternalPlace, InternalPlaceAlias and EntranceNetworkAnchor models without removing legacy compatibility fields.
+- Migrated existing anchored DEMO destinations to primary entrances while preserving destination UUIDs, graph nodes and route outcomes.
+- Added namespaced internal destination identity, entrance-aware resolution, unified internal search and lazy floor-grouped building directories.
+- Added editor entrance map selection, floor/internal-place entry, repeated same-floor entry and routing-readiness warnings.
+- Revised the approved plan so publication, verification and routing availability remain independent. Published incomplete destinations remain visible with Directions disabled and an explicit reason.
+- Strict validation rejects cross-parent floors/entrances, inactive selected entrances and inactive anchors; the database permits at most one active primary entrance.
+- Verification currently passes at 100 Django and 34 JavaScript tests. Owner visual review and evidence remain required. `BUILD_JOURNAL.md` remains unchanged until acceptance.
+
+### Owner-Test Correction — Entrance Selector and Floor Editing
+
+- Owner browser review found that the entrance map selector never initialized because the entry module requested a nonexistent default export from MapLibre's ES module bundle.
+- Replaced that import with the proven dynamic named-module pattern, added a reusable selector controller, visible loading/error/selected states, responsive sizing, saved-point initialization, marker replacement and adjacent hidden-coordinate validation feedback.
+- Owner review also reached a stale `--noreload` URL configuration that did not contain the newly implemented `floor-edit` pattern. The nested route/view remains permission-protected and parent-scoped; the corrected build was restarted so the route is active.
+- Added floor creation/detail/edit/cross-parent/duplicate-level integration tests, nested-route rendering coverage and entrance selector DOM/server/JavaScript behavior tests.
+- Final correction verification passes at 107 Django and 36 JavaScript tests. Sprint 002 remains unaccepted and uncommitted pending renewed browser QA.
+
+---
+
+## Phase 4 — Sprint 003: Field Capture, Contribution Resolution & Path Editing
+
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+**Date:** 2026-09-24
+
+- Reused the Sprint 002 point-selector for representative-place and routing-node map capture; one-shot browser samples show accuracy, reject unsafe samples, allow manual adjustment and always save as `UNVERIFIED`.
+- Added an explicit confirmation barrier before combined capture can replace an active primary entrance.
+- Added a permission-gated approved-contribution queue and repeatable `ContributionResolution` audit actions. Approval/resolution do not publish, mutate records automatically or grant `FIELD_VERIFIED`.
+- Added permission-gated node and LineString segment editing, nullable audit actors, connected-node coordinate locking and concrete endpoint-degree/anchor impact warnings.
+- Added explicit transactional segment splitting that creates two UNVERIFIED replacements and retains the original as inactive history.
+- Corrected category-checkbox layout by excluding checkboxes from full-width input styling and placing each box immediately before its label.
+- Final automated verification passes with 113 Django tests and 39 JavaScript tests; system checks, Python/JavaScript syntax, migration drift and whitespace validation are clean.
+- Sprint 002 acceptance remains intentionally deferred. No browser automation harness, real campus population, automatic OSM synchronization or commit is included.
+
+### Owner-Test Correction Pass
+
+- Corrected representative-map initialization to use the same working MapLibre ES-module pattern as the entrance selector; current-location controls now initialize independently so map-load failure cannot make the button inert.
+- Added visible permission/request, success/accuracy, retry, denied, unavailable and timeout states; samples above 100 m are rejected and successful points remain adjustable and `UNVERIFIED`.
+- Moved editor segment geometry onto the actual model-backed JSON form field so Django validates the same LineString drawn by the browser. Two-point and intermediate-vertex geometry now saves and reopens correctly.
+- Prevented invalid publication attempts from passing a mutated, unsaved status into destination resolution. Missing representative points remain normal form errors; published unanchored places remain public with Directions unavailable.
+- Added a lightweight MapLibre overview of active nodes/segments with manual/OSM provenance distinction, while retaining the editable textual lists.
+- Added explicit Places-to-dashboard navigation and preserved combined-capture confirmation plus later independence of Location and Entrance points.
+- Correction verification passes with 116 Django and 44 JavaScript tests. No migration, browser harness, commit or push was created.
+
+### Final Acceptance and Stability Sweep — 2026-09-24
+
+- The owner accepted Sprint 003 for closure after verifying checkbox layout, entrance placement/editing, representative-map loading/manual placement/persistence, responsive current-location capture, correct rejection of an approximately 212 m sample, floor editing and internal-place creation. Detailed contribution-resolution owner QA is explicitly deferred and is not a closure blocker.
+- The sweep removed premature ordinary-form access to `FIELD_VERIFIED` for entrances/internal places; Sprint 004 must provide the explicit evidence-based transition.
+- Metadata-only routing edits now preserve existing OSM/source provenance and verification state. Geometry/endpoint changes become UNVERIFIED, new records remain MANUAL/UNVERIFIED, and split replacements retain a parent-segment source reference.
+- Invalid direct Published reactivation now returns a normal editor message rather than leaking model validation, and duplicate internal aliases are handled as form errors.
+- Database inspection found 8 Locations, 9 Entrances, 3 Floors, 3 Internal Places, 49 nodes, 54 segments, 6 entrance anchors and 6 legacy anchors; no routing node or segment is FIELD_VERIFIED.
+- Final verification passes with 120 Django and 44 JavaScript tests plus clean system, compilation, syntax, migration-drift and whitespace checks.
+- Phase 4 Sprint 003 is OWNER ACCEPTED / CLOSED. Sprint 002 acceptance and detailed contribution-resolution QA remain deferred. Phase 4 remains IN PROGRESS.

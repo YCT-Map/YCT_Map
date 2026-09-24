@@ -182,3 +182,174 @@ class LocationAlias(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class AuditModel(models.Model):
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="created_%(class)ss", editable=False,
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="updated_%(class)ss", editable=False,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class Entrance(AuditModel):
+    class Type(models.TextChoices):
+        MAIN = "MAIN", "Main entrance"
+        BUILDING = "BUILDING", "Building entrance"
+        HALL = "HALL", "Hall entrance"
+        BACK = "BACK", "Back entrance"
+        SIDE = "SIDE", "Side entrance"
+        OTHER = "OTHER", "Other"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name="entrances")
+    name = models.CharField(max_length=160)
+    entrance_type = models.CharField(max_length=16, choices=Type.choices, default=Type.OTHER)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, validators=[MinValueValidator(-90), MaxValueValidator(90)])
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, validators=[MinValueValidator(-180), MaxValueValidator(180)])
+    is_primary = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    verification_state = models.CharField(
+        max_length=24, choices=Location.VerificationState.choices, default=Location.VerificationState.UNVERIFIED,
+    )
+
+    class Meta:
+        ordering = ["-is_primary", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["location"], condition=models.Q(is_primary=True, is_active=True),
+                name="one_active_primary_entrance_per_location",
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        self.name = self.name.strip()
+        if not self.name:
+            raise ValidationError({"name": "Enter an entrance name."})
+        if self.is_primary and not self.is_active:
+            raise ValidationError({"is_primary": "A primary entrance must be active."})
+
+    def __str__(self):
+        return f"{self.location} — {self.name}"
+
+
+class Floor(AuditModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name="floors")
+    level = models.SmallIntegerField()
+    label = models.CharField(max_length=80)
+    display_order = models.SmallIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["display_order", "level", "label"]
+        constraints = [models.UniqueConstraint(fields=["location", "level"], name="unique_floor_level_per_location")]
+
+    def clean(self):
+        super().clean()
+        self.label = self.label.strip()
+        if not self.label:
+            raise ValidationError({"label": "Enter a floor label."})
+
+    def __str__(self):
+        return f"{self.location} — {self.label}"
+
+
+class InternalPlace(AuditModel):
+    class Type(models.TextChoices):
+        CLASSROOM = "CLASSROOM", "Classroom"
+        LECTURE_HALL = "LECTURE_HALL", "Lecture hall"
+        EVENT_HALL = "EVENT_HALL", "Event hall"
+        LABORATORY = "LABORATORY", "Laboratory"
+        OFFICE = "OFFICE", "Office"
+        DEPARTMENT = "DEPARTMENT", "Department"
+        STUDIO = "STUDIO", "Studio"
+        MEETING_ROOM = "MEETING_ROOM", "Meeting room"
+        FOOD_SPOT = "FOOD_SPOT", "Internal food spot"
+        OTHER = "OTHER", "Other"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name="internal_places")
+    floor = models.ForeignKey(Floor, null=True, blank=True, on_delete=models.PROTECT, related_name="internal_places")
+    name = models.CharField(max_length=160)
+    internal_type = models.CharField(max_length=24, choices=Type.choices)
+    room_code = models.CharField(max_length=80, blank=True)
+    wing_section = models.CharField(max_length=120, blank=True)
+    direction_note = models.CharField(max_length=500, blank=True)
+    routing_entrance = models.ForeignKey(
+        Entrance, null=True, blank=True, on_delete=models.PROTECT, related_name="internal_destinations",
+    )
+    publication_status = models.CharField(
+        max_length=16, choices=Location.PublicationStatus.choices, default=Location.PublicationStatus.DRAFT,
+    )
+    verification_state = models.CharField(
+        max_length=24, choices=Location.VerificationState.choices, default=Location.VerificationState.UNVERIFIED,
+    )
+
+    class Meta:
+        ordering = ["location__name", "floor__display_order", "name"]
+
+    def clean(self):
+        super().clean()
+        self.name = self.name.strip()
+        self.room_code = self.room_code.strip()
+        self.wing_section = self.wing_section.strip()
+        self.direction_note = self.direction_note.strip()
+        if not self.name:
+            raise ValidationError({"name": "Enter an internal place name."})
+        if self.floor_id and self.floor.location_id != self.location_id:
+            raise ValidationError({"floor": "The floor must belong to the same outdoor place."})
+        if self.routing_entrance_id:
+            if self.routing_entrance.location_id != self.location_id:
+                raise ValidationError({"routing_entrance": "The entrance must belong to the same outdoor place."})
+            if not self.routing_entrance.is_active:
+                raise ValidationError({"routing_entrance": "Choose an active entrance."})
+        if self.publication_status == Location.PublicationStatus.PUBLISHED:
+            if self.location.publication_status != Location.PublicationStatus.PUBLISHED:
+                raise ValidationError({"publication_status": "The parent outdoor place must be Published."})
+            if not self.floor_id or not self.floor.is_active:
+                raise ValidationError({"floor": "A Published internal place requires an active floor."})
+
+    def __str__(self):
+        return self.name
+
+
+class InternalPlaceAlias(models.Model):
+    internal_place = models.ForeignKey(InternalPlace, on_delete=models.CASCADE, related_name="aliases")
+    name = models.CharField(max_length=160)
+    alias_kind = models.CharField(max_length=24, choices=LocationAlias.Kind.choices, default=LocationAlias.Kind.OTHER)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"), "internal_place", name="unique_internal_alias_case_insensitive",
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        self.name = self.name.strip()
+        if not self.name:
+            raise ValidationError({"name": "Enter an alias."})
+        if not self.internal_place_id or self.internal_place._state.adding:
+            return
+        duplicate = InternalPlaceAlias.objects.filter(
+            internal_place_id=self.internal_place_id, name__iexact=self.name,
+        )
+        if self.pk:
+            duplicate = duplicate.exclude(pk=self.pk)
+        if duplicate.exists():
+            raise ValidationError({"name": "This alias is already used for this internal place."})
+
+    def __str__(self):
+        return self.name

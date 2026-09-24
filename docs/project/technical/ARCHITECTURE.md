@@ -3,13 +3,13 @@
 ## Status
 
 ```
-Current phase:         PHASE 3 — LIVE NAVIGATION & CORE PRODUCT SYSTEMS
-Application code:      SPRINT 001 LIVE-LOCATION FOUNDATION OWNER ACCEPTED
+Current phase:         PHASE 4 — EDITOR & MAPPING TOOLS
+Application code:      PHASE 4 SPRINT 003 OWNER ACCEPTED / CLOSED
 ```
 
 This document records approved architectural decisions and expected system design.
 
-Phase 4 campus-place and editor modeling is governed by [`../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`](../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md). That owner-approved contract supersedes earlier building-only, single-category and single-entrance planning assumptions; implementation has not started.
+Phase 4 campus-place and editor modeling is governed by [`../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md`](../phase4/CAMPUS_DATA_AND_EDITOR_SPEC.md). Sprint 002 implements its entrance, floor and internal-place foundation. Publication, verification and routing readiness are independent concepts.
 
 Sections are clearly marked CURRENT or PLANNED. Nothing is described as implemented unless it is.
 
@@ -21,17 +21,17 @@ YCT Map is a web-based application consisting of:
 
 | Layer | Description | Status |
 |-------|-------------|--------|
-| Frontend | Django templates, CSS and modular JavaScript; map-first interface | CURRENT — Phase 1 |
-| Backend API | Location/search and explicit anchored-route endpoints | CURRENT — Phase 2 |
-| Database | SQLite locally; locations, aliases, walkable graph and anchors | CURRENT — Phase 2 |
-| Authentication | Django auth installed; editor workflows not implemented | FOUNDATION ONLY |
+| Frontend | Django templates, CSS and modular JavaScript; public map plus trusted editor | CURRENT — Phase 4 |
+| Backend API | Search, destination, anchored/live routes and anonymous contributions | CURRENT — Phase 4 |
+| Database | SQLite locally; campus places, entrances/internal places, contributions and routing graph | CURRENT — Phase 4 |
+| Authentication | Django sessions and least-privilege Editor permissions | CURRENT — Phase 4 |
 | Map tiles | OpenFreeMap Liberty rendered with MapLibre GL JS | CURRENT |
 
 ---
 
 ## Frontend
 
-**Status: CURRENT — PHASE 2 ACCEPTED**
+**Status: CURRENT — PHASE 4 SPRINT 003 ACCEPTED**
 
 **APPROVED direction:**
 - Mobile-first web application
@@ -160,7 +160,7 @@ No file storage requirements identified for V1 (no location photographs in V1).
 [Database]   [Auth Service]
 ```
 
-The browser frontend, public location and route endpoints, local database, routing services, transient live-location pipeline, live-route progress, controlled rerouting, pending contribution queue and external map-style connection are implemented. Full editor workflows and production infrastructure remain planned.
+The browser frontend, public location and route endpoints, local database, routing services, transient live-location pipeline, controlled rerouting, contribution queue/resolution audit and Phase 4 place/path editor foundations are implemented. Evidence-based verification, Path Survey Mode and production infrastructure remain planned.
 
 ## Contribution Moderation Foundation
 
@@ -188,7 +188,7 @@ Phase 3 is OWNER ACCEPTED / COMPLETE. Live positions, route progress and rerouti
 - Indoor mapping is not in V1
 - Routing uses paths maintained in YCT Map data — quality depends on field verification
 - Current OSM-derived routing paths and anchors are `UNVERIFIED`; service-road access and exact entrances require later review and field survey
-- Browser live-location acquisition/display and live-origin route progress exist; rerouting does not
+- Browser live-location acquisition/display, live-origin progress and controlled rerouting exist; physical-device behavior remains unverified
 - Browser live-location display is implemented, but physical-phone GPS remains unverified until an approved HTTPS test origin is available
 - Live locations are matched transiently to the routing graph; matched coordinates and progress remain unpersisted
 - Building geometry relies on available data; complex irregular polygons may be simplified initially
@@ -219,3 +219,21 @@ permission-gated Django view -> explicit ModelForm -> Location + aliases/categor
 ```
 
 The Editor group is provisioned after migrations with only the required location/alias/category-view permissions. Administrators retain account and taxonomy administration through Django admin. No public registration, entrance model, internal-place model or field-capture system exists in Sprint 001.
+
+## Phase 4 Sprint 003 Mapping Tools
+
+The editor reuses the Sprint 002 MapLibre point-selector controller for representative points and routing nodes. Browser geolocation is a one-shot sample with visible accuracy, rejection above the safe threshold and manual adjustment; saving always assigns `UNVERIFIED`. Combined representative/primary-entrance capture requires explicit confirmation before replacing an existing primary entrance.
+
+Approved contributions enter a separate resolution queue. Multiple resolution actions may reference locations, entrances, nodes or segments; recording an action does not publish, verify or automatically mutate campus data. Routing edits use nullable actor audit fields. Connected nodes cannot be moved directly, segment impact reports remaining endpoint degree and anchor counts, and splitting is an explicit atomic operation that retains the original segment as inactive history.
+
+### Sprint 004 Pre-Build Architecture Risks
+
+Path Survey Mode needs new evidence/session concepts rather than adding breadcrumb fields to `WalkableSegment`. The plan must decide survey-session ownership and lifecycle, accuracy/timestamp retention, privacy/retention limits, pause/resume recovery, outlier and stationary classification, trace-to-segment matching, partial coverage, ambiguous-match review and explicit verification authorization.
+
+Raw survey samples must be immutable evidence input and must never silently rewrite graph geometry. Opening a survey, walking near a segment or obtaining one good sample must not grant `FIELD_VERIFIED`. A reviewed verification action should identify its actor, evidence/session, affected geometry/version and decision time while publication and routing availability remain independent.
+
+## Phase 4 Sprint 002 Destination Architecture
+
+`Entrance` belongs to an outdoor `Location`; `InternalPlace` belongs to that same Location and may select one active same-parent entrance. Otherwise it falls back to the parent's active primary entrance. `EntranceNetworkAnchor` connects the chosen arrival entrance to the existing walkable graph. The staged resolver prefers this path and retains `LocationNetworkAnchor` only as a compatibility fallback for migrated Phase 1–3 data.
+
+Published records do not claim routing readiness. Public serializers expose `routing_available` and `routing_unavailable_reason`; the UI disables Directions but preserves search and display. Strict model validation rejects cross-parent floors/entrances and inactive routing entrances. At most one active primary entrance is enforced in the database.

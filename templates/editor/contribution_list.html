@@ -1,0 +1,3 @@
+{% extends "editor/base.html" %}{% block title %}Approved contributions{% endblock %}{% block content %}
+<div class="editor-heading"><div><p class="editor-eyebrow">Resolution queue</p><h1>Approved contributions</h1><p>Approval permits review. It does not publish or verify campus data.</p></div></div>
+<section class="editor-card">{% for contribution in contributions %}<p><a href="{% url 'editor:contribution-detail' contribution.id %}">{{ contribution.get_contribution_type_display }}</a> · {{ contribution.created_at }} · {{ contribution.resolutions.count }} action{{ contribution.resolutions.count|pluralize }}</p>{% empty %}<p>No approved contributions await resolution.</p>{% endfor %}</section>{% endblock %}

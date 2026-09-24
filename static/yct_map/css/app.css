@@ -943,3 +943,7 @@ input {
   .user-route-panel h2, .contribution-panel h2 { margin-block: .35rem; }
   .review-notice, .demo-notice { margin-top: .45rem; }
 }
+.team-menu { position: relative; }
+.team-menu summary { cursor: pointer; list-style: none; background: rgba(255,255,255,.94); padding: .75rem 1rem; border-radius: 999px; font-weight: 800; color: #174f34; }
+.team-menu-panel { position: absolute; top: calc(100% + .5rem); left: 0; min-width: 170px; padding: .5rem; background: white; border-radius: 14px; box-shadow: 0 12px 35px rgba(0,0,0,.18); display: grid; gap: .25rem; }
+.team-menu-panel button, .team-menu-panel a { border: 0; background: none; padding: .7rem; text-align: left; color: #174f34; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }

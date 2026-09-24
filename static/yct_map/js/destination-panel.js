@@ -4,13 +4,16 @@ export function createDestinationPanel(panel, { onDirections } = {}) {
   const description = panel.querySelector("#destination-description");
   const closeButton = panel.querySelector("#close-panel");
   const directionsButton = panel.querySelector("#destination-directions");
+  const routingReason = panel.querySelector("#destination-routing-reason");
+  const insideButton = panel.querySelector("#destination-inside");
+  const insideList = panel.querySelector("#destination-inside-list");
   let currentFeature = null;
 
   function show(feature) {
     const properties = feature.properties;
     currentFeature = feature;
     name.textContent = properties.name;
-    category.textContent = properties.category_label;
+    category.textContent = properties.category_label || properties.internal_type_label || "Campus place";
     description.textContent = properties.description || "No additional description is available.";
     panel.hidden = false;
     panel.classList.add("is-visible");
@@ -18,6 +21,12 @@ export function createDestinationPanel(panel, { onDirections } = {}) {
     directionsButton.hidden = !routingAvailable;
     directionsButton.disabled = !routingAvailable;
     directionsButton.setAttribute("aria-hidden", String(!routingAvailable));
+    if (routingReason) {
+      routingReason.hidden = routingAvailable;
+      routingReason.textContent = routingAvailable ? "" : (properties.routing_unavailable_reason || "Directions are not available for this destination yet.");
+    }
+    if (insideButton) insideButton.hidden = !properties.places_inside_count;
+    if (insideList) { insideList.hidden = true; insideList.replaceChildren(); }
   }
 
   function close({ restoreFocus = false } = {}) {
@@ -30,6 +39,22 @@ export function createDestinationPanel(panel, { onDirections } = {}) {
 
   closeButton.addEventListener("click", () => close({ restoreFocus: true }));
   directionsButton.addEventListener("click", () => currentFeature && onDirections?.(currentFeature));
+  insideButton?.addEventListener("click", async () => {
+    if (!currentFeature) return;
+    insideButton.disabled = true;
+    try {
+      const response = await fetch(`/api/locations/${currentFeature.properties.id}/internal-places/`);
+      const payload = await response.json();
+      for (const floor of payload.floors || []) {
+        const heading = document.createElement("strong"); heading.textContent = floor.label; insideList.append(heading);
+        const items = document.createElement("ul");
+        for (const place of floor.places) { const item = document.createElement("li"); item.textContent = place.room_code ? `${place.name} (${place.room_code})` : place.name; items.append(item); }
+        insideList.append(items);
+      }
+      insideList.hidden = false;
+    } catch (_) { insideList.textContent = "Places inside could not be loaded."; insideList.hidden = false; }
+    finally { insideButton.disabled = false; }
+  });
 
   return { show, close };
 }
