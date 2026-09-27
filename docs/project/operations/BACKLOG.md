@@ -47,7 +47,7 @@ Reason:     Some buildings have multiple meaningful entrance points. A single en
 Priority:   MEDIUM
 Dependency: Phase 4 campus-place foundation
 Release:    V1 / Phase 4
-Status:     IMPLEMENTED IN PHASE 4 SPRINT 002 — owner acceptance deferred
+Status:     IMPLEMENTED / OWNER ACCEPTED IN PHASE 4 SPRINT 002
 ```
 
 ---

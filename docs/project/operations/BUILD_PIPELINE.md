@@ -12,11 +12,12 @@ There is no other authoritative pipeline document. Do not create competing pipel
 Phase 1 — Foundation & Map Experience          ACCEPTED
 Phase 2 — Routing & Navigation                 ACCEPTED
 Phase 3 — Live Navigation & Core Product       ACCEPTED
-Phase 4 — Editor & Mapping Tools               IN PROGRESS — SPRINT 003 ACCEPTED
+Phase 4 — Editor & Mapping Tools               IN PROGRESS — SPRINT 004 PHYSICAL OWNER ACCEPTANCE PENDING
 Phase 5 — Real YabaTech Data, Verification & Launch   NOT STARTED
 
-Current:            PHASE 4 SPRINT 003 — OWNER ACCEPTED / CLOSED
-Next expected:      Phase 4 Sprint 004 pre-build review; Sprint 002 acceptance remains deferred
+Current:            PHASE 4 SPRINT 004 — IMPLEMENTATION + TECHNICAL AUDIT COMPLETE
+Accepted:           PHASE 4 SPRINTS 001, 002 AND 003
+Next expected:      Sprint 004 physical-device / real-campus field acceptance
 ```
 
 Status values in use: `NOT STARTED` `IN PROGRESS` `BLOCKED` `COMPLETE` `ACCEPTED`
@@ -385,7 +386,7 @@ Physical-phone GPS/navigation/rerouting and field verification remain explicitly
 
 ## Phase 4 — Editor & Mapping Tools
 
-**Status: IN PROGRESS — Sprint 001 OWNER ACCEPTED / COMPLETE**
+**Status: IN PROGRESS — Sprints 001–003 OWNER ACCEPTED; Sprint 004 implementation and technical audit complete; physical owner acceptance pending**
 **Depends on:** Phase 3 ACCEPTED
 
 ### Primary Goal
@@ -454,15 +455,15 @@ Full real campus population still belongs to Phase 5. Demo data remains in use d
 
 ### Phase 4 Exit Criteria
 
-- [ ] Editor authentication works
-- [ ] Location CRUD works as approved
-- [ ] Internal locations can be attached to parent buildings with floor information
-- [ ] Multiple entrances and a primary arrival entrance can be set via map/current-location workflows
-- [ ] Paths can be added, edited and deleted
-- [ ] Verification state can be set (and requires deliberate action for FIELD_VERIFIED)
+- [x] Editor authentication works
+- [x] Location CRUD works as approved
+- [x] Internal locations can be attached to parent buildings with floor information
+- [x] Multiple entrances and a primary arrival entrance can be set via map/current-location workflows
+- [x] Paths can be added, edited and deactivated with history-preserving operations
+- [x] Verification state can be set (and requires deliberate evidence-backed action for FIELD_VERIFIED)
 - [ ] Contribution review workflow is complete (all five actions work)
-- [ ] Common editor tasks require no code changes
-- [ ] Relevant tests pass
+- [x] Common editor tasks require no code changes
+- [x] Relevant tests pass
 - [ ] Owner verifies the complete editor workflow
 - [ ] Two screenshots + one recording captured
 - [ ] Sprint / phase evidence captured in `SPRINT_LOG.md`

@@ -1,11 +1,12 @@
-import { assessSample } from "./location-filter.js?v=p3s4-contributions-1";
-import { createGeolocationService } from "./geolocation.js?v=p3s4-contributions-1";
+import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=p4-predeploy-1";
+import { createGeolocationService } from "./geolocation.js?v=p4-predeploy-1";
 
 const COPY = {
   idle: "Location is optional and stays on this device.",
   unsupported: "Live location is not supported in this browser. Manual directions still work.",
   "requesting-permission": "Allow location access to show your position on the map.",
   locating: "Finding your location…",
+  "warming-up": "Location quality improving...",
   active: "Live location active.",
   "low-accuracy": "Location found with limited accuracy.",
   "permission-denied": "Location access was denied. You can still choose a starting point manually.",
@@ -30,6 +31,8 @@ export function createUserLocation({
   const accuracy = element.querySelector("#location-accuracy");
   let state = service.isSupported ? "idle" : "unsupported";
   let acceptedPosition = null;
+  let lastRawAccepted = null;
+  const stabilizer = createLocationStabilizer();
   let trackingRequested = false;
   let focusedInitially = false;
 
@@ -37,32 +40,46 @@ export function createUserLocation({
     state = nextState;
     element.dataset.state = state;
     message.textContent = COPY[state];
-    locateButton.hidden = ["requesting-permission", "locating", "active", "low-accuracy", "retained"].includes(state);
+    locateButton.hidden = ["requesting-permission", "locating", "warming-up", "active", "low-accuracy", "retained"].includes(state);
     locateButton.disabled = state === "unsupported";
     recenterButton.hidden = !acceptedPosition;
     stopButton.hidden = !trackingRequested;
     accuracy.hidden = !acceptedPosition;
-    if (acceptedPosition) accuracy.textContent = `Accuracy approximately ${Math.round(acceptedPosition.accuracyMetres)} m`;
+    if (acceptedPosition) {
+      const confidence = acceptedPosition.locationConfidence;
+      const quality = confidence === "unstable" ? "Position unstable" : confidence === "approximate"
+        ? "Approximate location" : `Location quality: ${locationQualityLabel(acceptedPosition.accuracyMetres)}`;
+      accuracy.textContent = `${quality} · estimated device uncertainty ~${Math.round(acceptedPosition.deviceAccuracyMetres ?? acceptedPosition.accuracyMetres)} m`;
+    }
   }
 
   function receive(rawPosition) {
-    const result = assessSample(rawPosition, acceptedPosition);
+    const result = assessSample(rawPosition, lastRawAccepted);
     if (!result.accepted) {
       if (acceptedPosition && ["poor-accuracy", "keep-better-position"].includes(result.reason)) render("retained");
       else if (!acceptedPosition && ["poor-accuracy", "keep-better-position"].includes(result.reason)) render("locating");
       return result;
     }
-    acceptedPosition = result.sample;
-    const shouldFocus = !focusedInitially && result.quality !== "provisional";
+    lastRawAccepted = result.sample;
+    const stabilized = stabilizer.update(result.sample, result.quality);
+    if (!stabilized.ready) {
+      render("warming-up");
+      return { ...result, displayed: false, stabilization: stabilized.reason };
+    }
+    acceptedPosition = stabilized.sample;
+    const shouldFocus = !focusedInitially && stabilized.quality !== "provisional";
     if (shouldFocus) focusedInitially = true;
-    onPosition(acceptedPosition, { focus: shouldFocus, quality: result.quality });
-    render(result.quality === "reasonable" ? "active" : "low-accuracy");
-    return result;
+    onPosition(acceptedPosition, { focus: shouldFocus, quality: stabilized.quality, stabilized: !stabilized.moved });
+    render(stabilized.quality === "reasonable" ? "active" : "low-accuracy");
+    return { ...result, displayed: true, stabilization: stabilized.reason, sample: acceptedPosition };
   }
 
   function fail(nextState) {
-    if (nextState === "unsupported" || nextState === "permission-denied") {
-      trackingRequested = false;
+    if (["unsupported", "permission-denied", "unavailable", "timed-out"].includes(nextState)) {
+      if (["unsupported", "permission-denied"].includes(nextState)) trackingRequested = false;
+      lastRawAccepted = null;
+      stabilizer.reset();
+      focusedInitially = false;
       if (acceptedPosition) {
         acceptedPosition = null;
         onClear();
@@ -92,7 +109,9 @@ export function createUserLocation({
     trackingRequested = false;
     service.stop();
     acceptedPosition = null;
+    lastRawAccepted = null;
     focusedInitially = false;
+    stabilizer.reset();
     onClear();
     render("stopped");
   }

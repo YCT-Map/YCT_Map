@@ -13,12 +13,16 @@ export function normalizeGeolocationError(error) {
 export function createGeolocationService({ geolocation = globalThis.navigator?.geolocation } = {}) {
   let watchId = null;
   let callbacks = null;
+  let generation = 0;
 
-  function startWatch() {
+  function startWatch(token = generation) {
     if (watchId !== null || !callbacks) return;
     watchId = geolocation.watchPosition(
-      callbacks.onPosition,
+      (position) => {
+        if (token === generation) callbacks?.onPosition(position);
+      },
       (error) => {
+        if (token !== generation) return;
         const state = normalizeGeolocationError(error);
         const onError = callbacks?.onError;
         if (state === "permission-denied") stop();
@@ -31,19 +35,22 @@ export function createGeolocationService({ geolocation = globalThis.navigator?.g
   function start(onPosition, onError) {
     stop();
     callbacks = { onPosition, onError };
+    const token = generation;
     if (!geolocation) {
       onError("unsupported");
       return false;
     }
     geolocation.getCurrentPosition(
       (position) => {
+        if (token !== generation) return;
         callbacks?.onPosition(position);
-        startWatch();
+        startWatch(token);
       },
       (error) => {
+        if (token !== generation) return;
         const state = normalizeGeolocationError(error);
         callbacks?.onError(state);
-        if (state !== "permission-denied") startWatch();
+        if (state !== "permission-denied") startWatch(token);
       },
       GEOLOCATION_OPTIONS.initial,
     );
@@ -51,13 +58,14 @@ export function createGeolocationService({ geolocation = globalThis.navigator?.g
   }
 
   function stop({ preserveCallbacks = false } = {}) {
+    generation += 1;
     if (watchId !== null && geolocation) geolocation.clearWatch(watchId);
     watchId = null;
     if (!preserveCallbacks) callbacks = null;
   }
 
   function resume() {
-    if (geolocation && callbacks) startWatch();
+    if (geolocation && callbacks) startWatch(generation);
   }
 
   return { start, stop, resume, isSupported: Boolean(geolocation) };

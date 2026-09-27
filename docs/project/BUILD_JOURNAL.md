@@ -2251,3 +2251,156 @@ They should also understand that the browser and server must agree on one geomet
 ### Next Sprint
 
 Phase 4 Sprint 004 requires a pre-build review before implementation. It should define persisted survey sessions/samples/evidence, privacy and retention rules, accuracy/outlier handling, partial-session recovery, trace-to-segment matching, manual ambiguity review and an explicit FIELD_VERIFIED transition. No Sprint 004 implementation is authorized without its approved plan and standalone `BUILD` command.
+
+## Phase 4 — Sprint 002: Entrances, Floors, Internal Places & Entrance-Aware Destinations
+
+**Recorded status:** OWNER ACCEPTED / COMPLETE on 2026-09-27. This acceptance entry was added after the Sprint 003 historical entry because Sprint 002 owner acceptance was deliberately deferred while its implemented functionality continued to be regression-tested.
+
+### Purpose
+
+Sprint 002 separated a Place's representative map position from the physical points through which a person actually enters it. It also introduced structured floors and internal destinations without pretending that YCT Map provides indoor route geometry.
+
+### User Outcome
+
+An editor can manage multiple named entrances, floors and internal places. Public users can search published outdoor or internal destinations even when routing is unavailable. When routing is available, an outdoor route resolves through the correct Entrance, extends to its exact physical point when an approved connector exists, and preserves a textual floor/room/wing handoff for the inside destination.
+
+### Starting State
+
+Sprint 001 provided authenticated Location editing, representative points, categories, aliases and independent publication/verification state. Historical routing used `LocationNetworkAnchor`, which connected one Location directly to a graph node. It had no persisted Entrance, Floor or InternalPlace concepts and could not distinguish a map marker from an arrival point.
+
+### What We Built
+
+- Persisted `Entrance`, `Floor`, `InternalPlace` and `InternalPlaceAlias` records.
+- At most one active primary Entrance per parent Location.
+- Explicit same-parent InternalPlace routing-entrance selection with primary-entrance fallback.
+- `EntranceNetworkAnchor` as the entrance-to-graph relationship while retaining legacy anchors for compatibility.
+- Map-first entrance coordinate selection and nearby active-node routing connection.
+- Editor-approved arrival-connector LineStrings with optional bend points.
+- Exact physical-entrance route composition after A*.
+- Internal search and a floor-grouped “Places inside” directory.
+- Public `routing_available` and clear unavailable reasons independent of publication and verification.
+- Compact and expanded internal textual handoff that remains available after Directions starts.
+
+### Technical Concepts Introduced
+
+**Representative point versus Entrance.** A representative point helps a user recognize or select a Place. An Entrance is an actual arrival/access point. Treating them as the same coordinate would make editing convenient but navigation dishonest.
+
+**Independent state dimensions.** Published means visible. Routing-ready means a valid entrance/anchor resolution exists. `FIELD_VERIFIED` means trusted physical evidence supports the record. None of these states automatically grants another.
+
+**Namespaced destination identity.** Outdoor Locations and Internal Places use different destination kinds even when UUID-backed. This lets one search contract return both without confusing parent buildings, rooms or graph nodes.
+
+**Arrival connector.** A graph anchor identifies the A* node, while a short approved LineString describes the real final approach from that node to the physical Entrance. It is owned by YCT Map and is not inferred from the straight-line distance.
+
+**Indoor handoff without indoor routing.** The route stops at the building Entrance. Floor, room/code, wing and `direction_note` guide the remaining human movement as text rather than fabricated geometry.
+
+### How It Works Internally
+
+```text
+Published destination
+        |
+        +-- Outdoor Location ----> active primary Entrance
+        |
+        +-- InternalPlace --------> explicit active same-parent Entrance
+                    |               or parent primary Entrance
+                    v
+          EntranceNetworkAnchor
+                    |
+                    v
+              WalkableNode <------ A* graph route
+                    |
+       approved connector LineString
+                    |
+                    v
+          exact physical Entrance
+                    |
+       InternalPlace textual handoff only
+```
+
+The resolver checks parent ownership, active state and routing relationships. A* still calculates only through `WalkableNode` and `WalkableSegment` topology. After it succeeds, the routing service appends the destination connector or prepends its reverse for a supported entrance origin. Connector distance is calculated from geometry and included in distance, ETA and map bounds.
+
+### Architecture / Components Involved
+
+The `locations` application owns Entrance, Floor, InternalPlace, alias and editor workflows. The `routing` application owns anchors, connector validation, A* and final geometry composition. Django views serialize an explicit public destination/route contract. Modular JavaScript handles search, destination details, route panels, exact endpoint markers and live/manual handoff states.
+
+MapLibre is a selector and renderer, not the authority for saved geometry. Django models/services validate every persisted relationship and connector.
+
+### Important Files
+
+- `locations/models.py` — Entrance, Floor, InternalPlace and InternalPlaceAlias invariants.
+- `locations/editor_views.py` and `locations/editor_urls.py` — nested, permission-checked editor workflows.
+- `routing/models.py` — `EntranceNetworkAnchor` and connector contract.
+- `routing/destinations.py` — outdoor/internal resolution and handoff summaries.
+- `routing/services.py` — A* result plus origin/destination connector composition.
+- `routing/editor_services.py` — authoritative entrance connection mutation.
+- `templates/editor/entrance_form.html` — map-first point and connector workflow.
+- `static/yct_map/js/entrance-point-selector.js` — physical Entrance point selection.
+- `static/yct_map/js/entrance-routing-connection.js` — node selection and bend-point proposal.
+- `static/yct_map/js/user-navigation.js` — compact route, arrival semantics and indoor handoff.
+- `routing/migrations/0004_entrancenetworkanchor.py`, `0005_backfill_demo_entrances.py` and `0009_entrancenetworkanchor_connector_geometry.py` — additive routing evolution.
+
+### Data Flow
+
+The public search endpoint returns only published, complete destination data. A published destination with incomplete entrance resolution remains searchable but receives `routing_available=false` and a specific reason. Directions sends a stable namespaced destination identity. Django resolves the arrival Entrance and anchor, runs A*, composes any approved connector, recalculates total distance/ETA and returns the final route plus outdoor-arrival and internal-handoff summaries.
+
+The browser draws the complete composed geometry. Its red destination marker is placed at the route's physical Entrance endpoint. For an InternalPlace, the route panel continues to identify the room while stating that outdoor arrival is at the Entrance.
+
+### Decisions and Trade-offs
+
+- Keep publication, verification and routing availability independent.
+- Allow published incomplete Places to remain useful for search/display rather than hiding them.
+- Reject cross-parent and inactive relationships instead of silently guessing.
+- Preserve old UUIDs, graph nodes and legacy anchors during additive migration.
+- Require explicit editor confirmation for a connector; do not infer that a straight line is walkable.
+- Store connector geometry on the entrance anchor because its trust and lifecycle belong to that graph-to-Entrance relationship.
+- Avoid GeoDjango/PostGIS because validated local GeoJSON remains sufficient for the current scale.
+
+### Problems Encountered
+
+The first entrance selector requested a nonexistent default export from the MapLibre ES module, so the visible form instructions existed but the map interaction did not initialize. Owner testing also exposed a place-detail crash after Floor creation because the template reversed `editor:floor-edit` before the nested edit route was available in the served process.
+
+Later acceptance testing proved that node-only anchoring still ended routes short of the physical Entrance. InternalPlace guidance also disappeared when the route UI replaced destination details, and arrival wording could imply that A* reached the room.
+
+### How We Solved Them
+
+The entrance selector adopted the already proven dynamic MapLibre module pattern, explicit loading/error states, a visible marker, hidden coordinate fields and server-side validation. The nested Floor edit route/view was made parent-scoped and permission-protected, with integration coverage for rendering, editing and cross-parent rejection.
+
+For exact arrival, nullable connector geometry was added without populating existing anchors. The editor now proposes and allows bends, but only explicit confirmation persists it. Route composition includes the connector after A*, and the route UI separately retains outdoor Entrance arrival and indoor textual guidance.
+
+### Testing and Verification
+
+The initial implementation passed 100 Django and 34 JavaScript tests. The owner-test correction increased this to 107 Django and 36 JavaScript tests. Subsequent sprints continuously regression-tested the same workflows.
+
+At this documentation sync, the full repository baseline is 171 passing Django tests and 77 passing JavaScript tests. Connector coverage proves exact start/end coordinates, malformed/reversed rejection, geometry-derived distance, distance/ETA composition, legacy-null behavior, explicit/fallback entrance resolution, preserved verification/publication state and route bounds. Browser-module tests preserve internal guidance and entrance-based arrival language for manual and live navigation.
+
+### Current Limitations
+
+- Existing anchors do not receive fabricated connectors; until an editor confirms one, they retain explicit legacy node-only arrival.
+- Entrance attachment selects an existing graph node. If the correct connection lies mid-segment, the route may backtrack unnecessarily before the final connector.
+- Safe segment-aware attachment/transactional splitting remains future field-mapping work.
+- There is no indoor route geometry, turn-by-turn indoor navigation or room-level positioning guarantee.
+- Every current connector, entrance and OSM-derived path remains UNVERIFIED unless separately supported by explicit field evidence.
+- Detailed ContributionResolution owner QA remains deferred and is not implied by Sprint 002 acceptance.
+
+### Evidence
+
+Owner acceptance verified the complete implemented flow: outdoor Places, multiple Entrances, representative/entrance separation, Floors, Internal Places and search aliases, primary fallback, explicit entrance override, map-first node connection, bendable exact-arrival connectors and persistent indoor handoff. No separate Sprint 002 evidence filenames were supplied during this documentation pass, so the journal does not invent them.
+
+### What Students Should Understand
+
+Students should be able to explain why database identity, visual selection, physical arrival, graph topology and field verification are different concepts. They should understand that A* can remain correct while a post-graph connector improves endpoint truth, and that every extra metre must come from validated geometry rather than a manually trusted number.
+
+They should also understand progressive enhancement: a destination can still be searchable when routing is unavailable, and an indoor destination can still be useful when only outdoor routing plus textual directions is supported.
+
+### Presentation / Defence Notes
+
+- **Why not use the representative point as the entrance?** It may be centred on a building or selected for recognition rather than physical access.
+- **Why not draw a straight line automatically?** It might cross a wall, fence, lawn or restricted area.
+- **Did A* change?** No. The connector is composed after graph routing.
+- **Does Published mean route-ready?** No. The public contract reports routing availability separately.
+- **Does an approved connector become FIELD_VERIFIED?** No. It remains UNVERIFIED until explicit evidence-based verification.
+- **Does YCT Map route inside LR3 or another room?** No. It reaches the selected building Entrance and provides a textual handoff.
+- **Why keep legacy anchors?** Additive compatibility preserved accepted routes and UUID relationships while the richer entrance model was introduced.
+
+### Next Sprint
+
+Sprint 003 subsequently added field capture, contribution-resolution audit records and path editing and is OWNER ACCEPTED. Sprint 004 is now implementation-complete and technically audited, but its physical owner field acceptance remains pending. Phase 4 must not be marked complete until that acceptance occurs.

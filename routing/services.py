@@ -1,15 +1,56 @@
 from .algorithm import find_route
 from types import SimpleNamespace
 
+from .eta import eta_seconds
+from .geometry import coordinates, length_metres
 from .graph import GraphArc, RoutingGraph, build_graph
 from .matching import find_safe_network_match
 from .models import LocationNetworkAnchor, VerificationState
-from .results import MissingAnchorError
+from .results import MissingAnchorError, RouteResult
 from .destinations import resolve_destination
 
 
 def route_between_nodes(start_node_id, goal_node_id):
     return find_route(build_graph(), start_node_id, goal_node_id)
+
+
+def _approved_connector(resolution):
+    anchor = resolution.anchor
+    if not anchor or not anchor.is_active or not anchor.connector_geometry:
+        return ()
+    anchor.clean()
+    return tuple(coordinates(anchor.connector_geometry))
+
+
+def compose_route_arrivals(result, *, origin=None, destination=None):
+    """Compose approved entrance connectors around an unchanged A* graph result."""
+    geometry = list(result.geometry)
+    distance = result.distance_metres
+    states = list(result.verification_states)
+
+    origin_connector = _approved_connector(origin) if origin else ()
+    if origin_connector:
+        reversed_connector = list(reversed(origin_connector))
+        geometry = reversed_connector + geometry[1:]
+        distance += length_metres(origin.anchor.connector_geometry)
+        states.append(origin.anchor.verification_state)
+
+    destination_connector = _approved_connector(destination) if destination else ()
+    if destination_connector:
+        geometry = geometry + list(destination_connector[1:])
+        distance += length_metres(destination.anchor.connector_geometry)
+        states.append(destination.anchor.verification_state)
+
+    return RouteResult(
+        result.origin_node_id,
+        result.destination_node_id,
+        result.node_ids,
+        result.segment_ids,
+        tuple(geometry),
+        distance,
+        eta_seconds(distance),
+        tuple(dict.fromkeys(states)),
+    )
 
 
 def route_between_locations(origin_location_id, destination_location_id):
@@ -36,7 +77,8 @@ def route_to_destination(origin_location_id, destination_key):
         raise MissingAnchorError(origin.unavailable_reason)
     if not destination.routing_available:
         raise MissingAnchorError(destination.unavailable_reason)
-    return find_route(build_graph(), origin.node.id, destination.node.id), origin, destination
+    result = find_route(build_graph(), origin.node.id, destination.node.id)
+    return compose_route_arrivals(result, origin=origin, destination=destination), origin, destination
 
 
 def route_from_live_position(longitude, latitude, accuracy_metres, destination_location_id):
@@ -61,4 +103,5 @@ def route_from_live_position(longitude, latitude, accuracy_metres, destination_l
                          match.geometry_to_end, segment.verification_state))
     adjacency[virtual_id] = tuple(arcs)
     result = find_route(RoutingGraph(nodes, adjacency), virtual_id, destination.node.id)
+    result = compose_route_arrivals(result, destination=destination)
     return result, match, destination

@@ -104,6 +104,15 @@ class LiveRouteEndpointTests(TestCase):
         self.assertEqual((distant.status_code, distant.json()["code"]), (422, "NO_SAFE_NETWORK_MATCH"))
         self.assertEqual((invalid.status_code, invalid.json()["code"]), (400, "INVALID_POSITION"))
 
+    def test_position_at_destination_arrival_returns_explicit_state_not_unrenderable_point(self):
+        anchor = LocationNetworkAnchor.objects.select_related("node").get(location=self.destination)
+        response = self.client.post("/api/routes/from-position/", data=json.dumps({
+            "destination": str(self.destination.id),
+            "position": {"longitude": float(anchor.node.longitude), "latitude": float(anchor.node.latitude),
+                         "accuracy_metres": 5},
+        }), content_type="application/json")
+        self.assertEqual((response.status_code, response.json()["code"]), (409, "ALREADY_AT_ARRIVAL"))
+
     def test_endpoint_requires_csrf_and_does_not_accept_get(self):
         client = Client(enforce_csrf_checks=True)
         rejected = client.post("/api/routes/from-position/",

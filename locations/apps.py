@@ -22,6 +22,9 @@ def ensure_editor_group(sender, **kwargs):
         "resolve_contribution",
         "view_walkablenode", "add_walkablenode", "change_walkablenode",
         "view_walkablesegment", "add_walkablesegment", "change_walkablesegment",
+        "view_entrancenetworkanchor", "add_entrancenetworkanchor", "change_entrancenetworkanchor",
+        "conduct_path_survey", "review_path_survey", "view_pathsurvey", "add_pathsurvey",
+        "view_pathsurveysample", "add_pathsurveysample", "view_surveysegmentmatch", "change_surveysegmentmatch",
     }
     permissions = Permission.objects.filter(
         content_type__app_label__in=("locations", "contributions", "routing"),

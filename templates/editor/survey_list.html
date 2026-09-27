@@ -1,0 +1,4 @@
+{% extends "editor/base.html" %}{% block title %}Path surveys{% endblock %}{% block content %}
+<div class="editor-heading"><div><p class="editor-eyebrow">Field evidence</p><h1>Path surveys</h1><p>GPS traces are private evidence. They never rewrite paths or verify them automatically.</p></div><form method="post" action="{% url 'editor:survey-create' %}">{% csrf_token %}<button class="editor-primary">New path survey</button></form></div>
+<section class="editor-card"><h2>Survey sessions</h2>{% for survey in surveys %}<p><a href="{% url 'editor:survey-detail' survey.id %}">{{ survey.created_at|date:"j M Y, H:i" }}</a> · {{ survey.get_status_display }} · {{ survey.owner.get_username }} · {{ survey.samples.count }} samples</p>{% empty %}<p>No path surveys have been created.</p>{% endfor %}</section>
+{% endblock %}

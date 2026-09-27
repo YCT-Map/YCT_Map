@@ -24,7 +24,7 @@ class FakeMarker {
 
 function harness(dataset = {latitude: "", longitude: ""}) {
   FakeMarker.instances = [];
-  const element = {dataset: {...dataset}};
+  const element = {dataset: {...dataset}, dispatchEvent() {}};
   const latitudeInput = {value: ""};
   const longitudeInput = {value: ""};
   const statusElement = {textContent: ""};
@@ -61,4 +61,16 @@ test("saved entrance point initializes the map and visible marker", () => {
   assert.deepEqual(FakeMarker.instances[0].coordinates, [3.374654, 6.518321]);
   state.controller.map.emit("load");
   assert.equal(state.controller.map.resizeCount, 1);
+});
+
+test("routing inspection can suspend entrance-point movement without mutating coordinates", () => {
+  const state = harness({latitude: "6.518321", longitude: "3.374654"});
+  state.controller.setPointSelectionEnabled(false);
+  state.controller.map.emit("click", {lngLat: {lng: 3.38, lat: 6.52}});
+  assert.equal(state.longitudeInput.value, "3.374654");
+  assert.equal(state.latitudeInput.value, "6.518321");
+  state.controller.setPointSelectionEnabled(true);
+  state.controller.map.emit("click", {lngLat: {lng: 3.38, lat: 6.52}});
+  assert.equal(state.longitudeInput.value, "3.380000");
+  assert.equal(state.latitudeInput.value, "6.520000");
 });

@@ -6,8 +6,15 @@ if (element) import("https://unpkg.com/maplibre-gl@6.10.0/dist/maplibre-gl.mjs")
     map.addSource("editor-graph", { type: "geojson", data });
     map.addLayer({ id: "editor-graph-segments", type: "line", source: "editor-graph", filter: ["==", ["get", "kind"], "segment"], paint: { "line-color": ["match", ["get", "source"], "MANUAL", "#d66b21", "#17663c"], "line-width": 4, "line-opacity": .82 } });
     map.addLayer({ id: "editor-graph-nodes", type: "circle", source: "editor-graph", filter: ["==", ["get", "kind"], "node"], paint: { "circle-color": ["match", ["get", "source"], "MANUAL", "#d66b21", "#17663c"], "circle-radius": 5, "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 } });
+    const focusLatitude = Number(element.dataset.focusLatitude);
+    const focusLongitude = Number(element.dataset.focusLongitude);
+    const hasFocus = element.dataset.focusLatitude !== undefined && element.dataset.focusLongitude !== undefined
+      && Number.isFinite(focusLatitude) && Number.isFinite(focusLongitude);
     const coordinates = data.features.flatMap((feature) => feature.geometry.type === "Point" ? [feature.geometry.coordinates] : feature.geometry.coordinates);
-    if (coordinates.length) {
+    if (hasFocus) {
+      map.jumpTo({ center: [focusLongitude, focusLatitude], zoom: 18 });
+      new maplibregl.Marker({ color: "#1565c0" }).setLngLat([focusLongitude, focusLatitude]).addTo(map);
+    } else if (coordinates.length) {
       const bounds = coordinates.reduce((value, point) => value.extend(point), new maplibregl.LngLatBounds(coordinates[0], coordinates[0]));
       map.fitBounds(bounds, { padding: 50, maxZoom: 18, duration: 0 });
     }

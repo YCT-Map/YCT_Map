@@ -4,7 +4,7 @@
 
 ```
 Current phase:         PHASE 4 — EDITOR & MAPPING TOOLS
-Application code:      PHASE 4 SPRINT 003 OWNER ACCEPTED / CLOSED
+Application code:      SPRINTS 001–003 OWNER ACCEPTED; SPRINT 004 TECHNICALLY COMPLETE / PHYSICAL ACCEPTANCE PENDING
 ```
 
 This document records approved architectural decisions and expected system design.
@@ -31,7 +31,7 @@ YCT Map is a web-based application consisting of:
 
 ## Frontend
 
-**Status: CURRENT — PHASE 4 SPRINT 003 ACCEPTED**
+**Status: CURRENT — PHASE 4 PRE-CLOSEOUT**
 
 **APPROVED direction:**
 - Mobile-first web application
@@ -46,28 +46,28 @@ YCT Map is a web-based application consisting of:
 
 **CURRENT implementation:** Django-rendered HTML, mobile-first CSS and native ES modules. MapLibre GL JS `6.10.0` is loaded from a pinned CDN URL. Search remains usable when map initialization fails.
 
-Phase 3 Sprint 001 separates browser acquisition (`geolocation.js`), pure validation/filtering (`location-filter.js`), location UI state (`user-location.js`) and MapLibre rendering (`map.js`). Ordinary-user position exists only in browser memory and is not sent to Django or persisted.
+The public locator separates browser acquisition (`geolocation.js`), pure validation/stabilization (`location-filter.js`), location UI state (`user-location.js`) and MapLibre rendering (`map.js`). Ordinary public position is transient; only an explicit live-route request sends the currently accepted coordinate to Django, and that request is not persisted.
 
-There is no location-history model, breadcrumb storage or raw-coordinate analytics. Simulated campus coordinates were used for acceptance evidence; physical-device GPS remains unverified pending an approved HTTPS origin.
+There is no ordinary-user location-history model, breadcrumb storage or raw-coordinate analytics. Private breadcrumb persistence exists only inside an explicitly started authenticated Path Survey session. Final physical-device survey acceptance remains pending.
 
 ---
 
 ## Backend
 
-**Status: CURRENT — PHASE 2 SUBSET**
+**Status: CURRENT — PHASE 4**
 
 **APPROVED direction:**
 - Backend API serving campus data, routing, contributions and editor management
 
 **APPROVED decision (DEC-T02):** Python / Django for business logic, REST APIs, and administrative/editor capabilities.
 
-**CURRENT implementation:** Django `5.2.17` LTS serves the public map, an explicit read-only GeoJSON location collection, narrow route endpoints, DEBUG-only routing inspection and a CSRF-protected anonymous contribution endpoint. Full editor endpoints remain planned.
+**CURRENT implementation:** Django `5.2.17` LTS serves the public map, explicit read-only destination/search contracts, manual/live route endpoints, anonymous contributions, authenticated place/entrance/internal-place/path editing, contribution-resolution records and private Path Survey/review workflows.
 
 ---
 
 ## Database
 
-**Status: CURRENT — LOCAL PHASE 2 SUBSET**
+**Status: CURRENT — LOCAL PHASE 4**
 
 **APPROVED direction:**
 - Persistent storage for campus locations, walkable paths, public contributions, editor accounts
@@ -76,19 +76,21 @@ There is no location-history model, breadcrumb storage or raw-coordinate analyti
 
 **APPROVED decision (DEC-T03):** Managed PostgreSQL (Neon preferred; Supabase compatible alternative).
 
-**CURRENT implementation:** SQLite stores local locations, aliases, routing nodes, segments and anchors. Portable Django ORM fields and JSON geometry preserve a clean PostgreSQL migration path. No production database infrastructure exists.
+**CURRENT implementation:** SQLite stores local places, categories, aliases, entrances, floors, internal places, contributions/resolutions, routing nodes/segments/anchors, arrival connectors and private survey/verification evidence. Portable Django ORM fields and JSON geometry preserve a PostgreSQL-compatible migration path. No production database infrastructure exists.
 
 ---
 
 ## Authentication
 
-**Status: FOUNDATION PRESENT; EDITOR ACCESS NOT IMPLEMENTED**
+**Status: CURRENT — AUTHENTICATED EDITOR AND ADMIN PERMISSIONS**
 
 **APPROVED:**
 - Normal users require **no account** for navigation, search or contributions
 - Editors and administrators require authenticated access
 
 **APPROVED decision (DEC-T06, DEC-T09):** Django's built-in authentication (`django.contrib.auth`) for admin-provisioned editor accounts.
+
+Editors use Django sessions plus explicit model/custom permissions. Administrators retain account, taxonomy and trusted moderation functions. Normal public users still require no account.
 
 ---
 
@@ -113,7 +115,7 @@ YCT Map data and OpenStreetMap remain separate systems. Local destination, alias
 
 ## Routing
 
-**Status: CURRENT — PHASE 2 SPRINT 003**
+**Status: CURRENT — PHASE 4 PRE-CLOSEOUT**
 
 **APPROVED direction:**
 - Routing applies only within YabaTech campus boundaries
@@ -123,7 +125,7 @@ YCT Map data and OpenStreetMap remain separate systems. Local destination, alias
 
 **APPROVED decision (DEC-T05):** Shortest-path network graph algorithm (Dijkstra / A*) operating over YCT Map's connected walkable path linestring geometry.
 
-**CURRENT implementation:** Active Django network rows become an immutable adjacency graph. A* uses geometry-derived metres plus an admissible Haversine heuristic, reconstructs traversal-oriented geometry and returns an explicit immutable result. A routing-owned anchor connects locations to graph nodes. The browser's user route flow calls a narrow public endpoint, renders a cased blue route with static labelled endpoints, and keeps DEBUG topology tools separate.
+**CURRENT implementation:** Active Django network rows become an immutable adjacency graph. A* uses geometry-derived metres plus an admissible Haversine heuristic and reconstructs traversal-oriented geometry. `EntranceNetworkAnchor` connects a physical Entrance to a graph node; an optional editor-approved connector LineString then extends the A* result from that node to the exact entrance coordinate. Distance, ETA, markers and route bounds use the composed geometry. Legacy `LocationNetworkAnchor` rows remain an explicit compatibility fallback.
 
 The primary development graph is imported from a reviewed OSM/Overpass snapshot into YCT Map-owned records with source references and `UNVERIFIED` state. The import is not a live OSM dependency, does not write back, and does not confer field verification.
 
@@ -160,7 +162,7 @@ No file storage requirements identified for V1 (no location photographs in V1).
 [Database]   [Auth Service]
 ```
 
-The browser frontend, public location and route endpoints, local database, routing services, transient live-location pipeline, controlled rerouting, contribution queue/resolution audit and Phase 4 place/path editor foundations are implemented. Evidence-based verification, Path Survey Mode and production infrastructure remain planned.
+The browser frontend, public destination and route endpoints, local database, routing services, transient live-location pipeline, controlled rerouting, contribution queue/resolution audit, place/path editor, Path Survey evidence and explicit revision-bound segment verification are implemented. Physical owner field acceptance and production infrastructure remain pending.
 
 ## Contribution Moderation Foundation
 
@@ -185,13 +187,15 @@ Phase 3 is OWNER ACCEPTED / COMPLETE. Live positions, route progress and rerouti
 
 ## Known Limitations
 
-- Indoor mapping is not in V1
+- Indoor route geometry is not in V1; Internal Places use outdoor arrival plus textual indoor handoff
 - Routing uses paths maintained in YCT Map data — quality depends on field verification
 - Current OSM-derived routing paths and anchors are `UNVERIFIED`; service-road access and exact entrances require later review and field survey
-- Browser live-location acquisition/display, live-origin progress and controlled rerouting exist; physical-device behavior remains unverified
-- Browser live-location display is implemented, but physical-phone GPS remains unverified until an approved HTTPS test origin is available
+- Browser live-location acquisition/display, live-origin progress and controlled rerouting exist; final physical-device survey acceptance remains pending
 - Live locations are matched transiently to the routing graph; matched coordinates and progress remain unpersisted
 - Building geometry relies on available data; complex irregular polygons may be simplified initially
+- Parallel or closely adjacent segment matching is heuristic and requires human review
+- Entrance connectors currently begin at existing graph nodes; segment-aware mid-edge attachment remains future work
+- Cloudflare Quick Tunnel support is development-only and is not a deployment architecture
 
 ---
 
@@ -232,8 +236,20 @@ Path Survey Mode needs new evidence/session concepts rather than adding breadcru
 
 Raw survey samples must be immutable evidence input and must never silently rewrite graph geometry. Opening a survey, walking near a segment or obtaining one good sample must not grant `FIELD_VERIFIED`. A reviewed verification action should identify its actor, evidence/session, affected geometry/version and decision time while publication and routing availability remain independent.
 
+### Phase 4 Sprint 004 Implemented Evidence Architecture
+
+Path Survey Mode stores private editor evidence in `PathSurvey` and ordered `PathSurveySample` records rather than adding breadcrumbs to `WalkableSegment`. Explicit Draft/Active/Paused/Completed/Reviewed/Abandoned transitions govern acquisition; reopening an interrupted Active record does not restart browser geolocation. Brief outages use an IndexedDB buffer and idempotent sequence upload.
+
+Completed samples are immutable and never rewrite graph geometry. `SurveySegmentMatch` stores algorithmic classification separately from reviewer disposition and binds evidence to a segment revision/fingerprint. `SegmentVerificationRecord` preserves explicit grant, revoke and geometry-invalidation history with nullable actors. Verification permissions are separate from ordinary editing; publication and routing availability remain independent.
+
+ACTIVE and PAUSED survey pages render a read-only MapLibre evidence view. Existing `WalkableSegment` geometry is reference data, the current browser position is a separate point, and the live blue trace is reconstructed from authenticated server-returned usable samples. The map has no mutation controls, rejected readings never enter the line, and map/style failure is isolated from capture, IndexedDB buffering and synchronization.
+
 ## Phase 4 Sprint 002 Destination Architecture
 
 `Entrance` belongs to an outdoor `Location`; `InternalPlace` belongs to that same Location and may select one active same-parent entrance. Otherwise it falls back to the parent's active primary entrance. `EntranceNetworkAnchor` connects the chosen arrival entrance to the existing walkable graph. The staged resolver prefers this path and retains `LocationNetworkAnchor` only as a compatibility fallback for migrated Phase 1–3 data.
+
+An `EntranceNetworkAnchor` may hold a short, editor-approved connector `LineString` beginning at the selected `WalkableNode` and ending exactly at the Entrance point. A* still solves graph-node to graph-node; routing composition appends the destination connector or prepends its reverse for a supported entrance origin. Geometry-derived connector length contributes to route distance and ETA. Existing null-connector anchors retain explicit legacy node-only behavior and are never silently presented as exact entrance arrival.
+
+Internal Places have no indoor geometry. Their destination resolution chooses an explicit active same-parent routing entrance or the parent primary entrance, routes outdoors to that entrance and preserves floor, room/code, wing and `direction_note` as a textual handoff. Live arrival announces the Entrance, not the room.
 
 Published records do not claim routing readiness. Public serializers expose `routing_available` and `routing_unavailable_reason`; the UI disables Directions but preserves search and display. Strict model validation rejects cross-parent floors/entrances and inactive routing entrances. At most one active primary entrance is enforced in the database.

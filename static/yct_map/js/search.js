@@ -25,8 +25,7 @@ export function createSearch({ features, onSelect, onFilter, searchUrl = "", req
     const parent = features.find((feature) => feature.properties.id === item.parent?.id);
     return {type: "Feature", id: item.id, geometry: parent?.geometry || null, properties: {
       ...item, category_label: item.internal_type_label,
-      description: [item.parent?.name && `Inside ${item.parent.name}`, item.floor?.label,
-        item.room_code, item.direction_note].filter(Boolean).join(" · "),
+      description: item.parent?.name ? `Internal destination inside ${item.parent.name}.` : "Internal campus destination.",
     }};
   });
 

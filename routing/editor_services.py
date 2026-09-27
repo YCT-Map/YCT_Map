@@ -4,8 +4,148 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 
+from locations.models import Entrance
+
 from .geometry import coordinates, distance_metres
-from .models import EntranceNetworkAnchor, LocationNetworkAnchor, SourceType, VerificationState, WalkableNode, WalkableSegment
+from .models import (EntranceNetworkAnchor, LocationNetworkAnchor, SegmentVerificationRecord,
+                     SourceType, VerificationState, WalkableNode, WalkableSegment)
+
+
+MATERIAL_SEGMENT_FIELDS = ("start_node_id", "end_node_id", "geometry", "is_bidirectional")
+
+# Current active campus-graph spacing is approximately 23 m at the median and
+# 39 m at the 75th percentile. Keep the normal band inside that observed
+# spacing, permit a deliberately warned inspection band, and never suggest an
+# arbitrarily distant node merely to make a destination routable.
+NEARBY_ENTRANCE_NODE_METRES = 40
+MAX_ENTRANCE_NODE_METRES = 75
+MAX_ENTRANCE_NODE_CANDIDATES = 6
+
+
+def _node_display_label(node):
+    if node.label and not node.label.startswith("OSM-derived node "):
+        return node.label
+    if node.source_type == SourceType.OSM and node.source_reference:
+        return f"OSM path junction · {node.source_reference}"
+    return node.label or f"Walking-network node {str(node.pk)[:8]}"
+
+
+def entrance_node_candidates(entrance):
+    """Return a small, distance-ordered set of connected active graph nodes."""
+    origin = (float(entrance.longitude), float(entrance.latitude))
+    nodes = WalkableNode.objects.filter(is_active=True).filter(
+        Q(outgoing_segments__is_active=True) | Q(incoming_segments__is_active=True)
+    ).distinct()
+    candidates = []
+    for node in nodes:
+        distance = distance_metres(origin, (float(node.longitude), float(node.latitude)))
+        if distance <= MAX_ENTRANCE_NODE_METRES:
+            candidates.append({
+                "node": node,
+                "distance_metres": distance,
+                "distance_label": f"{distance:.1f} m",
+                "distance_band": "nearby" if distance <= NEARBY_ENTRANCE_NODE_METRES else "questionable",
+                "display_label": _node_display_label(node),
+            })
+    candidates.sort(key=lambda item: (item["distance_metres"], str(item["node"].pk)))
+    return candidates[:MAX_ENTRANCE_NODE_CANDIDATES]
+
+
+def entrance_candidate_map_data(entrance, candidates):
+    node_ids = {item["node"].pk for item in candidates}
+    segments = WalkableSegment.objects.filter(is_active=True).filter(
+        Q(start_node_id__in=node_ids) | Q(end_node_id__in=node_ids)
+    ).distinct()
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": segment.geometry,
+                "properties": {"kind": "segment", "id": str(segment.pk)},
+            }
+            for segment in segments
+        ] + [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [float(item["node"].longitude), float(item["node"].latitude)],
+                },
+                "properties": {
+                    "kind": "candidate",
+                    "id": str(item["node"].pk),
+                    "label": item["display_label"],
+                    "distance_metres": round(item["distance_metres"], 1),
+                    "distance_label": item["distance_label"],
+                    "distance_band": item["distance_band"],
+                    "source_type": item["node"].source_type,
+                    "source_reference": item["node"].source_reference,
+                },
+            }
+            for item in candidates
+        ],
+    }
+
+
+@transaction.atomic
+def connect_entrance_to_node(*, entrance, node, connector_geometry):
+    entrance = Entrance.objects.select_for_update().get(pk=entrance.pk)
+    node = WalkableNode.objects.select_for_update().get(pk=node.pk)
+    if not entrance.is_active:
+        raise ValidationError("Only an active entrance can be connected to the walking network.")
+    candidate_ids = {item["node"].pk for item in entrance_node_candidates(entrance)}
+    if node.pk not in candidate_ids:
+        raise ValidationError("Choose one of the suitable active routing nodes shown for this entrance.")
+    anchor = EntranceNetworkAnchor.objects.select_for_update().filter(entrance=entrance).first()
+    if anchor is None:
+        anchor = EntranceNetworkAnchor(entrance=entrance)
+    anchor.node = node
+    anchor.connector_geometry = connector_geometry
+    anchor.is_active = True
+    anchor.verification_state = VerificationState.UNVERIFIED
+    anchor.full_clean()
+    anchor.save()
+    return anchor
+
+
+@transaction.atomic
+def disconnect_entrance_from_network(*, entrance):
+    anchor = EntranceNetworkAnchor.objects.select_for_update().filter(entrance=entrance, is_active=True).first()
+    if anchor:
+        anchor.is_active = False
+        anchor.save(update_fields=("is_active", "updated_at"))
+    return anchor
+
+
+@transaction.atomic
+def save_segment(*, segment, cleaned_data, actor):
+    """The authoritative path for material segment mutation."""
+    creating = segment._state.adding
+    if not creating:
+        current = WalkableSegment.objects.select_for_update().get(pk=segment.pk)
+        proposed = {
+            "start_node_id": cleaned_data["start_node"].pk,
+            "end_node_id": cleaned_data["end_node"].pk,
+            "geometry": cleaned_data["geometry"],
+            "is_bidirectional": cleaned_data["is_bidirectional"],
+        }
+        material = any(getattr(current, field) != proposed[field] for field in MATERIAL_SEGMENT_FIELDS)
+        segment.geometry_revision = current.geometry_revision + (1 if material else 0)
+        if material and current.verification_state == VerificationState.FIELD_VERIFIED:
+            SegmentVerificationRecord.objects.create(segment=current, action=SegmentVerificationRecord.Action.INVALIDATED,
+                geometry_revision=current.geometry_revision, geometry_fingerprint=current.geometry_fingerprint,
+                actor=actor, reason="Material routing geometry changed.")
+        if material:
+            segment.verification_state = VerificationState.UNVERIFIED
+            segment.geometry_fingerprint = ""
+    else:
+        segment.source_type = SourceType.MANUAL
+        segment.verification_state = VerificationState.UNVERIFIED
+    segment.updated_by = actor
+    if creating: segment.created_by = actor
+    segment.full_clean(); segment.save()
+    return segment
 
 
 def segment_impact(segment):
@@ -52,7 +192,8 @@ def split_segment(segment, point, actor):
     second_points = [projected] + points[index + 1:]
     common = dict(label=segment.label, is_bidirectional=segment.is_bidirectional, source_type=SourceType.MANUAL,
                   source_reference=f"split:{segment.id}",
-                  verification_state=VerificationState.UNVERIFIED, is_active=True, created_by=actor, updated_by=actor)
+                  derived_from_segment=segment, verification_state=VerificationState.UNVERIFIED,
+                  is_active=True, created_by=actor, updated_by=actor)
     first = WalkableSegment(start_node=segment.start_node, end_node=node,
         geometry={"type": "LineString", "coordinates": first_points}, **common)
     second = WalkableSegment(start_node=node, end_node=segment.end_node,

@@ -6,8 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#17663c">
     <title>{% block title %}Editor{% endblock %} · YCT Map</title>
-    <link rel="icon" href="{% static 'yct_map/favicon.svg' %}" type="image/svg+xml">
-    <link rel="stylesheet" href="{% static 'yct_map/css/editor.css' %}">
+    <link rel="icon" href="{% static 'yct_map/images/yct-map-logo.png' %}" type="image/png">
+    <link rel="apple-touch-icon" href="{% static 'yct_map/images/yct-map-logo.png' %}">
+    <link rel="stylesheet" href="{% static 'yct_map/css/editor.css' %}?v=p4-mobile-field-1">
     {% block head %}{% endblock %}
   </head>
   <body class="editor-body">
@@ -15,10 +16,23 @@
     <header class="editor-header">
       <a class="editor-brand" href="{% url 'editor:dashboard' %}"><span>Y</span><strong>YCT Map Editor</strong></a>
       {% if request.user.is_authenticated %}
-        <nav class="editor-account" aria-label="Editor navigation"><a href="{% url 'editor:place-list' %}">Places</a>{% if perms.contributions.resolve_contribution %}<a href="{% url 'editor:contribution-list' %}">Contributions</a>{% endif %}{% if perms.routing.view_walkablesegment %}<a href="{% url 'editor:path-list' %}">Paths</a>{% endif %}
+        <nav class="editor-account editor-desktop-nav" aria-label="Editor navigation"><a href="{% url 'editor:place-list' %}"{% if request.resolver_match.url_name == 'place-list' %} aria-current="page"{% endif %}>Places</a>{% if perms.contributions.resolve_contribution %}<a href="{% url 'editor:contribution-list' %}"{% if request.resolver_match.url_name == 'contribution-list' %} aria-current="page"{% endif %}>Contributions</a>{% endif %}{% if perms.routing.view_walkablesegment %}<a href="{% url 'editor:path-list' %}"{% if request.resolver_match.url_name == 'path-list' %} aria-current="page"{% endif %}>Paths</a>{% endif %}{% if perms.routing.conduct_path_survey %}<a href="{% url 'editor:survey-list' %}"{% if request.resolver_match.url_name == 'survey-list' %} aria-current="page"{% endif %}>Path surveys</a>{% endif %}
           <span>{{ request.user.get_username }}</span>
           <form method="post" action="{% url 'editor:logout' %}">{% csrf_token %}<button type="submit">Log out</button></form>
         </nav>
+        <details class="editor-mobile-menu">
+          <summary>Menu</summary>
+          <nav aria-label="Mobile editor navigation">
+            <a href="{% url 'editor:dashboard' %}"{% if request.resolver_match.url_name == 'dashboard' %} aria-current="page"{% endif %}>Dashboard</a>
+            <a href="{% url 'editor:place-list' %}"{% if request.resolver_match.url_name == 'place-list' %} aria-current="page"{% endif %}>Places</a>
+            {% if perms.contributions.resolve_contribution %}<a href="{% url 'editor:contribution-list' %}"{% if request.resolver_match.url_name == 'contribution-list' %} aria-current="page"{% endif %}>Contributions</a>{% endif %}
+            {% if perms.routing.view_walkablesegment %}<a href="{% url 'editor:path-list' %}"{% if request.resolver_match.url_name == 'path-list' %} aria-current="page"{% endif %}>Paths</a>{% endif %}
+            {% if perms.routing.conduct_path_survey %}<a href="{% url 'editor:survey-list' %}"{% if request.resolver_match.url_name == 'survey-list' %} aria-current="page"{% endif %}>Path surveys</a>{% endif %}
+            {% if request.user.is_superuser %}<a href="{% url 'admin:index' %}">Administration</a>{% endif %}
+            <span class="editor-mobile-user">Signed in as {{ request.user.get_username }}</span>
+            <form method="post" action="{% url 'editor:logout' %}">{% csrf_token %}<button type="submit">Log out</button></form>
+          </nav>
+        </details>
       {% endif %}
     </header>
     <main id="editor-main" class="editor-main">

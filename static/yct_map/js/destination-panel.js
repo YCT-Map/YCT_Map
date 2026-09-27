@@ -7,6 +7,13 @@ export function createDestinationPanel(panel, { onDirections } = {}) {
   const routingReason = panel.querySelector("#destination-routing-reason");
   const insideButton = panel.querySelector("#destination-inside");
   const insideList = panel.querySelector("#destination-inside-list");
+  const internalGuidance = panel.querySelector("#destination-internal-guidance");
+  const internalParent = panel.querySelector("#destination-internal-parent");
+  const internalLocation = panel.querySelector("#destination-internal-location");
+  const internalDirection = panel.querySelector("#destination-internal-direction");
+  const verification = panel.querySelector("#destination-verification");
+  const dataNotice = panel.querySelector("#destination-data-notice");
+  const dataNoticeText = panel.querySelector("#destination-data-notice-text");
   let currentFeature = null;
 
   function show(feature) {
@@ -15,6 +22,24 @@ export function createDestinationPanel(panel, { onDirections } = {}) {
     name.textContent = properties.name;
     category.textContent = properties.category_label || properties.internal_type_label || "Campus place";
     description.textContent = properties.description || "No additional description is available.";
+    const verificationState = properties.verification_state || "UNVERIFIED";
+    if (verification) {
+      verification.textContent = verificationState.replace("_", " ");
+    }
+    if (dataNotice && dataNoticeText) {
+      dataNotice.hidden = verificationState === "FIELD_VERIFIED";
+      dataNoticeText.textContent = verificationState === "DEMO"
+        ? "Synthetic information for product demonstration only. This is not a verified real campus location."
+        : "This campus information has not yet been field verified.";
+    }
+    const isInternal = properties.destination_type === "internal";
+    if (internalGuidance) internalGuidance.hidden = !isInternal;
+    if (isInternal) {
+      internalParent.textContent = properties.parent?.name || "the parent building";
+      internalLocation.textContent = [properties.floor?.label, properties.room_code, properties.wing_section]
+        .filter(Boolean).join(" · ") || "Indoor location details are incomplete.";
+      internalDirection.textContent = properties.direction_note || "No indoor direction note has been recorded.";
+    }
     panel.hidden = false;
     panel.classList.add("is-visible");
     const routingAvailable = properties.routing_available === true;

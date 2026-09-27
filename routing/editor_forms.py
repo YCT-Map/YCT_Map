@@ -1,6 +1,7 @@
 from django import forms
 
-from .models import SourceType, VerificationState, WalkableNode, WalkableSegment
+from .models import (EntranceNetworkAnchor, LocationNetworkAnchor, SourceType,
+                     VerificationState, WalkableNode, WalkableSegment)
 
 
 class WalkableNodeForm(forms.ModelForm):
@@ -18,6 +19,19 @@ class WalkableNodeForm(forms.ModelForm):
         cleaned = super().clean()
         if self.locked and self.instance.pk and any(x in self.changed_data for x in ("latitude", "longitude")):
             raise forms.ValidationError("Connected nodes cannot be moved. Split or replace affected segments explicitly.")
+        if self.instance.pk and "is_active" in self.changed_data and not cleaned.get("is_active"):
+            active_segments = (
+                self.instance.outgoing_segments.filter(is_active=True).count()
+                + self.instance.incoming_segments.filter(is_active=True).count()
+            )
+            entrance_anchors = EntranceNetworkAnchor.objects.filter(node=self.instance, is_active=True).count()
+            location_anchors = LocationNetworkAnchor.objects.filter(node=self.instance, is_active=True).count()
+            if active_segments or entrance_anchors or location_anchors:
+                raise forms.ValidationError(
+                    "Deactivate connected segments and anchors first. "
+                    f"This node still has {active_segments} active segment connection(s), "
+                    f"{entrance_anchors} active entrance anchor(s), and {location_anchors} active legacy anchor(s)."
+                )
         return cleaned
 
     def save(self, commit=True):

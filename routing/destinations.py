@@ -17,6 +17,7 @@ class DestinationResolution:
     routing_available: bool
     unavailable_reason: str
     used_legacy_anchor: bool = False
+    anchor: object | None = None
 
     @property
     def name(self):
@@ -71,19 +72,23 @@ def resolve_destination(value, *, allow_legacy=True):
                 location=location, is_active=True, node__is_active=True,
             ).select_related("node").first()
             if legacy:
-                return DestinationResolution(key, kind, destination, location, None, legacy.node, True, "", True)
+                return DestinationResolution(
+                    key, kind, destination, location, None, legacy.node, True, "", used_legacy_anchor=True,
+                )
         return _unavailable(key, kind, destination, location, "No active primary entrance has been configured.")
     anchor = EntranceNetworkAnchor.objects.filter(
         entrance=entrance, is_active=True, node__is_active=True,
     ).select_related("node").first()
     if anchor:
-        return DestinationResolution(key, kind, destination, location, entrance, anchor.node, True, "")
+        return DestinationResolution(key, kind, destination, location, entrance, anchor.node, True, "", anchor=anchor)
     if allow_legacy:
         legacy = LocationNetworkAnchor.objects.filter(
             location=location, is_active=True, node__is_active=True,
         ).select_related("node").first()
         if legacy:
-            return DestinationResolution(key, kind, destination, location, entrance, legacy.node, True, "", True)
+            return DestinationResolution(
+                key, kind, destination, location, entrance, legacy.node, True, "", used_legacy_anchor=True,
+            )
     return _unavailable(key, kind, destination, location, "The arrival entrance is not connected to the walkable network.", entrance)
 
 
@@ -99,6 +104,15 @@ def destination_summary(resolution):
     }
     if resolution.entrance:
         summary["arrival_entrance"] = {"id": str(resolution.entrance.id), "name": resolution.entrance.name}
+        summary["outdoor_arrival"] = {
+            "entrance_id": str(resolution.entrance.id),
+            "entrance_name": resolution.entrance.name,
+            "location_name": resolution.location.name,
+            "label": f"{resolution.location.name} — {resolution.entrance.name}",
+            "exact_connector": bool(resolution.anchor and resolution.anchor.connector_geometry),
+            "connector_distance_metres": round(resolution.anchor.connector_distance_metres, 2)
+                if resolution.anchor and resolution.anchor.connector_geometry else 0,
+        }
     if resolution.kind == "internal":
         internal = resolution.destination
         summary.update({
@@ -106,5 +120,13 @@ def destination_summary(resolution):
             "room_code": internal.room_code,
             "wing_section": internal.wing_section,
             "direction_note": internal.direction_note,
+            "routing_scope": "OUTDOOR_TO_ENTRANCE",
+            "indoor_handoff": {
+                "name": internal.name,
+                "floor": internal.floor.label if internal.floor_id else "",
+                "room_code": internal.room_code,
+                "wing_section": internal.wing_section,
+                "direction_note": internal.direction_note,
+            },
         })
     return summary

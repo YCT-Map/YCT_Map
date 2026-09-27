@@ -195,18 +195,20 @@ class LocationEndpointTests(TestCase):
 class MapPageTests(TestCase):
     def test_map_page_contains_approved_map_configuration(self):
         response = self.client.get(reverse("locations:map"))
+        asset_version = "p4-predeploy-1"
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "https://tiles.openfreemap.org/styles/liberty")
         self.assertContains(response, 'data-centre-longitude="3.37424"')
         self.assertContains(response, 'data-centre-latitude="6.51857"')
         self.assertContains(response, "yct_map/data/yabatech-campus-boundary.geojson")
-        self.assertContains(response, "DEMO DATA")
+        self.assertNotContains(response, 'class="dataset-badge"')
+        self.assertContains(response, "Some campus locations and walking paths may still be undergoing field verification.")
         self.assertContains(response, 'data-route-url="/api/routes/"')
         self.assertContains(response, 'id="destination-directions"')
         self.assertContains(response, 'id="user-route-panel"')
-        self.assertContains(response, "app.js?v=p4s2-entrances-internal-places-1")
-        self.assertContains(response, "app.css?v=p4s2-entrances-internal-places-1")
+        self.assertContains(response, f"app.js?v={asset_version}")
+        self.assertContains(response, f"app.css?v={asset_version}")
         self.assertContains(response, 'data-contribution-url="/api/contributions/"')
         self.assertContains(response, 'id="contribution-panel"')
         self.assertContains(response, 'data-live-route-url="/api/routes/from-position/"')
@@ -215,11 +217,14 @@ class MapPageTests(TestCase):
         self.assertContains(response, 'id="recenter-me"')
         self.assertContains(response, 'id="stop-location"')
         self.assertContains(response, "Location is optional and stays on this device.")
+        self.assertContains(response, "yct_map/images/yct-map-logo.png", count=3)
+        self.assertContains(response, 'class="brand-logo"')
         self.assertNotContains(response, "A* route inspection")
 
     def test_current_modules_use_the_same_cache_version(self):
         app_path = settings.BASE_DIR / "static/yct_map/js/app.js"
         app_source = app_path.read_text(encoding="utf-8")
+        asset_version = "p4-predeploy-1"
 
         for module in (
             "api.js",
@@ -227,17 +232,41 @@ class MapPageTests(TestCase):
             "map.js",
             "search.js",
             "route-inspector.js",
-            "user-location.js",
             "user-navigation.js",
             "contributions.js",
         ):
-            self.assertIn(f'{module}?v=p4s2-entrances-internal-places-1', app_source)
+            self.assertIn(f'{module}?v={asset_version}', app_source)
+
+        self.assertIn(f'user-location.js?v={asset_version}', app_source)
+        self.assertIn(f'disclosure-menu.js?v={asset_version}', app_source)
 
         user_location_source = (
             settings.BASE_DIR / "static/yct_map/js/user-location.js"
         ).read_text(encoding="utf-8")
-        self.assertIn("location-filter.js?v=p3s4-contributions-1", user_location_source)
-        self.assertIn("geolocation.js?v=p3s4-contributions-1", user_location_source)
+        self.assertIn(f"location-filter.js?v={asset_version}", user_location_source)
+        self.assertIn(f"geolocation.js?v={asset_version}", user_location_source)
+
+    def test_map_has_no_global_badge_while_record_verification_remains_public(self):
+        location = Location.objects.create(
+            name="Unverified place",
+            publication_status=Location.PublicationStatus.PUBLISHED,
+            verification_state=Location.VerificationState.UNVERIFIED,
+            representative_latitude=Decimal("6.518000"),
+            representative_longitude=Decimal("3.374000"),
+        )
+        map_response = self.client.get(reverse("locations:map"))
+        self.assertNotContains(map_response, "UNVERIFIED DATA")
+        self.assertNotContains(map_response, 'class="dataset-badge"')
+        feature = self.client.get(reverse("locations:collection")).json()["features"][0]
+        self.assertEqual(feature["properties"]["verification_state"], "UNVERIFIED")
+
+        location.verification_state = Location.VerificationState.DEMO
+        location.save(update_fields=("verification_state",))
+        map_response = self.client.get(reverse("locations:map"))
+        self.assertNotContains(map_response, "DEMO DATA")
+        feature = self.client.get(reverse("locations:collection")).json()["features"][0]
+        self.assertEqual(feature["properties"]["verification_state"], "DEMO")
+        self.assertEqual(feature["properties"]["verification_label"], "Demo")
 
     def test_campus_orientation_boundary_is_the_approved_osm_polygon(self):
         boundary_path = settings.BASE_DIR / "static/yct_map/data/yabatech-campus-boundary.geojson"

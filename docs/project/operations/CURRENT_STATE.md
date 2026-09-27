@@ -9,10 +9,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-09-24 |
+| **Date** | 2026-09-27 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 4 — EDITOR & MAPPING TOOLS |
-| **Pipeline Phase** | PHASE 4 SPRINT 003 OWNER ACCEPTED / CLOSED |
+| **Pipeline Phase** | PHASE 4 SPRINT 004 IMPLEMENTATION + TECHNICAL AUDIT COMPLETE / PHYSICAL OWNER ACCEPTANCE PENDING |
 | **Latest Meaningful Commit** | Phase 4 specification baseline (`docs: establish Phase 4 campus data and editor specification`) |
 
 ---
@@ -21,16 +21,17 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | PHASE 4 SPRINT 003 OWNER ACCEPTED / CLOSED; SPRINT 002 ACCEPTANCE DEFERRED |
+| Application implementation | PHASE 4 SPRINTS 001–003 OWNER ACCEPTED; SPRINT 004 PHYSICAL OWNER ACCEPTANCE PENDING |
 | Product definition | SUBSTANTIALLY COMPLETE |
 | Documentation / governance | SUBSTANTIALLY COMPLETE |
 | Build pipeline | SUBSTANTIALLY COMPLETE |
 | Tech stack & architecture decisions | RESOLVED THROUGH PHASE 2 (DEC-T01–DEC-T18 accepted) |
-| Campus production dataset | NOT YET POPULATED |
-| Demo/development dataset | 6 DEMO locations; 47 OSM-derived UNVERIFIED nodes, 54 segments and 6 UNVERIFIED anchors |
+| Campus production dataset | INITIAL OWNER-CONFIRMED DATA: New Building and Sports Complex; all retained records remain UNVERIFIED |
+| Demo/development dataset | Live working DEMO Locations removed; DEMO fixtures retained only for automated tests |
 | Field verification | NOT STARTED |
-| Deployment | NOT STARTED |
-| Test suite | 120 DJANGO + 44 JAVASCRIPT TESTS PASSING |
+| Routing dataset | 47 OSM-derived nodes plus 2 manual nodes; 54 OSM-derived segments; 2 active entrance anchors; all UNVERIFIED |
+| Deployment | PRODUCTION CONFIGURATION PREPARED; NO DEPLOYMENT PERFORMED |
+| Test suite | 176 DJANGO + 77 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -42,7 +43,7 @@ See `docs/project/operations/BUILD_PIPELINE.md` for the full 5-phase plan.
 Phase 1 — Foundation & Map Experience          ACCEPTED
 Phase 2 — Routing & Navigation                 ACCEPTED
 Phase 3 — Live Navigation & Core Product       ACCEPTED
-Phase 4 — Editor & Mapping Tools               IN PROGRESS — SPRINT 003 ACCEPTED; SPRINT 002 ACCEPTANCE DEFERRED
+Phase 4 — Editor & Mapping Tools               IN PROGRESS — SPRINT 004 PHYSICAL OWNER ACCEPTANCE PENDING
 Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 ```
 
@@ -145,22 +146,24 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ## Active Work
 
-Phase 4 Sprint 003 is OWNER ACCEPTED / CLOSED. It adds UNVERIFIED one-shot field capture with manual map adjustment, explicit contribution-resolution history, and permission-gated routing node/segment editing with connected-node locking, concrete anchor/connectivity impact reporting and transactional segment splitting. Sprint 002 product work remains intact and its owner acceptance is intentionally deferred; detailed contribution-resolution owner QA is also deferred.
+Phase 4 Sprints 001, 002 and 003 are OWNER ACCEPTED / COMPLETE. Sprint 002 now includes multiple entrances, floors and internal places, explicit entrance anchoring, editor-approved arrival-connector geometry, exact physical-entrance route completion and textual indoor handoff without claiming indoor routing.
+
+Phase 4 Sprint 004 is IMPLEMENTATION COMPLETE / TECHNICAL AUDIT COMPLETE / PHYSICAL OWNER ACCEPTANCE PENDING. It adds explicit mobile Path Survey sessions, private accuracy-classified samples with temporary IndexedDB buffering, revision-bound trace matching, separate reviewer disposition, append-only verification history and permission-gated grant/revoke actions. No survey automatically edits the graph or grants `FIELD_VERIFIED`.
 
 ---
 
 ## Known Blockers
 
-Physical-phone GPS/navigation/rerouting remains unverified because no owner-approved HTTPS test origin exists. The OSM-derived graph remains `UNVERIFIED`, and full outside-campus product behavior is deferred.
+Physical Samsung/mobile Path Survey acceptance still requires final real-device and real-campus review over an approved HTTPS origin. No segment has been field verified by this software build; the existing OSM-derived graph remains `UNVERIFIED`. Parallel/closely adjacent path matching remains heuristic, browser geolocation cannot guarantee room-level positioning, segment-aware entrance attachment remains future work, and detailed contribution-resolution owner QA remains intentionally deferred.
 
 ---
 
 ## Next Approved Task
 
-Phase 4 Sprint 004 pre-build review for evidence-based verification and Path Survey Mode. Do not implement until its plan is reviewed, owner decisions are resolved and a standalone `BUILD` is issued.
+Complete the remaining physical-device and real-campus acceptance for Phase 4 Sprint 004. Phase 4 remains open until that evidence is accepted. Detailed ContributionResolution QA is deferred but is not represented as completed.
 
 ---
 
 ## Deployment Status
 
-NOT STARTED. No deployment exists.
+NOT STARTED. No production deployment exists. Cloudflare Quick Tunnel support is development-only.

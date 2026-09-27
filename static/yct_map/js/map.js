@@ -79,15 +79,41 @@ function campusPadding() {
   return { top: 112, right: 72, bottom: 72, left: 72 };
 }
 
+const CAMPUS_ROUTE_LIMITS = Object.freeze({ minLongitude: 3.20, maxLongitude: 3.55, minLatitude: 6.35, maxLatitude: 6.70 });
+
+export function routeBounds(coordinates) {
+  if (!Array.isArray(coordinates) || coordinates.length < 2) {
+    throw new Error("Route geometry must contain at least two [longitude, latitude] coordinates.");
+  }
+  for (const coordinate of coordinates) {
+    if (!Array.isArray(coordinate) || coordinate.length !== 2 || !coordinate.every(Number.isFinite)) {
+      throw new Error("Route coordinates must be finite [longitude, latitude] pairs.");
+    }
+    const [longitude, latitude] = coordinate;
+    if (longitude < CAMPUS_ROUTE_LIMITS.minLongitude || longitude > CAMPUS_ROUTE_LIMITS.maxLongitude ||
+        latitude < CAMPUS_ROUTE_LIMITS.minLatitude || latitude > CAMPUS_ROUTE_LIMITS.maxLatitude) {
+      throw new Error("Route geometry is outside the expected YabaTech vicinity; coordinate order may be invalid.");
+    }
+  }
+  const longitudes = coordinates.map(([longitude]) => longitude);
+  const latitudes = coordinates.map(([, latitude]) => latitude);
+  return [[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]];
+}
+
+export function calculateRoutePadding({ mobile, panelHeight, panelWidth, discoveryBottom, viewportHeight }) {
+  if (!mobile) return { top: 112, right: Math.ceil(panelWidth) + 48, bottom: 72, left: 72 };
+  const top = Math.min(Math.ceil(discoveryBottom) + 16, Math.floor(viewportHeight * 0.30));
+  const bottom = Math.min(Math.ceil(panelHeight) + 16, Math.floor(viewportHeight * 0.24));
+  return { top: Math.max(64, top), right: 24, bottom: Math.max(72, bottom), left: 24 };
+}
+
 function routePadding() {
   const panel = document.querySelector("#user-route-panel");
   const panelHeight = panel?.getBoundingClientRect().height || 300;
   const panelWidth = panel?.getBoundingClientRect().width || 400;
-  if (window.matchMedia("(max-width: 41.99rem)").matches) {
-    const discoveryBottom = document.querySelector(".discovery")?.getBoundingClientRect().bottom || 180;
-    return { top: Math.ceil(discoveryBottom) + 24, right: 28, bottom: Math.ceil(panelHeight) + 24, left: 28 };
-  }
-  return { top: 112, right: Math.ceil(panelWidth) + 48, bottom: 72, left: 72 };
+  const discoveryBottom = document.querySelector(".discovery")?.getBoundingClientRect().bottom || 180;
+  return calculateRoutePadding({ mobile: window.matchMedia("(max-width: 41.99rem)").matches,
+    panelHeight, panelWidth, discoveryBottom, viewportHeight: window.innerHeight });
 }
 
 class CampusFocusControl {
@@ -148,7 +174,7 @@ export async function createMap({ container, config, features, onSelect, onReady
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
   map.addControl(new CampusFocusControl(() => focusCampus()), "bottom-right");
   map.addControl(
-    new maplibregl.AttributionControl({ compact: true, customAttribution: "DEMO destinations · OSM-derived UNVERIFIED route data" }),
+    new maplibregl.AttributionControl({ compact: true, customAttribution: "YCT Map campus data · OSM-derived UNVERIFIED route data" }),
     "bottom-right",
   );
 
@@ -380,22 +406,28 @@ export async function createMap({ container, config, features, onSelect, onReady
     );
   }
 
-  function showUserRoute(routeFeature, origin, destination, { originType = "manual", replacement = false } = {}) {
+  function showUserRoute(routeFeature, origin, destination, { originType = "manual", replacement = false, arrivalName = "" } = {}) {
     if (!loaded || routeFeature.geometry.type !== "LineString") return;
     const coordinates = routeFeature.geometry.coordinates;
+    let bounds;
+    try {
+      bounds = routeBounds(coordinates);
+    } catch (error) {
+      console.error("Unsafe route geometry was not rendered", error);
+      throw error;
+    }
     map.getSource(USER_ROUTE_SOURCE_ID).setData({ type: "FeatureCollection", features: [routeFeature] });
     setUserRouteStale(false);
     map.getSource(USER_ENDPOINT_SOURCE_ID).setData({ type: "FeatureCollection", features: [
       { type: "Feature", geometry: { type: "Point", coordinates: coordinates[0] }, properties: {
         role: originType === "live" ? "matched" : "start", name: originType === "live" ? "Matched route start" : origin.properties.name,
       } },
-      { type: "Feature", geometry: { type: "Point", coordinates: coordinates.at(-1) }, properties: { role: "destination", name: destination.properties.name } },
+      { type: "Feature", geometry: { type: "Point", coordinates: coordinates.at(-1) }, properties: {
+        role: "destination", name: arrivalName || destination.properties.name,
+      } },
     ] });
-    const longitudes = coordinates.map(([longitude]) => longitude);
-    const latitudes = coordinates.map(([, latitude]) => latitude);
     if (!replacement) {
-      map.fitBounds([[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]],
-        { padding: routePadding(), maxZoom: 17.5, duration: 700, essential: false });
+      map.fitBounds(bounds, { padding: routePadding(), maxZoom: 17.5, duration: 700, essential: false });
     }
   }
 

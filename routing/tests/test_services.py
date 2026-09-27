@@ -1,6 +1,7 @@
 from django.test import TestCase, override_settings
 
 from routing.models import LocationNetworkAnchor
+from locations.models import Location
 from routing.geometry import distance_metres
 from routing.results import MissingAnchorError
 from routing.services import route_between_locations, route_between_nodes
@@ -71,6 +72,23 @@ class RoutingServiceTests(TestCase):
         missing = self.client.get("/api/routes/", {"origin": anchor.location_id, "destination": "10000000-0000-4000-8000-000000000006"})
         self.assertEqual((same.status_code, same.json()["code"]), (409, "SAME_ORIGIN"))
         self.assertEqual((missing.status_code, missing.json()["code"]), (422, "MISSING_ANCHOR"))
+
+    def test_distinct_destinations_at_same_arrival_node_return_explicit_state(self):
+        anchor = LocationNetworkAnchor.objects.select_related("node").first()
+        other = Location.objects.create(
+            name="DEMO — Same arrival", category=Location.Category.BUILDING,
+            publication_status=Location.PublicationStatus.PUBLISHED, is_active=True,
+            representative_latitude=anchor.node.latitude,
+            representative_longitude=anchor.node.longitude,
+            verification_state=Location.VerificationState.DEMO,
+        )
+        LocationNetworkAnchor.objects.create(
+            location=other, node=anchor.node, is_active=True, verification_state="DEMO"
+        )
+        response = self.client.get("/api/routes/", {
+            "origin": anchor.location_id, "destination": other.id,
+        })
+        self.assertEqual((response.status_code, response.json()["code"]), (409, "ALREADY_AT_ARRIVAL"))
 
     def test_location_contract_identifies_only_active_anchors(self):
         response = self.client.get("/api/locations/")

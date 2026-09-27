@@ -9,6 +9,7 @@ from .eta import format_approximate_eta
 from .models import LocationNetworkAnchor, VerificationState, WalkableNode, WalkableSegment
 from .matching import InsufficientAccuracyError, LivePositionError, NoSafeNetworkMatchError
 from .results import InvalidNodeError, MissingAnchorError, NoRouteError
+from .route_contract import InvalidRouteGeometryError, route_geojson_geometry
 from .services import route_between_locations, route_from_live_position, route_to_destination
 from .destinations import destination_summary
 from locations.models import Location
@@ -34,6 +35,10 @@ def demo_network(request):
 def _require_debug():
     if not settings.DEBUG:
         raise Http404
+
+
+def _already_at_arrival(result):
+    return len(result.geometry) < 2
 
 
 @require_GET
@@ -70,8 +75,10 @@ def demo_route(request):
         return JsonResponse({"error": str(error)}, status=400)
     except NoRouteError as error:
         return JsonResponse({"error": str(error), "code": "NO_ROUTE"}, status=404)
-    geometry = ({"type": "Point", "coordinates": result.geometry[0]} if len(result.geometry) == 1
-                else {"type": "LineString", "coordinates": result.geometry})
+    try:
+        geometry = route_geojson_geometry(result.geometry)
+    except InvalidRouteGeometryError as error:
+        return JsonResponse({"error": str(error), "code": "INVALID_ROUTE_GEOMETRY"}, status=422)
     response = JsonResponse({
         "route": {
             "type": "Feature",
@@ -111,8 +118,16 @@ def public_route(request):
     except NoRouteError:
         return JsonResponse({"error": "No walkable route is available between these destinations.", "code": "NO_ROUTE"}, status=404)
 
-    geometry = ({"type": "Point", "coordinates": result.geometry[0]} if len(result.geometry) == 1
-                else {"type": "LineString", "coordinates": result.geometry})
+    if _already_at_arrival(result):
+        return JsonResponse({
+            "error": "These destinations share the same mapped arrival point.",
+            "code": "ALREADY_AT_ARRIVAL",
+        }, status=409)
+
+    try:
+        geometry = route_geojson_geometry(result.geometry)
+    except InvalidRouteGeometryError as error:
+        return JsonResponse({"error": str(error), "code": "INVALID_ROUTE_GEOMETRY"}, status=422)
     route_state = "DEMO" if result.verification_states == (VerificationState.DEMO,) else "UNVERIFIED"
     response = JsonResponse({
         "route": {"type": "Feature", "geometry": geometry, "properties": {"route_state": route_state}},
@@ -158,8 +173,16 @@ def public_route_from_position(request):
     except NoRouteError:
         return JsonResponse({"error": "No walkable route is available from this position.", "code": "NO_ROUTE"}, status=404)
 
-    geometry = ({"type": "Point", "coordinates": result.geometry[0]} if len(result.geometry) == 1
-                else {"type": "LineString", "coordinates": result.geometry})
+    if _already_at_arrival(result):
+        return JsonResponse({
+            "error": "You are already at the destination's mapped arrival point.",
+            "code": "ALREADY_AT_ARRIVAL",
+        }, status=409)
+
+    try:
+        geometry = route_geojson_geometry(result.geometry)
+    except InvalidRouteGeometryError as error:
+        return JsonResponse({"error": str(error), "code": "INVALID_ROUTE_GEOMETRY"}, status=422)
     response = JsonResponse({
         "route": {"type": "Feature", "geometry": geometry, "properties": {"route_state": "UNVERIFIED", "origin_type": "live"}},
         "summary": {

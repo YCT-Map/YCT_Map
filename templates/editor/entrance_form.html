@@ -1,5 +1,120 @@
-{% extends "editor/base.html" %}{% load static %}
+{% extends "editor/base.html" %}
+{% load static %}
 {% block title %}Entrance · {{ place.name }}{% endblock %}
 {% block head %}<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.10.0/dist/maplibre-gl.css">{% endblock %}
-{% block content %}<div class="editor-heading"><div><p class="editor-eyebrow">{{ place.name }}</p><h1>{% if entrance.pk %}Edit entrance{% else %}Add entrance{% endif %}</h1><p>Click or tap the map to set the physical arrival point. This does not change the place marker.</p></div><a href="{% url 'editor:place-detail' place.id %}">Back to place</a></div><form method="post" class="editor-form">{% csrf_token %}<section class="editor-card">{{ form.non_field_errors }}{% for field in form %}{% if field.name != 'latitude' and field.name != 'longitude' %}<p>{{ field.label_tag }}{{ field }}{{ field.errors }}</p>{% else %}{{ field }}{% endif %}{% endfor %}<div id="entrance-coordinate-errors" class="editor-error" role="alert"{% if not form.latitude.errors and not form.longitude.errors %} hidden{% endif %}>{{ form.latitude.errors }}{{ form.longitude.errors }}{% if form.latitude.errors or form.longitude.errors %}<p>Choose an entrance point on the map before saving.</p>{% endif %}</div><div class="editor-map-heading"><strong>Entrance point</strong><span>Required</span></div><div id="entrance-map" class="editor-map-picker" data-state="loading" data-latitude="{{ entrance.latitude|default:'' }}" data-longitude="{{ entrance.longitude|default:'' }}" aria-label="Choose entrance point on campus map"></div><p id="entrance-map-status" role="status" aria-live="polite">Loading entrance map…</p><small>The selected coordinates are stored securely in hidden form fields and validated by the server.</small></section><button class="editor-primary" type="submit">Save entrance</button></form>{% endblock %}
-{% block scripts %}<script type="module" src="{% static 'yct_map/js/editor-entrance-map.js' %}?v=p4s2-owner-correction-1"></script>{% endblock %}
+{% block content %}
+<div class="editor-heading">
+  <div>
+    <p class="editor-eyebrow">{{ place.name }}</p>
+    <h1>{% if entrance.pk %}Edit entrance{% else %}Add entrance{% endif %}</h1>
+    <p>Click or tap the map to set the physical arrival point. This does not change the place marker.</p>
+  </div>
+  <a href="{% url 'editor:place-detail' place.id %}">Back to place</a>
+</div>
+
+<form method="post" class="editor-form">
+  {% csrf_token %}
+  <section class="editor-card">
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      {% if field.name != 'latitude' and field.name != 'longitude' %}
+        <p>{{ field.label_tag }}{{ field }}{{ field.errors }}</p>
+      {% else %}
+        {{ field }}
+      {% endif %}
+    {% endfor %}
+    <div id="entrance-coordinate-errors" class="editor-error" role="alert"{% if not form.latitude.errors and not form.longitude.errors %} hidden{% endif %}>
+      {{ form.latitude.errors }}{{ form.longitude.errors }}
+      {% if form.latitude.errors or form.longitude.errors %}<p>Choose an entrance point on the map before saving.</p>{% endif %}
+    </div>
+    <div class="editor-map-heading"><strong>Entrance point</strong><span>Required</span></div>
+    <div id="entrance-map" class="editor-map-picker" data-state="loading"
+         data-latitude="{{ entrance.latitude|default:'' }}" data-longitude="{{ entrance.longitude|default:'' }}"
+         aria-label="Choose entrance point and inspect its walkable-network connection"></div>
+    <p id="entrance-map-status" role="status" aria-live="polite">Loading entrance map…</p>
+    <small>The selected coordinates are stored in hidden form fields and validated by the server.</small>
+  </section>
+  <button class="editor-primary" type="submit">Save entrance</button>
+</form>
+
+<section id="entrance-routing-connection" class="editor-card entrance-routing-card"
+  {% if entrance.pk %}
+    data-candidates-url="{% url 'editor:entrance-connection-candidates' place.id entrance.id %}"
+    data-current-node-id="{% if network_anchor and network_anchor.is_active %}{{ network_anchor.node_id }}{% endif %}"
+    data-current-node-latitude="{% if network_anchor and network_anchor.is_active %}{{ network_anchor.node.latitude }}{% endif %}"
+    data-current-node-longitude="{% if network_anchor and network_anchor.is_active %}{{ network_anchor.node.longitude }}{% endif %}"
+  {% endif %}>
+  <p class="editor-eyebrow">Routing connection</p>
+  <h2>Walkable-network arrival</h2>
+  {% if not entrance.pk %}
+    <p>Save the entrance point first. You can then inspect and explicitly connect it to a nearby walking-network node.</p>
+  {% elif network_anchor and network_anchor.is_active %}
+    <div class="entrance-connection-state entrance-connection-state--connected">
+      <strong>Connected to walking network.</strong>
+      <span>{{ network_anchor.node }}</span>
+      {% if network_anchor.connector_geometry %}
+        <span>Approved arrival connector: {{ network_anchor_distance|floatformat:1 }} m</span>
+      {% else %}
+        <span>Legacy node-only arrival · entrance is {{ network_anchor_distance|floatformat:1 }} m from the node</span>
+      {% endif %}
+      <small>{{ network_anchor.node.get_source_type_display }}{% if network_anchor.node.source_reference %} · {{ network_anchor.node.source_reference }}{% endif %} · {{ network_anchor.get_verification_state_display }}</small>
+    </div>
+  {% else %}
+    <div class="entrance-connection-state"><strong>Not connected to walking network.</strong></div>
+  {% endif %}
+
+  {% if entrance.pk %}
+    <p>This suggestion workflow never changes the graph or verification state. Choosing a marker is only a proposal; connection occurs after confirmation.</p>
+    <div class="entrance-routing-actions">
+      <button id="find-routing-candidates" class="editor-primary" type="button">
+        {% if network_anchor and network_anchor.is_active %}Change connection{% else %}Find nearby connection{% endif %}
+      </button>
+      <button id="edit-entrance-point" type="button" hidden>Edit entrance point</button>
+    </div>
+    <p id="routing-candidate-status" role="status" aria-live="polite"></p>
+    <div id="routing-candidate-list" class="routing-candidate-list" aria-label="Nearby routing-node candidates"></div>
+
+    <div id="routing-connection-proposal" class="routing-connection-proposal" hidden>
+      <h3>Proposed routing connection</h3>
+      <p><strong>Entrance:</strong> {{ entrance.name }}</p>
+      <p><strong>Node:</strong> <span data-proposal-label></span></p>
+      <p><strong>Distance:</strong> <span data-proposal-distance></span></p>
+      <p><strong>Connector length:</strong> <span data-connector-distance></span></p>
+      <p data-proposal-warning class="editor-warning" hidden>This node is farther than the normal nearby band. Confirm only after inspecting the map relationship.</p>
+      <form method="post" action="{% url 'editor:entrance-connection-update' place.id entrance.id %}" class="entrance-confirm-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="connect">
+        <input id="routing-node-id" type="hidden" name="node_id" value="">
+        <input id="routing-connector-geometry" type="hidden" name="connector_geometry" value="">
+        <button class="editor-primary" type="submit">Confirm connection</button>
+        <button id="choose-another-routing-node" type="button">Choose another</button>
+      </form>
+      <div class="entrance-connector-actions">
+        <button id="undo-connector-bend" type="button">Undo last bend</button>
+        <button id="reset-connector" type="button">Reset to straight proposal</button>
+      </div>
+      <small>Tap empty map space to add bend points. The connector must follow an actually walkable approach; its displayed length is recalculated by the server.</small>
+    </div>
+
+    <div id="routing-no-candidates" class="editor-warning" hidden>
+      <p><strong>No suitable existing routing node is close to this entrance.</strong></p>
+      <p>Do not force a distant connection. Review the nearby graph and deliberately add or split paths through the path editor if needed.</p>
+      <a href="{% url 'editor:path-list' %}?latitude={{ entrance.latitude }}&amp;longitude={{ entrance.longitude }}">Open path editor near this entrance</a>
+    </div>
+
+    {% if network_anchor and network_anchor.is_active %}
+      <details class="entrance-disconnect">
+        <summary>Disconnect entrance</summary>
+        <p>Directions using this entrance may become unavailable. The routing node and path geometry will not be deleted.</p>
+        <form method="post" action="{% url 'editor:entrance-connection-update' place.id entrance.id %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="disconnect">
+          <label><input type="checkbox" name="confirm_disconnect" value="yes" required> I understand and want to disconnect this entrance.</label>
+          <button class="editor-danger" type="submit">Disconnect entrance</button>
+        </form>
+      </details>
+    {% endif %}
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'yct_map/js/editor-entrance-map.js' %}?v=p4s2-arrival-connector-1"></script>{% endblock %}

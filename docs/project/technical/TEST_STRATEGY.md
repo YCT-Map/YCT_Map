@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PHASE 3 — OWNER ACCEPTED / COMPLETE
-Implementation:    COMPLETE PHASE 1–3 REGRESSION SUITE ACTIVE
+Current phase:     PHASE 4 SPRINT 004 — PHYSICAL OWNER ACCEPTANCE PENDING
+Implementation:    COMPLETE PHASE 1–4 TECHNICAL REGRESSION SUITE ACTIVE
 ```
 
 This document defines the intended testing approach for YCT Map.
@@ -118,5 +118,17 @@ Phase 4 Sprint 002 owner-test correction verification: 107 Django tests and 36 N
 Phase 4 Sprint 003 adds server tests for the field-capture DOM contract, protected primary-entrance overwrite, repeatable approved contribution resolutions, connected-node movement rejection and history-preserving transactional splits. JavaScript tests cover checkbox alignment, one-shot accuracy-aware field capture and endpoint-preserving segment drawing. Visual MapLibre interaction remains owner/Antigravity browser QA; no custom browser harness is added.
 
 Phase 4 Sprint 003 closure verification passes with 120 Django and 44 Node-executed JavaScript tests. Stability additions cover invalid direct reactivation without a 500, non-editable verification before an evidence workflow, duplicate internal aliases as form errors, OSM provenance preservation on metadata edits and split-parent lineage. The owner verified representative-map loading/placement/persistence, responsive current-location behavior including rejection near 212 m accuracy, and retained entrance/floor/internal-place workflows. Detailed contribution-resolution owner QA remains deferred.
+
+Phase 4 Sprint 004 implementation verification passes with 130 Django and 46 Node-executed JavaScript tests. New deterministic coverage includes lifecycle/ownership, private evidence access, accuracy/outlier/stationary classification, idempotent batches, immutable completed samples, exact/no-candidate matching, revision-bound grants, low-coverage override, revocation permissions, material-edit invalidation and relational split lineage. JavaScript verifies accuracy bands, active-only collection, IndexedDB use and non-automatic interrupted recovery. Physical phone GPS and real segment verification remain owner/staging acceptance work.
+
+The local survey-UI correction increases verification to 132 Django and 48 JavaScript tests. Persisted-classification summaries prove rejected samples increase raw/rejected counts without increasing usable count; accepted and weak samples are usable. Timing coverage proves explicit active accumulation, pause/refresh stability, prospective resume and separately labelled wall-clock duration.
+
+The ACTIVE/PAUSED field-map addition increases verification to 133 Django and 49 JavaScript tests. Coverage proves persisted usable coordinates alone form the trace, rejected evidence is retained but omitted from visualization, synchronized trace data survives pause, the active graph is supplied read-only and map failure copy explicitly preserves recording/synchronization behavior.
+
+Development-only Cloudflare Quick Tunnel configuration increases the Django total to 135. Focused coverage proves the `.trycloudflare.com` host/origin wildcard is produced for development, excluded from production and does not remove localhost support.
+
+The Phase 4 hardening, GPS/matching and exact-arrival corrections bring the current full baseline to **171 Django tests and 77 Node-executed JavaScript tests**. Added server coverage includes accuracy/time-aware survey downsampling, nearby contiguous candidate coverage, candidate-noise treatment, route coordinate contracts, entrance connection integrity, exact connector endpoints, connector-derived distance/ETA, legacy null connectors, explicit/fallback internal-place entrances and preserved textual handoff. Added frontend coverage includes public-location stabilization and quality wording, mobile HUD/menu/route layout, field-map evidence trace behavior, editor connector bend controls, exact-entrance route bounds and live/manual internal handoff semantics.
+
+The current static gate also passes Django system checks, migration-drift checks through routing migration `0009`, Python compilation, JavaScript syntax checks and Git whitespace validation. These results establish technical readiness, not physical owner acceptance. No test marks a campus path `FIELD_VERIFIED`, and real-device survey acceptance remains pending.
 
 Coverage includes model validation, aliases, DEMO fixture integrity, map-page configuration, explicit GeoJSON serialization, partial/case-insensitive name search, alias search, category filtering, empty results, invalid input and read-only endpoint behavior.

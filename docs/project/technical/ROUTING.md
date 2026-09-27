@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PHASE 3 / SPRINT 001 — OWNER ACCEPTED
-Implementation:    LIVE-LOCATION DISPLAY ACCEPTED; LIVE-ORIGIN ROUTING DEFERRED
+Current phase:     PHASE 4 SPRINT 004 — PHYSICAL OWNER ACCEPTANCE PENDING
+Implementation:    ENTRANCE-AWARE ROUTING, LIVE NAVIGATION, SURVEY EVIDENCE AND VERIFICATION WORKFLOWS IMPLEMENTED
 ```
 
 This document records the approved routing behavior for YCT Map.
@@ -113,6 +113,18 @@ The owner-approved Phase 4 specification separates an outdoor place's representa
 
 Publication is not a routing assertion. Published outdoor and internal destinations remain searchable when entrance or anchor resolution is incomplete. Their public contract reports `routing_available=false` with a specific reason and the client disables Directions. Cross-parent, inactive and malformed relationships are rejected rather than silently falling back. A route-ready destination requires a valid active arrival entrance and active graph anchor; verification remains independent.
 
+### Exact Entrance Arrival Connector
+
+`EntranceNetworkAnchor` may store an editor-approved GeoJSON connector from its active `WalkableNode` to the exact physical Entrance coordinate. The editor sees the entrance, selected node, graph and proposed connector, may add intermediate bend points, and must confirm explicitly. A straight proposal is never automatically treated as walkable.
+
+Server validation requires a finite local LineString whose first coordinate exactly matches the selected node and whose last coordinate exactly matches the Entrance. Distance is derived from every geometry leg. A* remains unchanged: after graph routing succeeds, the destination connector is appended, or the reversed connector is prepended for a supported entrance origin. Total distance, approximate ETA, destination marker and `fitBounds` use the composed route.
+
+Existing anchors with no connector remain functional through explicit legacy node-only behavior; no migration fabricates geometry. The current connector starts at an existing graph node, so a mid-segment real-world approach can still produce avoidable backtracking. Segment-aware entrance attachment through a safe transactional split is future work.
+
+### Internal-Place Handoff
+
+An `InternalPlace` uses its configured active same-parent routing entrance or falls back to the parent Location's active primary entrance. YCT Map routes outdoors only. The compact and expanded route UI preserve the internal name, floor, room/code, wing and `direction_note`, while arrival language names the building Entrance. No route response claims indoor geometry or arrival at the room.
+
 ## Real Network Construction and Validation
 
 ### Phase 4 Sprint 003 Path Editing Boundary
@@ -120,6 +132,14 @@ Publication is not a routing assertion. Published outdoor and internal destinati
 Authenticated Editors may add/edit `UNVERIFIED` nodes and segments without changing the graph model used by A*. Connected nodes are coordinate-locked because an uncoordinated drag would invalidate attached LineString endpoints. Segment deactivation warnings report concrete remaining endpoint degree and active entrance/location anchors; stored data cannot truthfully claim whether a segment is part of a currently displayed route.
 
 Segment splitting is explicit and transactional: lock the active original, validate a point within five metres and away from endpoints, create one UNVERIFIED node and two endpoint-consistent UNVERIFIED segments, then retain the original as inactive history. No automatic OSM synchronization or field-verification promotion occurs.
+
+### Phase 4 Sprint 004 Survey and Verification Boundary
+
+The phone records explicitly started private evidence; it does not author routing geometry. Samples at up to 25 m accuracy are generally usable, 25–50 m samples are weak, and samples over 50 m are rejected from matching. Near-duplicates, stationary points and implausible jumps are retained with classification but excluded from candidate analysis.
+
+Completed traces are compared with active segments using proximity, continuity and covered distance. Candidate classifications help a reviewer; they are never automatic verification decisions. Partial surveys remain partial evidence, and multiple surveys can support a decision only when they reference the same current revision/fingerprint. Coverage at 80% is a warning threshold, not an automatic grant or prohibition; a lower-coverage grant requires an explicit override reason.
+
+Only an actor with the dedicated grant/revoke permission can change `FIELD_VERIFIED`. Material segment mutation invalidates the current state and preserves the prior decision record. Deactivation alone does not destroy verification because it does not alter geometry; later reactivation may retain it. Raw survey evidence is absent from public map, search and routing contracts.
 
 Existing OSM/OpenFreeMap-visible pathways may be used as reference input when constructing YCT Map's real walkable network; they do not automatically become routing edges. YCT Map must own, import or create explicit graph geometry, retain editor review, and keep field verification separate.
 

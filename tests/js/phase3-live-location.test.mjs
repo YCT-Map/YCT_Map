@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assessSample, normalizePosition } from "../../static/yct_map/js/location-filter.js";
+import { assessSample, createLocationStabilizer, locationQualityLabel, normalizePosition } from "../../static/yct_map/js/location-filter.js";
 import { createGeolocationService } from "../../static/yct_map/js/geolocation.js";
 import { createUserLocation } from "../../static/yct_map/js/user-location.js";
 
@@ -30,6 +30,38 @@ test("filter accepts useful updates while rejecting poor accuracy, stale data an
   assert.equal(jump.reason, "implausible-jump");
   const update = assessSample(position({ longitude: 3.37402, timestamp: 3_000, accuracy: 14 }), first.sample);
   assert.equal(update.accepted, true);
+});
+
+test("public stabilizer warms up, suppresses uncertainty-sized jitter and releases walking", () => {
+  const stabilizer = createLocationStabilizer();
+  const first = normalizePosition(position({ accuracy: 8, timestamp: 1_000 }));
+  const second = normalizePosition(position({ longitude: 3.37401, accuracy: 7, timestamp: 2_000 }));
+  assert.equal(stabilizer.update(first, "reasonable").ready, false);
+  const ready = stabilizer.update(second, "reasonable");
+  assert.equal(ready.ready, true);
+  assert.equal(ready.sample.headingDegrees, null);
+  const jitter = stabilizer.update(normalizePosition(position({ longitude: 3.374015, accuracy: 6,
+    timestamp: 4_000, heading: 90, speed: 1.2 })), "reasonable");
+  assert.equal(jitter.reason, "stationary");
+  assert.equal(jitter.sample.headingDegrees, null);
+  const walking = stabilizer.update(normalizePosition(position({ longitude: 3.37412, accuracy: 7,
+    timestamp: 7_000, heading: 90, speed: 1.2 })), "reasonable");
+  assert.equal(walking.reason, "movement");
+  assert.equal(walking.sample.headingDegrees, 90);
+  assert.equal(locationQualityLabel(7), "Good");
+  assert.equal(locationQualityLabel(40), "Fair");
+  assert.equal(locationQualityLabel(80), "Poor");
+});
+
+test("rolling estimate corrects an early biased fix and reports observed instability", () => {
+  const stabilizer = createLocationStabilizer();
+  stabilizer.update(normalizePosition(position({ longitude: 3.37400, accuracy: 5, timestamp: 1_000 })), "reasonable");
+  const initial = stabilizer.update(normalizePosition(position({ longitude: 3.37401, accuracy: 5, timestamp: 2_000 })), "reasonable");
+  assert.equal(initial.ready, true);
+  stabilizer.update(normalizePosition(position({ longitude: 3.37409, accuracy: 6, timestamp: 5_000 })), "reasonable");
+  const corrected = stabilizer.update(normalizePosition(position({ longitude: 3.37410, accuracy: 6, timestamp: 8_000 })), "reasonable");
+  assert.ok(corrected.sample.longitude > initial.sample.longitude, "sustained later evidence must move a biased centre");
+  assert.ok(["stable", "approximate", "unstable"].includes(corrected.confidence));
 });
 
 test("geolocation service reports unsupported and cleans up its watcher", () => {
@@ -73,6 +105,24 @@ test("watch permission denial clears the active watcher", () => {
   watchError({ code: 1 });
   assert.deepEqual(errors, ["permission-denied"]);
   assert.deepEqual(cleared, [23]);
+});
+
+test("an obsolete initial request cannot restart a watcher or publish a stale point", () => {
+  const initialCallbacks=[]; let watchCount=0;
+  const geolocation={
+    getCurrentPosition(success){initialCallbacks.push(success);},
+    watchPosition(){watchCount+=1;return watchCount;},
+    clearWatch(){},
+  };
+  const received=[]; const service=createGeolocationService({geolocation});
+  service.start((sample)=>received.push(["old",sample]),()=>{});
+  service.start((sample)=>received.push(["new",sample]),()=>{});
+  initialCallbacks[0](position());
+  assert.equal(watchCount,0);
+  assert.equal(received.length,0);
+  initialCallbacks[1](position({timestamp:2_000}));
+  assert.equal(watchCount,1);
+  assert.equal(received[0][0],"new");
 });
 
 class FakeElement {
@@ -121,10 +171,14 @@ test("user controller handles permission, accepted position, recenter, rejection
   harness.get("#locate-me").listeners.get("click")();
   assert.equal(controller.getState(), "requesting-permission");
   positionCallback(position());
+  assert.equal(controller.getState(), "warming-up");
+  assert.equal(shown.length, 0);
+  positionCallback(position({ longitude: 3.37401, timestamp: 2_000, accuracy: 10 }));
   assert.equal(controller.getState(), "active");
   assert.equal(shown.length, 1);
   assert.equal(shown[0][1].focus, true);
-  positionCallback(position({ longitude: 3.39, timestamp: 2_000, accuracy: 20 }));
+  assert.match(harness.get("#location-accuracy").textContent, /Location quality: Good.*estimated device uncertainty/);
+  positionCallback(position({ longitude: 3.39, timestamp: 3_000, accuracy: 20 }));
   assert.equal(shown.length, 1, "an implausible noisy jump must not move the marker");
   harness.get("#recenter-me").listeners.get("click")();
   assert.equal(recentered, 1);
@@ -137,4 +191,19 @@ test("user controller handles permission, accepted position, recenter, rejection
   errorCallback("permission-denied");
   assert.equal(controller.getState(), "permission-denied");
   assert.match(harness.get("#location-message").textContent, /manually/);
+});
+
+test("a location-service failure clears the old route origin instead of retaining stale coordinates", () => {
+  const harness=locationHarness(); let positionCallback; let errorCallback; let cleared=0;
+  const service={isSupported:true,start(onPosition,onError){positionCallback=onPosition;errorCallback=onError;return true;},stop(){},resume(){}};
+  const controller=createUserLocation({element:harness.root,service,
+    documentObject:{hidden:false,addEventListener(){},removeEventListener(){}},onPosition(){},onClear(){cleared+=1;},onRecenter(){}});
+  controller.start();
+  positionCallback(position());
+  positionCallback(position({longitude:3.37401,timestamp:2_000,accuracy:10}));
+  assert.ok(controller.getAcceptedPosition());
+  errorCallback("unavailable");
+  assert.equal(controller.getAcceptedPosition(),null);
+  assert.equal(controller.getState(),"unavailable");
+  assert.equal(cleared,1);
 });

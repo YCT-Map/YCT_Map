@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: yct-map
+    runtime: python
+    buildCommand: bash build.sh
+    startCommand: gunicorn yctmap.wsgi:application --bind 0.0.0.0:$PORT
+    healthCheckPath: /health/
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: TRUST_PROXY_HTTPS
+        value: "1"

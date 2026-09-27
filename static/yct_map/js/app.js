@@ -1,11 +1,12 @@
-import { fetchLocations } from "./api.js?v=p4s2-entrances-internal-places-1";
-import { createContributions } from "./contributions.js?v=p4s2-entrances-internal-places-1";
-import { createDestinationPanel } from "./destination-panel.js?v=p4s2-entrances-internal-places-1";
-import { createMap } from "./map.js?v=p4s2-entrances-internal-places-1";
-import { createSearch } from "./search.js?v=p4s2-entrances-internal-places-1";
-import { createRouteInspector } from "./route-inspector.js?v=p4s2-entrances-internal-places-1";
-import { createUserLocation } from "./user-location.js?v=p4s2-entrances-internal-places-1";
-import { createUserNavigation } from "./user-navigation.js?v=p4s2-entrances-internal-places-1";
+import { fetchLocations } from "./api.js?v=p4-predeploy-1";
+import { createContributions } from "./contributions.js?v=p4-predeploy-1";
+import { createDestinationPanel } from "./destination-panel.js?v=p4-predeploy-1";
+import { createMap } from "./map.js?v=p4-predeploy-1";
+import { createSearch } from "./search.js?v=p4-predeploy-1";
+import { createRouteInspector } from "./route-inspector.js?v=p4-predeploy-1";
+import { createUserLocation } from "./user-location.js?v=p4-predeploy-1";
+import { createUserNavigation } from "./user-navigation.js?v=p4-predeploy-1";
+import { createDisclosureMenu } from "./disclosure-menu.js?v=p4-predeploy-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -30,6 +31,7 @@ const config = {
 
 let mapController = null;
 let userLocationController = null;
+createDisclosureMenu({ element: document.querySelector(".team-menu") });
 
 function setInterfaceState(state) {
   shell.dataset.interfaceState = state;
@@ -53,9 +55,9 @@ async function start() {
     const features = collection.features;
 
     if (features.length === 0) {
-      setStatus("No demonstration destinations are loaded yet.", "warning");
+      setStatus("No campus destinations are loaded yet.", "warning");
     } else {
-      setStatus(`${features.length} demo destinations ready`, "ready");
+      setStatus(`${features.length} campus destinations ready`, "ready");
     }
 
     navigationController = createUserNavigation({
@@ -123,10 +125,10 @@ async function start() {
         config,
         features,
         onSelect: selectDestination,
-        onReady: () => setStatus(`${features.length} demo destinations · YabaTech area`, "ready"),
+        onReady: () => setStatus(`${features.length} campus destinations · YabaTech area`, "ready"),
         onError: () => {
           mapError.hidden = false;
-          setStatus("Demo destinations ready · map unavailable", "warning");
+          setStatus("Campus destinations ready · map unavailable", "warning");
         },
       });
       const existingPosition = userLocationController.getAcceptedPosition();
@@ -141,7 +143,7 @@ async function start() {
     } catch (error) {
       console.error("Map initialization failed", error);
       mapError.hidden = false;
-      setStatus("Demo destinations ready · map unavailable", "warning");
+      setStatus("Campus destinations ready · map unavailable", "warning");
     }
   } catch (error) {
     console.error("YCT Map could not load destination data", error);

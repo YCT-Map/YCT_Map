@@ -1,38 +1,83 @@
-import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=p3s4-contributions-1";
-import { createOffRouteDetector } from "./off-route.js?v=p3s4-contributions-1";
+import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=p4-predeploy-1";
+import { createOffRouteDetector } from "./off-route.js?v=p4-predeploy-1";
+
+export const MAX_LIVE_POSITION_AGE_MS = 30_000;
 
 export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, onRoute, onClear, onBrowse,
-  onCancel, onStateChange, onRouteStale, requestRoute = fetch }) {
+  onCancel, onStateChange, onRouteStale, requestRoute = fetch, now = Date.now }) {
   const form = panel.querySelector("#user-route-form");
   const originSelect = panel.querySelector("#user-route-origin");
   const destinationName = panel.querySelector("#user-route-destination");
+  const summaryDestinationName = panel.querySelector("#user-route-summary-destination");
   const submitButton = panel.querySelector("#show-user-route");
   const retryButton = panel.querySelector("#retry-reroute");
   const error = panel.querySelector("#user-route-error");
   const result = panel.querySelector("#user-route-result");
   const formState = panel.querySelector("#user-route-form-state");
+  const detailsToggle = panel.querySelector("#toggle-route-details");
   let destination = null;
   let livePosition = null;
   let activeTracker = null;
   let offRouteDetector = null;
   let rerouteRequestActive = false;
   let visibleBeforeSuspend = false;
+  let activeDestinationSummary = null;
 
   const csrfToken = () => document.cookie.split("; ").find((row) => row.startsWith("csrftoken="))?.split("=")[1] || "";
   const liveOption = () => [...originSelect.options].find((option) => option.value === "__live__");
+  function livePositionUsable() {
+    if (!livePosition || livePosition.accuracyMetres > 40 || !Number.isFinite(livePosition.timestamp)) return false;
+    const age = now() - livePosition.timestamp;
+    return age >= -5_000 && age <= MAX_LIVE_POSITION_AGE_MS;
+  }
   function updateLiveOption() {
     const option = liveOption();
     if (!option) return;
-    option.disabled = !livePosition || livePosition.accuracyMetres > 40;
+    option.disabled = !livePositionUsable();
     option.textContent = option.disabled ? "Use my location (locate first)" : "Use my live location";
   }
   function resetMessages() { error.hidden = true; result.hidden = true; }
+  function setRoutePanelState(state, expanded = false) {
+    panel.dataset.routeState = state;
+    panel.dataset.detailsExpanded = String(expanded);
+    detailsToggle?.setAttribute("aria-expanded", String(expanded));
+  }
   function requestLiveRoute(position) {
     return requestRoute(liveRouteUrl, { method: "POST", headers: {
       Accept: "application/json", "Content-Type": "application/json", "X-CSRFToken": csrfToken(),
     }, body: JSON.stringify({ destination: destination.properties.destination_key || destination.properties.id, position: {
       latitude: position.latitude, longitude: position.longitude, accuracy_metres: position.accuracyMetres,
     } }) });
+  }
+
+  function renderDestinationSummary(summary) {
+    activeDestinationSummary = summary;
+    const arrival = summary.outdoor_arrival;
+    const handoff = summary.indoor_handoff;
+    panel.querySelector("#user-route-to").textContent = arrival?.label || summary.name;
+    const arrivalPrefix = panel.querySelector("#user-route-arrival-prefix");
+    if (arrivalPrefix) arrivalPrefix.textContent = handoff ? "Outdoor arrival:" : "Arrive at";
+    if (summaryDestinationName) summaryDestinationName.textContent = summary.name;
+    const compact = panel.querySelector("#user-route-summary-handoff");
+    const section = panel.querySelector("#user-route-internal-handoff");
+    if (!handoff) {
+      if (compact) compact.hidden = true;
+      if (section) section.hidden = true;
+      return;
+    }
+    const indoorLocation = [handoff.floor, handoff.room_code, handoff.wing_section].filter(Boolean).join(" · ");
+    if (compact) {
+      compact.textContent = `Inside: ${indoorLocation || handoff.name}`;
+      compact.hidden = false;
+    }
+    if (section) section.hidden = false;
+    const internalName = panel.querySelector("#user-route-internal-name");
+    const internalLocation = panel.querySelector("#user-route-internal-location");
+    const internalDirection = panel.querySelector("#user-route-internal-direction");
+    if (internalName) internalName.textContent = handoff.name;
+    if (internalLocation) internalLocation.textContent = indoorLocation || "Indoor location details are incomplete.";
+    if (internalDirection) internalDirection.textContent = handoff.direction_note
+      || "No indoor direction note has been recorded.";
   }
 
   function begin(feature) {
@@ -56,6 +101,7 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     }
     resetMessages();
     formState.hidden = false;
+    setRoutePanelState("setup");
     panel.hidden = false;
     submitButton.disabled = true;
     retryButton.hidden = true;
@@ -71,10 +117,17 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       error.hidden = false;
       return;
     }
+    const useLive = originSelect.value === "__live__";
+    if (useLive && !livePositionUsable()) {
+      updateLiveOption();
+      error.textContent = "Your live position is no longer current. Use Locate me again or choose a manual start.";
+      error.hidden = false;
+      return;
+    }
     resetMessages();
     submitButton.disabled = true;
     submitButton.textContent = "Calculating…";
-    const useLive = originSelect.value === "__live__";
+    setRoutePanelState("loading");
     try {
       let response;
       if (useLive) response = await requestLiveRoute(livePosition);
@@ -87,23 +140,28 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       const origin = useLive ? null : features.find((item) => item.properties.id === originSelect.value);
       const totalDistance = payload.summary.total_distance_metres ?? payload.summary.distance_metres;
       panel.querySelector("#user-route-from").textContent = payload.summary.origin.name;
-      panel.querySelector("#user-route-to").textContent = payload.summary.destination.name;
+      renderDestinationSummary(payload.summary.destination);
       panel.querySelector("#user-route-distance").textContent = `${Math.round(totalDistance)} m`;
       panel.querySelector("#user-route-eta").textContent = payload.summary.eta_label;
       panel.querySelector("#user-route-progress-status").hidden = !useLive;
       panel.querySelector("#user-route-progress-status").textContent = "Live route active · waiting for movement";
       panel.querySelector("#user-route-eta-source").textContent = useLive ? "Approximate ETA at 1.35 m/s" : "";
       panel.querySelector("#user-route-data-notice").textContent =
-        "DEMO destinations with OSM-derived UNVERIFIED route geometry — not field-verified campus navigation.";
+        "OSM-derived route geometry is UNVERIFIED and is not field-verified campus navigation.";
       formState.hidden = true;
       result.hidden = false;
+      setRoutePanelState("active", false);
       activeTracker = useLive ? createLiveRouteTracker(payload.route.geometry.coordinates, totalDistance) : null;
       offRouteDetector = useLive ? createOffRouteDetector() : null;
       retryButton.hidden = true;
       onRouteStale?.(false);
-      onRoute(payload.route, origin, destination, { originType: useLive ? "live" : "manual" });
+      onRoute(payload.route, origin, destination, {
+        originType: useLive ? "live" : "manual",
+        arrivalName: payload.summary.destination.outdoor_arrival?.label || payload.summary.destination.name,
+      });
       onStateChange?.("route-available");
     } catch (routeError) {
+      setRoutePanelState("error", true);
       error.textContent = routeError.message;
       error.hidden = false;
     } finally {
@@ -117,7 +175,9 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     activeTracker = null;
     offRouteDetector = null;
     rerouteRequestActive = false;
+    activeDestinationSummary = null;
     panel.hidden = true;
+    setRoutePanelState("setup");
     resetMessages();
     onClear();
     if (notify) onStateChange?.("browsing");
@@ -127,12 +187,15 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   function renderProgress(progress) {
     const copy = { walking: "Following route", stationary: "Stationary · ETA uses your recent pace",
       "position-uncertain": "Checking your position…", arrived: "You have arrived" };
-    panel.querySelector("#user-route-progress-status").textContent = copy[progress.state];
+    const arrivalLabel = activeDestinationSummary?.outdoor_arrival?.label || activeDestinationSummary?.name || "the entrance";
+    panel.querySelector("#user-route-progress-status").textContent = progress.state === "arrived"
+      ? `You have reached ${arrivalLabel}.` : copy[progress.state];
     panel.querySelector("#user-route-distance").textContent = `${Math.round(progress.remainingDistanceMetres)} m remaining`;
     panel.querySelector("#user-route-eta").textContent = progress.state === "arrived" ? "Arrived" : formatEta(progress.etaSeconds);
     panel.querySelector("#user-route-eta-source").textContent = progress.etaSource === "live"
       ? "ETA from your recent walking pace" : progress.etaSource === "recent"
         ? "ETA from recent pace" : "Approximate ETA at 1.35 m/s";
+    if (progress.state === "arrived") setRoutePanelState("arrived", true);
   }
 
   async function performReroute(position, { manualRetry = false } = {}) {
@@ -146,9 +209,13 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Unable to calculate a replacement route.");
       const totalDistance = payload.summary.total_distance_metres;
+      renderDestinationSummary(payload.summary.destination);
       activeTracker.replaceRoute(payload.route.geometry.coordinates, totalDistance);
       offRouteDetector.markSuccess(position.timestamp);
-      onRoute(payload.route, null, destination, { originType: "live", replacement: true });
+      onRoute(payload.route, null, destination, {
+        originType: "live", replacement: true,
+        arrivalName: payload.summary.destination.outdoor_arrival?.label || payload.summary.destination.name,
+      });
       onRouteStale?.(false);
       panel.querySelector("#user-route-distance").textContent = `${Math.round(totalDistance)} m remaining`;
       panel.querySelector("#user-route-eta").textContent = payload.summary.eta_label;
@@ -186,10 +253,13 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
 
   form.addEventListener("submit", calculate);
   originSelect.addEventListener("change", () => { submitButton.disabled = !originSelect.value; });
-  panel.querySelector("#change-route-origin").addEventListener("click", () => { result.hidden = true; formState.hidden = false; originSelect.focus(); });
+  panel.querySelector("#change-route-origin").addEventListener("click", () => { result.hidden = true; formState.hidden = false; setRoutePanelState("setup"); originSelect.focus(); });
   panel.querySelector("#change-route-destination").addEventListener("click", () => reset({ browse: true }));
   panel.querySelector("#clear-user-route").addEventListener("click", () => reset());
   panel.querySelector("#close-user-route").addEventListener("click", () => reset());
+  detailsToggle?.addEventListener("click", () => {
+    setRoutePanelState("active", panel.dataset.detailsExpanded !== "true");
+  });
   panel.querySelector("#cancel-user-route").addEventListener("click", () => {
     const cancelledDestination = destination; reset({ notify: false }); if (cancelledDestination) onCancel?.(cancelledDestination);
   });

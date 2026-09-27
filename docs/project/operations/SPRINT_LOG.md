@@ -556,6 +556,15 @@ Establish trusted editor access and evolve the existing UUID `Location` model in
 - Full verification currently passes with 94 Django tests and 34 JavaScript tests. Owner visual review is still required.
 - `BUILD_JOURNAL.md` remains unchanged until owner acceptance.
 
+### Local Owner-Test Correction — Survey Counters and Timing
+
+- Corrected the survey UI to distinguish persisted raw, usable (`ACCEPTED` + `WEAK`) and rejected samples. Rejected readings remain private raw evidence and remain excluded from matching.
+- Added prospective active-capture accumulation driven only by the explicitly running GPS watcher, with pause/resume/interruption safety and periodic monotonic persistence.
+- Kept wall-clock session duration separately labelled. Surveys completed before this correction retain calculable wall-clock duration but explicitly state that historical active-only time was not measured.
+- Added migration `routing.0008` for the accumulated active seconds and whether prospective timing was started.
+- Correction verification passes with 132 Django and 48 JavaScript tests. No matching, verification, privacy or graph-mutation semantics changed.
+- ACTIVE and PAUSED surveys now include a mobile field map with the existing graph, current GPS point and a synchronized usable-evidence trace. Rejected samples never enter the trace, pause preserves it, and MapLibre/basemap failure does not interrupt capture or synchronization. Verification now passes with 133 Django and 49 JavaScript tests.
+
 ### Evidence Required After Acceptance
 
 - `P4-S1-A-editor-place-form.png`
@@ -633,3 +642,40 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Database inspection found 8 Locations, 9 Entrances, 3 Floors, 3 Internal Places, 49 nodes, 54 segments, 6 entrance anchors and 6 legacy anchors; no routing node or segment is FIELD_VERIFIED.
 - Final verification passes with 120 Django and 44 JavaScript tests plus clean system, compilation, syntax, migration-drift and whitespace checks.
 - Phase 4 Sprint 003 is OWNER ACCEPTED / CLOSED. Sprint 002 acceptance and detailed contribution-resolution QA remain deferred. Phase 4 remains IN PROGRESS.
+
+---
+
+## Phase 4 — Sprint 004: Path Survey Evidence & Segment Verification
+
+**Status:** IMPLEMENTED — OWNER FIELD REVIEW REQUIRED
+**Date:** 2026-09-24
+
+- Added explicit private Path Survey sessions and ordered, accuracy-classified GPS evidence with mobile controls, interruption safety and IndexedDB buffering.
+- Added deterministic trace analysis producing revision-bound candidate matches while keeping algorithm classification separate from reviewer disposition.
+- Added dedicated review/grant/revoke permissions and append-only verification history; no survey, strong match or completion automatically grants `FIELD_VERIFIED`.
+- Added authoritative revision-aware segment mutation, fingerprinting, automatic demotion after material changes and relational split lineage.
+- Existing OSM-derived graph records remain UNVERIFIED. No physical survey or field-verification claim has been made.
+- Verification passes with 130 Django and 46 JavaScript tests. HTTPS physical-device QA, Sprint 002 acceptance and detailed contribution-resolution QA remain before Phase 4 closure.
+- `BUILD_JOURNAL.md` remains unchanged until owner acceptance.
+
+### Phase 4 Pre-Closeout Status Reconciliation — 2026-09-27
+
+- Phase 4 Sprint 002 is formally OWNER ACCEPTED / COMPLETE. Acceptance covers outdoor Places, multiple Entrances, representative-point/entrance separation, Floors, Internal Places and aliases, primary-entrance fallback, explicit routing-entrance override, map-first `EntranceNetworkAnchor` management, editor-approved arrival connectors with bend points, exact physical-entrance route completion and textual indoor handoff without any indoor-routing claim.
+- Sprint 002's earlier implementation and correction entries remain unchanged as factual snapshots of their then-current review state.
+- Entrance attachment still begins at an existing graph node. When the best connection lies mid-segment, this may create avoidable backtracking; safe segment-aware attachment or transactional splitting is future field-mapping work and is not a Sprint 002 acceptance blocker.
+- Phase 4 Sprint 003 remains OWNER ACCEPTED / COMPLETE. Detailed ContributionResolution owner QA remains intentionally deferred.
+- Phase 4 Sprint 004 is IMPLEMENTATION COMPLETE / TECHNICAL AUDIT COMPLETE / PHYSICAL OWNER ACCEPTANCE PENDING. It is not owner accepted and Phase 4 is not closed.
+- The current full verification baseline is 171 Django tests and 77 JavaScript tests, with Django checks, migration drift, Python compilation, JavaScript syntax and Git whitespace validation clean.
+- No current campus path is `FIELD_VERIFIED`; OSM-derived geometry remains `UNVERIFIED` pending explicit physical review.
+- Final Phase 4 closure still requires real-device and real-campus field acceptance. Cloudflare Quick Tunnel support remains development-only; no production deployment exists.
+
+### Pre-Deployment Cleanup and Production-Candidate Preparation — 2026-09-27
+
+- Created and integrity-checked an external pre-cleanup SQLite backup before mutation.
+- Removed the six fixed-UUID DEMO Locations, their demo/test children and anchors, the explicit Phase 4 test Location, and the owner-approved disposable DEMO Library correction contribution.
+- Retained New Building and Sports Complex with all current child data. Both Locations and all five retained entrances remain `UNVERIFIED`; no `FIELD_VERIFIED` status was granted.
+- Retained the operational routing graph unchanged at 49 active nodes and 54 active segments, together with four private survey records and 269 raw survey samples.
+- Added a dry-run-by-default, repeat-safe cleanup command and a forward migration so fresh production schemas do not finish with historical DEMO seed records.
+- Replaced permanent public DEMO presentation with verification-aware data labels while retaining DEMO fixtures, diagnostics and domain states for isolated testing.
+- Prepared Render/PostgreSQL environment handling, Gunicorn startup, WhiteNoise static serving, secure production defaults and a lightweight health endpoint. No PostgreSQL transfer, GitHub push, Render resource or deployment has occurred.
+- Verification passes with 176 Django tests and 77 JavaScript tests. Phase 4 Sprint 004 physical owner acceptance remains pending; this preparation does not close Phase 4.
