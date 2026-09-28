@@ -133,4 +133,20 @@ Required safeguards:
 
 ---
 
+### BL-008
+
+```
+ID:         BL-008
+Idea:       Optional owner-managed landmark priority metadata for semantic-zoom exceptions
+Reason:     A small number of genuinely important campus landmarks may later need explicit close-review visibility rules without deriving importance from category names or invented heuristics.
+Priority:   LOW
+Dependency: A demonstrated product need and owner-defined values
+Release:    Later
+Status:     DEFERRED
+```
+
+No priority values should be inferred automatically from current campus records.
+
+---
+
 > Add items here when they arise during sprints. Do not implement them without approval.

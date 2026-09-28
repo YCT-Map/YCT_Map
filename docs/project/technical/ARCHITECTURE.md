@@ -253,3 +253,9 @@ An `EntranceNetworkAnchor` may hold a short, editor-approved connector `LineStri
 Internal Places have no indoor geometry. Their destination resolution chooses an explicit active same-parent routing entrance or the parent primary entrance, routes outdoors to that entrance and preserves floor, room/code, wing and `direction_note` as a textual handoff. Live arrival announces the Entrance, not the room.
 
 Published records do not claim routing readiness. Public serializers expose `routing_available` and `routing_unavailable_reason`; the UI disables Directions but preserves search and display. Strict model validation rejects cross-parent floors/entrances and inactive routing entrances. At most one active primary entrance is enforced in the database.
+
+## Public Destination Density and Semantic Zoom
+
+The public map keeps the existing published-location GeoJSON endpoint and lets MapLibre cluster that source in the browser. Overview and mid zoom show compact count clusters; close zoom shows the existing category-coloured destination points, while text labels begin only after the close-detail threshold. Cluster selection changes only the camera. Individual destination selection still opens the existing details and Directions flow.
+
+Search and category filtering continue to own the visible feature set through the existing `onFilter` callback. Updating the same clustered GeoJSON source causes MapLibre to recompute clusters, so the map never maintains an independent filter state. A separate one-feature selected-destination source keeps the selected marker and halo visible above clusters without mutating the destination collection. Route lines, route endpoints and live-location layers are deliberately raised above all density layers.

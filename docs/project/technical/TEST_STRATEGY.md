@@ -131,4 +131,6 @@ The Phase 4 hardening, GPS/matching and exact-arrival corrections bring the curr
 
 The current static gate also passes Django system checks, migration-drift checks through routing migration `0009`, Python compilation, JavaScript syntax checks and Git whitespace validation. These results establish technical readiness, not physical owner acceptance. No test marks a campus path `FIELD_VERIFIED`, and real-device survey acceptance remains pending.
 
+The public-map Destination Density & Semantic Zoom upgrade raises the JavaScript total to **85** while the full Django suite remains **176**. The eight focused tests verify native cluster configuration, cluster/unclustered layer filters, close-zoom labels, independent selected-destination rendering, search/category source updates, cluster expansion without accidental selection, graceful expansion failure and foreground ordering for routes, endpoints and live location. Visual density, mobile tap behavior and label readability remain owner browser checks.
+
 Coverage includes model validation, aliases, DEMO fixture integrity, map-page configuration, explicit GeoJSON serialization, partial/case-insensitive name search, alias search, category filtering, empty results, invalid input and read-only endpoint behavior.

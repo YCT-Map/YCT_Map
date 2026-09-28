@@ -679,3 +679,19 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Replaced permanent public DEMO presentation with verification-aware data labels while retaining DEMO fixtures, diagnostics and domain states for isolated testing.
 - Prepared Render/PostgreSQL environment handling, Gunicorn startup, WhiteNoise static serving, secure production defaults and a lightweight health endpoint. No PostgreSQL transfer, GitHub push, Render resource or deployment has occurred.
 - Verification passes with 176 Django tests and 77 JavaScript tests. Phase 4 Sprint 004 physical owner acceptance remains pending; this preparation does not close Phase 4.
+
+---
+
+## Public Map â€” Destination Density & Semantic Zoom Upgrade
+
+**Status:** IMPLEMENTED â€” OWNER REVIEW REQUIRED
+**Date:** 2026-09-28
+
+- Replaced always-visible destination points with MapLibre-native GeoJSON clustering at overview and mid zoom, using conservative campus-scale radius and maximum-cluster zoom settings.
+- Added compact cluster circles and count labels; clicking/tapping a cluster requests MapLibre's expansion zoom and moves the camera without opening a destination card.
+- Retained category-coloured individual markers at close zoom and limited destination text labels to the close-detail range.
+- Moved selected-destination rendering to a separate one-feature GeoJSON source so search/category selections remain visible above cluster state and continue using the existing destination panel and Directions flow.
+- Preserved the existing search/category `onFilter` pathway: the filtered feature collection replaces the clustered source data and MapLibre reclusters it automatically.
+- Established deliberate foreground ordering so active route lines, selected destinations, route endpoints and live-location indicators remain readable above density layers.
+- Added eight JavaScript behavior tests. Current verification is 176 Django tests and 85 JavaScript tests passing; owner desktop/mobile visual review remains required.
+- No schema, migration, endpoint contract, production database, campus record, routing graph, verification state or deployment resource changed. No commit or push is included.

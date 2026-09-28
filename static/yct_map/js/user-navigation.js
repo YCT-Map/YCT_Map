@@ -1,5 +1,5 @@
-import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=p4-predeploy-1";
-import { createOffRouteDetector } from "./off-route.js?v=p4-predeploy-1";
+import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=destination-density-1";
+import { createOffRouteDetector } from "./off-route.js?v=destination-density-1";
 
 export const MAX_LIVE_POSITION_AGE_MS = 30_000;
 

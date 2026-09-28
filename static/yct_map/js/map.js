@@ -1,7 +1,16 @@
-const SOURCE_ID = "demo-destinations";
-const CIRCLE_LAYER_ID = "demo-destination-circles";
-const SELECTED_LAYER_ID = "demo-destination-selected";
-const LABEL_LAYER_ID = "demo-destination-labels";
+export const DESTINATION_SOURCE_ID = "demo-destinations";
+export const DESTINATION_CLUSTER_LAYER_ID = "destination-clusters";
+export const DESTINATION_CLUSTER_COUNT_LAYER_ID = "destination-cluster-counts";
+export const DESTINATION_POINT_LAYER_ID = "demo-destination-circles";
+export const DESTINATION_LABEL_LAYER_ID = "demo-destination-labels";
+export const SELECTED_DESTINATION_SOURCE_ID = "selected-destination";
+export const SELECTED_DESTINATION_MARKER_LAYER_ID = "selected-destination-marker";
+export const SELECTED_DESTINATION_HALO_LAYER_ID = "selected-destination-halo";
+export const DESTINATION_CLUSTER_CONFIG = Object.freeze({
+  cluster: true,
+  clusterRadius: 50,
+  clusterMaxZoom: 16,
+});
 const CAMPUS_SOURCE_ID = "yabatech-campus-orientation";
 const CAMPUS_LABEL_SOURCE_ID = "yabatech-campus-label-point";
 const CAMPUS_FILL_LAYER_ID = "yabatech-campus-fill";
@@ -25,6 +34,206 @@ const USER_LOCATION_DOT_LAYER_ID = "live-user-location-dot";
 const USER_LOCATION_CHEVRON_LAYER_ID = "live-user-location-chevron";
 const CONTRIBUTION_SOURCE_ID = "pending-contribution-point";
 const CONTRIBUTION_LAYER_ID = "pending-contribution-point-circle";
+
+const DESTINATION_COLOR = [
+  "match",
+  ["get", "category"],
+  "health", "#c25345",
+  "food", "#e2a927",
+  "hostel", "#7758a6",
+  "office", "#397aa8",
+  "library", "#208569",
+  "#17663c",
+];
+
+export const NAVIGATION_FOREGROUND_LAYER_ORDER = Object.freeze([
+  ROUTE_LAYER_ID,
+  USER_ROUTE_CASING_LAYER_ID,
+  USER_ROUTE_LAYER_ID,
+  USER_ACCURACY_LAYER_ID,
+  SELECTED_DESTINATION_HALO_LAYER_ID,
+  SELECTED_DESTINATION_MARKER_LAYER_ID,
+  USER_ENDPOINT_CIRCLE_LAYER_ID,
+  USER_ENDPOINT_LABEL_LAYER_ID,
+  USER_LOCATION_DOT_LAYER_ID,
+  USER_LOCATION_CHEVRON_LAYER_ID,
+]);
+
+function featureCollection(features = []) {
+  return { type: "FeatureCollection", features };
+}
+
+export function destinationSourceDefinition(features = []) {
+  return {
+    type: "geojson",
+    data: featureCollection(features),
+    ...DESTINATION_CLUSTER_CONFIG,
+  };
+}
+
+export function selectedDestinationSourceDefinition() {
+  return { type: "geojson", data: featureCollection() };
+}
+
+export function destinationLayerDefinitions() {
+  const unclustered = ["!", ["has", "point_count"]];
+  const clustered = ["has", "point_count"];
+  return [
+    {
+      id: DESTINATION_CLUSTER_LAYER_ID,
+      type: "circle",
+      source: DESTINATION_SOURCE_ID,
+      filter: clustered,
+      paint: {
+        "circle-radius": ["step", ["get", "point_count"], 20, 10, 24, 25, 28],
+        "circle-color": ["step", ["get", "point_count"], "#17663c", 10, "#145733", 25, "#0d442a"],
+        "circle-stroke-color": "rgba(255,255,255,.96)",
+        "circle-stroke-width": 2.5,
+        "circle-opacity": 0.94,
+      },
+    },
+    {
+      id: DESTINATION_CLUSTER_COUNT_LAYER_ID,
+      type: "symbol",
+      source: DESTINATION_SOURCE_ID,
+      filter: clustered,
+      layout: {
+        "text-field": ["get", "point_count_abbreviated"],
+        "text-size": ["step", ["get", "point_count"], 12, 10, 13, 25, 14],
+        "text-font": ["Noto Sans Regular"],
+        "text-allow-overlap": true,
+        "text-ignore-placement": true,
+      },
+      paint: { "text-color": "#ffffff", "text-halo-color": "rgba(13,68,42,.35)", "text-halo-width": 1 },
+    },
+    {
+      id: DESTINATION_POINT_LAYER_ID,
+      type: "circle",
+      source: DESTINATION_SOURCE_ID,
+      filter: unclustered,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 7, 18, 11],
+        "circle-color": DESTINATION_COLOR,
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 3,
+        "circle-opacity": 0.96,
+      },
+    },
+    {
+      id: DESTINATION_LABEL_LAYER_ID,
+      type: "symbol",
+      source: DESTINATION_SOURCE_ID,
+      filter: unclustered,
+      minzoom: 16.3,
+      layout: {
+        "text-field": ["get", "name"],
+        "text-size": 11,
+        "text-offset": [0, 1.5],
+        "text-anchor": "top",
+        "text-font": ["Noto Sans Regular"],
+      },
+      paint: {
+        "text-color": "#163127",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.5,
+      },
+    },
+  ];
+}
+
+export function selectedDestinationLayerDefinitions() {
+  return [
+    {
+      id: SELECTED_DESTINATION_HALO_LAYER_ID,
+      type: "circle",
+      source: SELECTED_DESTINATION_SOURCE_ID,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 13, 18, 18],
+        "circle-color": "rgba(255, 255, 255, 0)",
+        "circle-stroke-color": "#e2b431",
+        "circle-stroke-width": 4,
+      },
+    },
+    {
+      id: SELECTED_DESTINATION_MARKER_LAYER_ID,
+      type: "circle",
+      source: SELECTED_DESTINATION_SOURCE_ID,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 8, 18, 12],
+        "circle-color": DESTINATION_COLOR,
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 3,
+        "circle-opacity": 1,
+      },
+    },
+  ];
+}
+
+export function selectedDestinationData(feature) {
+  if (!feature || feature.properties?.destination_type === "internal") return featureCollection();
+  const geometry = feature.geometry?.type === "Point"
+    ? { ...feature.geometry, coordinates: [...feature.geometry.coordinates] }
+    : feature.geometry;
+  return featureCollection([{ ...feature, geometry, properties: { ...feature.properties } }]);
+}
+
+export function setSelectedDestination(map, feature) {
+  const source = map.getSource?.(SELECTED_DESTINATION_SOURCE_ID);
+  if (!source) return false;
+  source.setData(selectedDestinationData(feature));
+  return true;
+}
+
+export function focusDestination(map, feature) {
+  setSelectedDestination(map, feature);
+  map.flyTo({ center: feature.geometry.coordinates, zoom: 18, duration: 900, essential: false });
+}
+
+export function setVisibleDestinationFeatures(map, features) {
+  const source = map.getSource?.(DESTINATION_SOURCE_ID);
+  if (!source) return false;
+  source.setData(featureCollection(features));
+  return true;
+}
+
+export async function expandDestinationCluster(map, feature, { warn = console.warn } = {}) {
+  const clusterId = Number(feature?.properties?.cluster_id);
+  const coordinates = feature?.geometry?.coordinates;
+  const source = map.getSource?.(DESTINATION_SOURCE_ID);
+  if (!Number.isFinite(clusterId) || !Array.isArray(coordinates) || !source?.getClusterExpansionZoom) return false;
+  try {
+    const zoom = await source.getClusterExpansionZoom(clusterId);
+    if (!Number.isFinite(zoom)) return false;
+    map.easeTo({ center: coordinates, zoom, duration: 650, essential: false });
+    return true;
+  } catch (error) {
+    warn("Destination cluster could not expand", error);
+    return false;
+  }
+}
+
+export function bindDestinationInteractions({ map, featureIndex, onSelect }) {
+  map.on("click", DESTINATION_CLUSTER_LAYER_ID, (event) => {
+    return expandDestinationCluster(map, event.features?.[0]);
+  });
+  for (const layerId of [DESTINATION_CLUSTER_LAYER_ID, DESTINATION_POINT_LAYER_ID, DESTINATION_LABEL_LAYER_ID]) {
+    map.on("mouseenter", layerId, () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", layerId, () => { map.getCanvas().style.cursor = ""; });
+  }
+  for (const layerId of [DESTINATION_POINT_LAYER_ID, DESTINATION_LABEL_LAYER_ID]) {
+    map.on("click", layerId, (event) => {
+      const selectedId = String(event.features?.[0]?.id || event.features?.[0]?.properties?.id || "");
+      const selected = featureIndex.get(selectedId);
+      if (selected) onSelect(selected);
+    });
+  }
+}
+
+export function raiseNavigationLayers(map) {
+  for (const layerId of NAVIGATION_FOREGROUND_LAYER_ORDER) {
+    if (map.getLayer?.(layerId)) map.moveLayer(layerId);
+  }
+}
 
 function accuracyPolygon(position, points = 48) {
   const latitudeRadians = position.latitude * Math.PI / 180;
@@ -157,7 +366,6 @@ export async function createMap({ container, config, features, onSelect, onReady
   let visibleFeatures = features;
   let loaded = false;
   let pendingFocus = null;
-  let selectedFeatureId = "";
   let latestUserPosition = null;
 
   const map = new maplibregl.Map({
@@ -270,84 +478,17 @@ export async function createMap({ container, config, features, onSelect, onReady
         "text-allow-overlap": true, "text-ignore-placement": true },
       paint: { "text-color": "#1677ff", "text-halo-color": "#fff", "text-halo-width": 2 } });
 
-    map.addSource(SOURCE_ID, {
-      type: "geojson",
-      data: { type: "FeatureCollection", features: visibleFeatures },
-    });
-    map.addLayer({
-      id: CIRCLE_LAYER_ID,
-      type: "circle",
-      source: SOURCE_ID,
-      paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 7, 18, 11],
-        "circle-color": [
-          "match",
-          ["get", "category"],
-          "health", "#c25345",
-          "food", "#e2a927",
-          "hostel", "#7758a6",
-          "office", "#397aa8",
-          "library", "#208569",
-          "#17663c",
-        ],
-        "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 3,
-        "circle-opacity": 0.96,
-      },
-    });
-    map.addLayer({
-      id: SELECTED_LAYER_ID,
-      type: "circle",
-      source: SOURCE_ID,
-      filter: ["==", ["get", "id"], ""],
-      paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 11, 18, 16],
-        "circle-color": "rgba(255, 255, 255, 0)",
-        "circle-stroke-color": "#e2b431",
-        "circle-stroke-width": 4,
-      },
-    });
-    map.addLayer({
-      id: LABEL_LAYER_ID,
-      type: "symbol",
-      source: SOURCE_ID,
-      minzoom: 16.3,
-      layout: {
-        "text-field": ["get", "name"],
-        "text-size": 11,
-        "text-offset": [0, 1.5],
-        "text-anchor": "top",
-        "text-font": ["Noto Sans Regular"],
-      },
-      paint: {
-        "text-color": "#163127",
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 1.5,
-      },
-    });
+    map.addSource(DESTINATION_SOURCE_ID, destinationSourceDefinition(visibleFeatures));
+    map.addSource(SELECTED_DESTINATION_SOURCE_ID, selectedDestinationSourceDefinition());
+    for (const layer of destinationLayerDefinitions()) map.addLayer(layer);
+    for (const layer of selectedDestinationLayerDefinitions()) map.addLayer(layer);
     if (campusBoundary) {
       map.addLayer({ id: CAMPUS_LABEL_LAYER_ID, type: "symbol", source: CAMPUS_LABEL_SOURCE_ID, minzoom: 13,
         layout: { "text-field": ["get", "name"], "text-size": ["interpolate", ["linear"], ["zoom"], 13, 13, 17, 17], "text-font": ["Noto Sans Regular"], "text-letter-spacing": 0.04 },
         paint: { "text-color": "#0d442a", "text-halo-color": "rgba(255, 255, 252, 0.96)", "text-halo-width": 2 } });
     }
-    map.moveLayer(USER_ENDPOINT_CIRCLE_LAYER_ID);
-    map.moveLayer(USER_ENDPOINT_LABEL_LAYER_ID);
-    map.moveLayer(USER_LOCATION_DOT_LAYER_ID);
-    map.moveLayer(USER_LOCATION_CHEVRON_LAYER_ID);
-
-    for (const layerId of [CIRCLE_LAYER_ID, LABEL_LAYER_ID]) {
-      map.on("click", layerId, (event) => {
-        const selectedId = String(event.features?.[0]?.id || event.features?.[0]?.properties?.id || "");
-        const selected = featureIndex.get(selectedId);
-        if (selected) onSelect(selected);
-      });
-      map.on("mouseenter", layerId, () => {
-        map.getCanvas().style.cursor = "pointer";
-      });
-      map.on("mouseleave", layerId, () => {
-        map.getCanvas().style.cursor = "";
-      });
-    }
+    raiseNavigationLayers(map);
+    bindDestinationInteractions({ map, featureIndex, onSelect });
 
     if (pendingFocus) {
       focus(pendingFocus);
@@ -365,13 +506,11 @@ export async function createMap({ container, config, features, onSelect, onReady
   });
 
   function focus(feature) {
-    selectedFeatureId = String(feature.properties.id);
     if (!loaded) {
       pendingFocus = feature;
       return;
     }
-    map.setFilter(SELECTED_LAYER_ID, ["==", ["get", "id"], selectedFeatureId]);
-    map.flyTo({ center: feature.geometry.coordinates, zoom: 18, duration: 900, essential: false });
+    focusDestination(map, feature);
   }
 
   function focusCampus({ animate = true } = {}) {
@@ -390,8 +529,7 @@ export async function createMap({ container, config, features, onSelect, onReady
 
   function setVisibleFeatures(nextFeatures) {
     visibleFeatures = nextFeatures;
-    const source = loaded ? map.getSource(SOURCE_ID) : null;
-    source?.setData({ type: "FeatureCollection", features: visibleFeatures });
+    if (loaded) setVisibleDestinationFeatures(map, visibleFeatures);
   }
 
   function showRoute(routeFeature) {

@@ -9,11 +9,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-09-27 |
+| **Date** | 2026-09-28 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 4 — EDITOR & MAPPING TOOLS |
 | **Pipeline Phase** | PHASE 4 SPRINT 004 IMPLEMENTATION + TECHNICAL AUDIT COMPLETE / PHYSICAL OWNER ACCEPTANCE PENDING |
-| **Latest Meaningful Commit** | Phase 4 specification baseline (`docs: establish Phase 4 campus data and editor specification`) |
+| **Latest Meaningful Commit** | Pre-deployment cleanup and production-readiness preparation (`feat: complete phase 4 and prepare YCT Map for deployment`) |
 
 ---
 
@@ -31,7 +31,7 @@
 | Field verification | NOT STARTED |
 | Routing dataset | 47 OSM-derived nodes plus 2 manual nodes; 54 OSM-derived segments; 2 active entrance anchors; all UNVERIFIED |
 | Deployment | PRODUCTION CONFIGURATION PREPARED; NO DEPLOYMENT PERFORMED |
-| Test suite | 176 DJANGO + 77 JAVASCRIPT TESTS PASSING |
+| Test suite | 176 DJANGO + 85 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -150,6 +150,8 @@ Phase 4 Sprints 001, 002 and 003 are OWNER ACCEPTED / COMPLETE. Sprint 002 now i
 
 Phase 4 Sprint 004 is IMPLEMENTATION COMPLETE / TECHNICAL AUDIT COMPLETE / PHYSICAL OWNER ACCEPTANCE PENDING. It adds explicit mobile Path Survey sessions, private accuracy-classified samples with temporary IndexedDB buffering, revision-bound trace matching, separate reviewer disposition, append-only verification history and permission-gated grant/revoke actions. No survey automatically edits the graph or grants `FIELD_VERIFIED`.
 
+The public-map Destination Density & Semantic Zoom upgrade is IMPLEMENTED / OWNER REVIEW REQUIRED. MapLibre now clusters published outdoor destinations at overview and mid zoom, reveals individual category-coloured points and labels at close zoom, expands clusters on click/tap and retains selected destinations in a separate foreground source. Search and category filters continue to replace the visible GeoJSON set, causing native reclustering without a parallel map/filter state.
+
 ---
 
 ## Known Blockers
@@ -160,7 +162,7 @@ Physical Samsung/mobile Path Survey acceptance still requires final real-device 
 
 ## Next Approved Task
 
-Complete the remaining physical-device and real-campus acceptance for Phase 4 Sprint 004. Phase 4 remains open until that evidence is accepted. Detailed ContributionResolution QA is deferred but is not represented as completed.
+Owner-review the Destination Density & Semantic Zoom upgrade, then complete the remaining physical-device and real-campus acceptance for Phase 4 Sprint 004. Phase 4 remains open until that evidence is accepted. Detailed ContributionResolution QA is deferred but is not represented as completed.
 
 ---
 
