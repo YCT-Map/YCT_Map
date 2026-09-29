@@ -134,12 +134,14 @@ class FakeElement {
     this.listeners = new Map();
   }
   addEventListener(type, callback) { this.listeners.set(type, callback); }
+  setAttribute(name, value) { this[name] = value; }
   querySelector(selector) { return this.queries.get(selector); }
 }
 
 function locationHarness() {
   const root = new FakeElement();
-  const selectors = ["#locate-me", "#recenter-me", "#stop-location", "#location-message", "#location-accuracy"];
+  const selectors = ["#locate-me", "#recenter-me", "#stop-location", "#follow-direction", "#north-up",
+    "#location-message", "#location-accuracy", "#direction-status"];
   root.queries = new Map(selectors.map((selector) => [selector, new FakeElement()]));
   return { root, get: (selector) => root.querySelector(selector) };
 }

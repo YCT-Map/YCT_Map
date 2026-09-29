@@ -432,7 +432,8 @@ input {
 }
 
 .locate-action,
-.location-session-actions button {
+.location-session-actions button,
+.direction-session-actions button {
   min-height: 2.75rem;
   padding: 0.55rem 0.7rem;
   color: var(--green-800);
@@ -448,7 +449,10 @@ input {
 .locate-action:disabled { color: var(--muted); background: #edf0ed; cursor: not-allowed; }
 .locate-icon { font-size: 1.1rem; }
 .location-session-actions { display: flex; gap: 0.4rem; }
-.location-session-actions button { flex: 1; }
+.direction-session-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; }
+.location-session-actions button,
+.direction-session-actions button { flex: 1; min-width: 0; }
+#follow-direction[aria-pressed="true"] { color: #fff; background: #315d8f; border-color: #315d8f; }
 .user-location-controls p { margin: 0; color: var(--muted); font-size: 0.67rem; line-height: 1.35; }
 .user-location-controls small { color: #315d8f; font-size: 0.62rem; font-weight: 700; }
 .user-location-controls[data-state="permission-denied"] p,

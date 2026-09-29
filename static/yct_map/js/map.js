@@ -34,6 +34,7 @@ const USER_LOCATION_DOT_LAYER_ID = "live-user-location-dot";
 const USER_LOCATION_CHEVRON_LAYER_ID = "live-user-location-chevron";
 const CONTRIBUTION_SOURCE_ID = "pending-contribution-point";
 const CONTRIBUTION_LAYER_ID = "pending-contribution-point-circle";
+const FOLLOW_CAMERA_THROTTLE_MS = 120;
 
 const DESTINATION_COLOR = [
   "match",
@@ -61,6 +62,47 @@ export const NAVIGATION_FOREGROUND_LAYER_ORDER = Object.freeze([
 
 function featureCollection(features = []) {
   return { type: "FeatureCollection", features };
+}
+
+export function navigationCameraLayout({ viewportWidth, viewportHeight, routePanelHeight = 0 } = {}) {
+  const width = Math.max(320, Number(viewportWidth) || 320);
+  const height = Math.max(320, Number(viewportHeight) || 320);
+  const panel = Math.max(0, Math.min(Number(routePanelHeight) || 0, height * 0.55));
+  const mobile = width < 672;
+  const bottom = mobile ? panel + 24 : 32;
+  const usableHeight = height - bottom;
+  const lookAheadOffset = Math.max(35, Math.min(120, usableHeight * 0.16));
+  return {
+    padding: { top: 24, right: mobile ? 24 : 320, bottom, left: 24 },
+    offset: [mobile ? 0 : -130, lookAheadOffset],
+  };
+}
+
+export function createFollowModeState(onChange = () => {}) {
+  let mode = "north-up";
+  function change(next) { mode = next; onChange(mode); return mode; }
+  return {
+    enable: () => change("following"),
+    suspendForGesture(originalEvent) {
+      if (mode !== "following" || !originalEvent) return mode;
+      return change("suspended");
+    },
+    resume: () => mode === "north-up" ? mode : change("following"),
+    northUp: () => change("north-up"),
+    isEnabled: () => mode !== "north-up",
+    isFollowing: () => mode === "following",
+    getMode: () => mode,
+  };
+}
+
+export function userLocationFeature(position, headingDegrees = null, headingSource = null) {
+  const properties = { accuracy: position.accuracyMetres };
+  if (Number.isFinite(headingDegrees)) {
+    properties.heading = headingDegrees;
+    properties.heading_source = headingSource;
+  }
+  return { type: "Feature", geometry: { type: "Point",
+    coordinates: [position.longitude, position.latitude] }, properties };
 }
 
 export function destinationSourceDefinition(features = []) {
@@ -355,7 +397,8 @@ class CampusFocusControl {
   }
 }
 
-export async function createMap({ container, config, features, onSelect, onReady, onError }) {
+export async function createMap({ container, config, features, onSelect, onReady, onError,
+  onFollowStateChange = () => {} }) {
   const [maplibregl, campusBoundary, demoNetwork] = await Promise.all([
     import(config.moduleUrl),
     loadCampusBoundary(config.campusBoundaryUrl),
@@ -367,6 +410,11 @@ export async function createMap({ container, config, features, onSelect, onReady
   let loaded = false;
   let pendingFocus = null;
   let latestUserPosition = null;
+  let displayedHeading = null;
+  let displayedHeadingSource = null;
+  const followMode = createFollowModeState(onFollowStateChange);
+  let followCameraTimer = null;
+  let liveRouteActive = false;
 
   const map = new maplibregl.Map({
     container,
@@ -505,6 +553,12 @@ export async function createMap({ container, config, features, onSelect, onReady
     }
   });
 
+  for (const eventName of ["dragstart", "rotatestart", "zoomstart"]) {
+    map.on(eventName, (event) => {
+      followMode.suspendForGesture(event?.originalEvent);
+    });
+  }
+
   function focus(feature) {
     if (!loaded) {
       pendingFocus = feature;
@@ -555,6 +609,7 @@ export async function createMap({ container, config, features, onSelect, onReady
       throw error;
     }
     map.getSource(USER_ROUTE_SOURCE_ID).setData({ type: "FeatureCollection", features: [routeFeature] });
+    liveRouteActive = originType === "live";
     setUserRouteStale(false);
     map.getSource(USER_ENDPOINT_SOURCE_ID).setData({ type: "FeatureCollection", features: [
       { type: "Feature", geometry: { type: "Point", coordinates: coordinates[0] }, properties: {
@@ -570,6 +625,7 @@ export async function createMap({ container, config, features, onSelect, onReady
   }
 
   function clearUserRoute() {
+    liveRouteActive = false;
     map.getSource(USER_ROUTE_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
     map.getSource(USER_ENDPOINT_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
   }
@@ -580,20 +636,82 @@ export async function createMap({ container, config, features, onSelect, onReady
     map.setPaintProperty(USER_ROUTE_CASING_LAYER_ID, "line-opacity", stale ? 0.45 : 1);
   }
 
+  function renderUserLocation() {
+    if (!loaded || !latestUserPosition) return;
+    map.getSource(USER_LOCATION_SOURCE_ID).setData({ type: "FeatureCollection", features: [
+      userLocationFeature(latestUserPosition, displayedHeading, displayedHeadingSource),
+    ] });
+  }
+
+  function routePanelHeight() {
+    if (!liveRouteActive) return 0;
+    const panel = document.querySelector("#user-route-panel");
+    return panel && !panel.hidden ? panel.getBoundingClientRect().height : 0;
+  }
+
+  function applyFollowCamera({ immediate = false } = {}) {
+    if (!loaded || !latestUserPosition || !followMode.isFollowing()) return false;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const layout = navigationCameraLayout({ viewportWidth: map.getContainer().clientWidth,
+      viewportHeight: map.getContainer().clientHeight, routePanelHeight: routePanelHeight() });
+    const options = { center: [latestUserPosition.longitude, latestUserPosition.latitude],
+      zoom: Math.max(map.getZoom(), 17), padding: layout.padding, offset: layout.offset,
+      duration: reducedMotion || immediate ? 0 : 180, essential: false };
+    if (displayedHeading !== null) options.bearing = displayedHeading;
+    map.easeTo(options);
+    return true;
+  }
+
+  function scheduleFollowCamera() {
+    if (!followMode.isFollowing() || followCameraTimer !== null) return;
+    followCameraTimer = globalThis.setTimeout(() => {
+      followCameraTimer = null;
+      applyFollowCamera();
+    }, FOLLOW_CAMERA_THROTTLE_MS);
+  }
+
   function showUserLocation(position, { focus: shouldFocus = false } = {}) {
     latestUserPosition = position;
+    displayedHeading = Number.isFinite(position.displayedHeadingDegrees)
+      ? position.displayedHeadingDegrees : Number.isFinite(position.headingDegrees) ? position.headingDegrees : null;
+    displayedHeadingSource = position.displayedHeadingSource || (displayedHeading !== null ? "movement" : null);
     if (!loaded) return;
-    const properties = { accuracy: position.accuracyMetres };
-    if (position.headingDegrees !== null) properties.heading = position.headingDegrees;
-    map.getSource(USER_LOCATION_SOURCE_ID).setData({ type: "FeatureCollection", features: [{
-      type: "Feature", geometry: { type: "Point", coordinates: [position.longitude, position.latitude] }, properties,
-    }] });
+    renderUserLocation();
     map.getSource(USER_ACCURACY_SOURCE_ID).setData({ type: "FeatureCollection", features: [accuracyPolygon(position)] });
-    if (shouldFocus) recenterUserLocation();
+    if (followMode.isFollowing()) scheduleFollowCamera();
+    else if (shouldFocus) recenterUserLocation();
+  }
+
+  function updateUserHeading({ headingDegrees, source }) {
+    displayedHeading = Number.isFinite(headingDegrees) ? headingDegrees : null;
+    displayedHeadingSource = source || null;
+    renderUserLocation();
+    scheduleFollowCamera();
+  }
+
+  function enableFollowDirection() {
+    if (!latestUserPosition) return "north-up";
+    followMode.enable();
+    applyFollowCamera({ immediate: true });
+    return "following";
+  }
+
+  function northUp() {
+    followMode.northUp();
+    if (followCameraTimer !== null) globalThis.clearTimeout(followCameraTimer);
+    followCameraTimer = null;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    map.easeTo({ bearing: 0, duration: reducedMotion ? 0 : 350, essential: false });
+    return "north-up";
   }
 
   function recenterUserLocation() {
     if (!loaded || !latestUserPosition) return false;
+    if (followMode.isEnabled()) {
+      followMode.resume();
+      applyFollowCamera({ immediate: true });
+      return true;
+    }
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     map.easeTo({ center: [latestUserPosition.longitude, latestUserPosition.latitude], zoom: Math.max(map.getZoom(), 17),
       duration: reducedMotion ? 0 : 650, essential: false });
@@ -601,6 +719,11 @@ export async function createMap({ container, config, features, onSelect, onReady
   }
 
   function clearUserLocation() {
+    followMode.northUp();
+    displayedHeading = null;
+    displayedHeadingSource = null;
+    if (followCameraTimer !== null) globalThis.clearTimeout(followCameraTimer);
+    followCameraTimer = null;
     latestUserPosition = null;
     map.getSource(USER_LOCATION_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
     map.getSource(USER_ACCURACY_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
@@ -625,5 +748,6 @@ export async function createMap({ container, config, features, onSelect, onReady
   }
 
   return { focus, focusCampus, setVisibleFeatures, showRoute, showUserRoute, clearUserRoute, setUserRouteStale,
-    showUserLocation, recenterUserLocation, clearUserLocation, pickContributionPoint, clearContributionPoint, map };
+    showUserLocation, updateUserHeading, enableFollowDirection, northUp, recenterUserLocation, clearUserLocation,
+    pickContributionPoint, clearContributionPoint, map };
 }

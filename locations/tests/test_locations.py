@@ -195,7 +195,7 @@ class LocationEndpointTests(TestCase):
 class MapPageTests(TestCase):
     def test_map_page_contains_approved_map_configuration(self):
         response = self.client.get(reverse("locations:map"))
-        asset_version = "field-test-stabilization-1"
+        asset_version = "navigation-orientation-1"
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "https://tiles.openfreemap.org/styles/liberty")
@@ -219,6 +219,9 @@ class MapPageTests(TestCase):
         self.assertContains(response, 'id="user-location-controls"')
         self.assertContains(response, 'id="locate-me"')
         self.assertContains(response, 'id="recenter-me"')
+        self.assertContains(response, 'id="follow-direction"')
+        self.assertContains(response, 'id="north-up"')
+        self.assertContains(response, 'id="direction-status"')
         self.assertContains(response, 'id="stop-location"')
         self.assertContains(response, "Location is optional and stays on this device.")
         self.assertContains(response, "yct_map/images/yct-map-logo.png", count=3)
@@ -228,7 +231,7 @@ class MapPageTests(TestCase):
     def test_current_modules_use_the_same_cache_version(self):
         app_path = settings.BASE_DIR / "static/yct_map/js/app.js"
         app_source = app_path.read_text(encoding="utf-8")
-        asset_version = "field-test-stabilization-1"
+        asset_version = "navigation-orientation-1"
 
         for module in (
             "api.js",

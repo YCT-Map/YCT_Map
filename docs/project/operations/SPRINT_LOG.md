@@ -710,3 +710,22 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Added bounded live-start recovery for structured `NO_SAFE_NETWORK_MATCH` and `INSUFFICIENT_ACCURACY` responses: newer accepted fixes only, at most three attempts inside ten seconds, no polling and no concurrent requests.
 - Preserved backend matching thresholds, GPS stabilization, A*, route geometry, ETA, live progress, off-route detection and rerouting behavior.
 - Verification passes with 176 Django tests and 94 JavaScript tests. Physical Samsung/Edge owner review remains required; no field-verification status is granted.
+
+### Acceptance Addendum — 2026-09-29
+
+- The owner completed local-device review and authorized the stabilization milestone commit and push.
+- Commit `94eecf9` preserves the three-attempt/ten-second recovery contract, opaque mobile route sheet and accessible route-origin cards.
+
+---
+
+## Navigation Orientation & Follow Mode Sprint
+
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+**Date:** 2026-09-29
+
+- Added an isolated, permission-aware absolute device-orientation service with screen-orientation normalization, circular smoothing, listener lifecycle management and graceful denial/unsupported behavior.
+- Device-facing heading has presentation priority while fresh; stabilized GPS movement heading remains the walking fallback, and neither available source leaves the existing blue dot.
+- Added explicit Follow direction, Resume following and North up controls. Follow mode coalesces camera bearing changes, tracks accepted positions and uses route-panel-aware look-ahead without altering position or route geometry.
+- Real user drag/rotate/zoom gestures suspend camera follow while programmatic camera changes do not. GPS, marker and route progress continue during inspection.
+- Compass readings remain transient in the browser and are neither transmitted nor persisted. Path Survey evidence remains separate.
+- Verification passes with 176 Django tests and 103 JavaScript tests. Physical Samsung S21+/Edge HTTPS acceptance remains pending.

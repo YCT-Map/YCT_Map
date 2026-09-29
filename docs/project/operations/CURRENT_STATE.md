@@ -31,7 +31,7 @@
 | Field verification | NOT STARTED |
 | Routing dataset | 47 OSM-derived nodes plus 2 manual nodes; 54 OSM-derived segments; 2 active entrance anchors; all UNVERIFIED |
 | Deployment | PRODUCTION CONFIGURATION PREPARED; NO DEPLOYMENT PERFORMED |
-| Test suite | 176 DJANGO + 94 JAVASCRIPT TESTS PASSING |
+| Test suite | 176 DJANGO + 103 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -152,7 +152,9 @@ Phase 4 Sprint 004 is IMPLEMENTATION COMPLETE / TECHNICAL AUDIT COMPLETE / PHYSI
 
 The public-map Destination Density & Semantic Zoom upgrade is OWNER REVIEWED / COMMITTED. MapLibre clusters published outdoor destinations at overview and mid zoom, reveals individual category-coloured points and labels at close zoom, expands clusters on click/tap and retains selected destinations in a separate foreground source.
 
-The Field-Test Stabilization sprint is IMPLEMENTED / OWNER REVIEW REQUIRED. The public route-origin native select is replaced by an accessible in-page radio-card chooser, the mobile route sheet avoids WebGL backdrop blur, and transient live-start matching failures wait for newer accepted positions within a strict three-attempt/ten-second bound. Routing safety thresholds and the established GPS stabilizer are unchanged.
+The Field-Test Stabilization sprint is OWNER REVIEWED / COMMITTED. The public route-origin native select is replaced by an accessible in-page radio-card chooser, the mobile route sheet avoids WebGL backdrop blur, and transient live-start matching failures wait for newer accepted positions within a strict three-attempt/ten-second bound. Routing safety thresholds and the established GPS stabilizer are unchanged.
+
+The Navigation Orientation & Follow Mode sprint is IMPLEMENTED / OWNER REVIEW REQUIRED. Browser/device-supported absolute phone orientation now has presentation priority over movement heading, with circular smoothing, a four-second freshness limit, heading-up follow, route-aware look-ahead, manual-gesture suspension, Resume following and North up. Orientation remains transient and client-only; unsupported or denied compass access does not block GPS or routing.
 
 ---
 
@@ -164,7 +166,7 @@ Physical Samsung/mobile Path Survey acceptance still requires final real-device 
 
 ## Next Approved Task
 
-Owner-test the Field-Test Stabilization build on Samsung/Edge, then complete the remaining physical-device and real-campus acceptance for Phase 4 Sprint 004. Phase 4 remains open until that evidence is accepted. Detailed ContributionResolution QA is deferred but is not represented as completed.
+Owner-test Navigation Orientation & Follow Mode on Samsung S21+/Edge over HTTPS, then complete the remaining physical-device and real-campus acceptance for Phase 4 Sprint 004. Phase 4 remains open until that evidence is accepted. Detailed ContributionResolution QA is deferred but is not represented as completed.
 
 ---
 

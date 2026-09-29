@@ -1,5 +1,7 @@
-import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=field-test-stabilization-1";
-import { createGeolocationService } from "./geolocation.js?v=field-test-stabilization-1";
+import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=navigation-orientation-1";
+import { createGeolocationService } from "./geolocation.js?v=navigation-orientation-1";
+import { createDeviceOrientationService, DEVICE_HEADING_STALE_MS,
+  selectDisplayedHeading } from "./device-orientation.js?v=navigation-orientation-1";
 
 const COPY = {
   idle: "Location is optional and stays on this device.",
@@ -21,20 +23,72 @@ export function createUserLocation({
   onPosition,
   onClear,
   onRecenter,
+  onHeading = () => {},
+  onFollowDirection = () => "following",
+  onNorthUp = () => {},
   service = createGeolocationService(),
+  orientationService = createDeviceOrientationService(),
   documentObject = globalThis.document,
+  now = Date.now,
+  setDeadline = globalThis.setTimeout,
+  clearDeadline = globalThis.clearTimeout,
 } = {}) {
   const locateButton = element.querySelector("#locate-me");
   const recenterButton = element.querySelector("#recenter-me");
   const stopButton = element.querySelector("#stop-location");
+  const followButton = element.querySelector("#follow-direction");
+  const northUpButton = element.querySelector("#north-up");
   const message = element.querySelector("#location-message");
   const accuracy = element.querySelector("#location-accuracy");
+  const directionStatus = element.querySelector("#direction-status");
   let state = service.isSupported ? "idle" : "unsupported";
   let acceptedPosition = null;
   let lastRawAccepted = null;
   const stabilizer = createLocationStabilizer();
   let trackingRequested = false;
   let focusedInitially = false;
+  let deviceHeading = null;
+  let deviceHeadingTimestamp = null;
+  let deviceHeadingExpiry = null;
+  let followState = "north-up";
+
+  function currentHeading() {
+    return selectDisplayedHeading({ deviceHeading, deviceTimestamp: deviceHeadingTimestamp,
+      movementHeading: acceptedPosition?.headingDegrees, now: now() });
+  }
+
+  function publishHeading() {
+    const displayed = currentHeading();
+    directionStatus.textContent = displayed.source === "device" ? "Facing direction active"
+      : displayed.source === "movement" ? "Direction from movement" : "Direction unavailable";
+    directionStatus.hidden = !acceptedPosition;
+    onHeading(displayed);
+    return displayed;
+  }
+
+  function expireDeviceHeading() {
+    deviceHeading = null;
+    deviceHeadingTimestamp = null;
+    deviceHeadingExpiry = null;
+    publishHeading();
+  }
+
+  function receiveOrientation(reading) {
+    deviceHeading = reading.headingDegrees;
+    deviceHeadingTimestamp = reading.timestamp;
+    if (deviceHeadingExpiry !== null) clearDeadline(deviceHeadingExpiry);
+    deviceHeadingExpiry = setDeadline(expireDeviceHeading, DEVICE_HEADING_STALE_MS + 50);
+    publishHeading();
+  }
+
+  function setFollowState(nextState) {
+    followState = nextState;
+    followButton.hidden = !acceptedPosition;
+    northUpButton.hidden = !acceptedPosition || nextState === "north-up";
+    followButton.textContent = nextState === "suspended" ? "Resume following"
+      : nextState === "following" ? "Following direction" : "Follow direction";
+    followButton.setAttribute?.("aria-pressed", String(nextState === "following"));
+  }
 
   function render(nextState) {
     state = nextState;
@@ -51,6 +105,8 @@ export function createUserLocation({
         ? "Approximate location" : `Location quality: ${locationQualityLabel(acceptedPosition.accuracyMetres)}`;
       accuracy.textContent = `${quality} · estimated device uncertainty ~${Math.round(acceptedPosition.deviceAccuracyMetres ?? acceptedPosition.accuracyMetres)} m`;
     }
+    setFollowState(followState);
+    publishHeading();
   }
 
   function receive(rawPosition) {
@@ -69,7 +125,10 @@ export function createUserLocation({
     acceptedPosition = stabilized.sample;
     const shouldFocus = !focusedInitially && stabilized.quality !== "provisional";
     if (shouldFocus) focusedInitially = true;
-    onPosition(acceptedPosition, { focus: shouldFocus, quality: stabilized.quality, stabilized: !stabilized.moved });
+    const displayed = currentHeading();
+    onPosition({ ...acceptedPosition, displayedHeadingDegrees: displayed.headingDegrees,
+      displayedHeadingSource: displayed.source },
+    { focus: shouldFocus, quality: stabilized.quality, stabilized: !stabilized.moved });
     render(stabilized.quality === "reasonable" ? "active" : "low-accuracy");
     return { ...result, displayed: true, stabilization: stabilized.reason, sample: acceptedPosition };
   }
@@ -94,48 +153,63 @@ export function createUserLocation({
       return false;
     }
     trackingRequested = true;
+    // Called directly from the Locate me gesture so permission-gated browsers
+    // may display their orientation prompt. Failure never blocks GPS startup.
+    void orientationService.start(receiveOrientation, () => publishHeading());
     render("requesting-permission");
-    const started = service.start(
-      (position) => {
-        if (!acceptedPosition) render("locating");
-        receive(position);
-      },
+    return service.start(
+      (position) => { if (!acceptedPosition) render("locating"); receive(position); },
       fail,
     );
-    return started;
   }
 
   function stop() {
     trackingRequested = false;
     service.stop();
+    orientationService.stop();
+    if (deviceHeadingExpiry !== null) clearDeadline(deviceHeadingExpiry);
+    deviceHeadingExpiry = null;
+    deviceHeading = null;
+    deviceHeadingTimestamp = null;
     acceptedPosition = null;
     lastRawAccepted = null;
     focusedInitially = false;
     stabilizer.reset();
     onClear();
+    setFollowState("north-up");
     render("stopped");
   }
 
   function visibilityChanged() {
     if (!trackingRequested) return;
-    if (documentObject.hidden) service.stop({ preserveCallbacks: true });
-    else service.resume();
+    if (documentObject.hidden) {
+      service.stop({ preserveCallbacks: true });
+      orientationService.pause();
+    } else {
+      service.resume();
+      orientationService.resume();
+    }
   }
 
   locateButton.addEventListener("click", start);
   recenterButton.addEventListener("click", () => acceptedPosition && onRecenter(acceptedPosition));
+  followButton.addEventListener("click", () => {
+    if (!acceptedPosition) return;
+    setFollowState(onFollowDirection(currentHeading()));
+  });
+  northUpButton.addEventListener("click", () => { onNorthUp(); setFollowState("north-up"); });
   stopButton.addEventListener("click", stop);
   documentObject?.addEventListener?.("visibilitychange", visibilityChanged);
   render(state);
 
   return {
-    start,
-    stop,
-    receive,
+    start, stop, receive, setFollowState,
     getState: () => state,
     getAcceptedPosition: () => acceptedPosition,
     destroy() {
       service.stop();
+      orientationService.destroy();
+      if (deviceHeadingExpiry !== null) clearDeadline(deviceHeadingExpiry);
       documentObject?.removeEventListener?.("visibilitychange", visibilityChanged);
     },
   };
