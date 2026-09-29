@@ -28,6 +28,9 @@ class SprintThreeEditorTests(TestCase):
         self.assertContains(response, 'id="id_representative_longitude"')
         self.assertContains(response, "editor-place-map.js")
         self.assertContains(response, 'type="checkbox"')
+        self.assertContains(response, 'name="is_checkpoint"')
+        self.assertContains(response, "Show as map checkpoint")
+        self.assertContains(response, "Emphasize this place as a prominent wayfinding landmark.")
 
     def test_primary_entrance_overwrite_requires_confirmation(self):
         location = Location.objects.create(name="Test place", category=Location.Category.BUILDING)

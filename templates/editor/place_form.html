@@ -9,9 +9,9 @@
     <section class="editor-card">
       <h2>Place details</h2>
       {% for field in form %}{% if field.name != 'representative_latitude' and field.name != 'representative_longitude' and field.name != 'capture_primary_entrance' and field.name != 'confirm_primary_overwrite' %}
-        <div class="editor-field{% if field.errors %} has-error{% endif %}">
-          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-          {{ field }}
+        <div class="editor-field{% if field.name == 'is_checkpoint' %} editor-checkbox-field{% endif %}{% if field.errors %} has-error{% endif %}">
+          {% if field.name == 'is_checkpoint' %}{{ field }}<label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {% else %}<label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% endif %}
           {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
           {{ field.errors }}
         </div>

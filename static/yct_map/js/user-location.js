@@ -1,7 +1,7 @@
-import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=campus-core-liberty-2";
-import { createGeolocationService } from "./geolocation.js?v=campus-core-liberty-2";
+import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=checkpoint-flex-nav-1";
+import { createGeolocationService } from "./geolocation.js?v=checkpoint-flex-nav-1";
 import { createDeviceOrientationService, DEVICE_HEADING_STALE_MS,
-  selectDisplayedHeading } from "./device-orientation.js?v=campus-core-liberty-2";
+  selectDisplayedHeading } from "./device-orientation.js?v=checkpoint-flex-nav-1";
 
 const COPY = {
   idle: "Location is optional and stays on this device.",
@@ -24,8 +24,6 @@ export function createUserLocation({
   onClear,
   onRecenter,
   onHeading = () => {},
-  onFollowDirection = () => "following",
-  onNorthUp = () => {},
   service = createGeolocationService(),
   orientationService = createDeviceOrientationService(),
   documentObject = globalThis.document,
@@ -36,8 +34,6 @@ export function createUserLocation({
   const locateButton = element.querySelector("#locate-me");
   const recenterButton = element.querySelector("#recenter-me");
   const stopButton = element.querySelector("#stop-location");
-  const followButton = element.querySelector("#follow-direction");
-  const northUpButton = element.querySelector("#north-up");
   const message = element.querySelector("#location-message");
   const accuracy = element.querySelector("#location-accuracy");
   const directionStatus = element.querySelector("#direction-status");
@@ -50,7 +46,6 @@ export function createUserLocation({
   let deviceHeading = null;
   let deviceHeadingTimestamp = null;
   let deviceHeadingExpiry = null;
-  let followState = "north-up";
 
   function currentHeading() {
     return selectDisplayedHeading({ deviceHeading, deviceTimestamp: deviceHeadingTimestamp,
@@ -81,15 +76,6 @@ export function createUserLocation({
     publishHeading();
   }
 
-  function setFollowState(nextState) {
-    followState = nextState;
-    followButton.hidden = !acceptedPosition;
-    northUpButton.hidden = !acceptedPosition || nextState === "north-up";
-    followButton.textContent = nextState === "suspended" ? "Resume following"
-      : nextState === "following" ? "Following direction" : "Follow direction";
-    followButton.setAttribute?.("aria-pressed", String(nextState === "following"));
-  }
-
   function render(nextState) {
     state = nextState;
     element.dataset.state = state;
@@ -105,7 +91,6 @@ export function createUserLocation({
         ? "Approximate location" : `Location quality: ${locationQualityLabel(acceptedPosition.accuracyMetres)}`;
       accuracy.textContent = `${quality} · estimated device uncertainty ~${Math.round(acceptedPosition.deviceAccuracyMetres ?? acceptedPosition.accuracyMetres)} m`;
     }
-    setFollowState(followState);
     publishHeading();
   }
 
@@ -176,7 +161,6 @@ export function createUserLocation({
     focusedInitially = false;
     stabilizer.reset();
     onClear();
-    setFollowState("north-up");
     render("stopped");
   }
 
@@ -193,17 +177,12 @@ export function createUserLocation({
 
   locateButton.addEventListener("click", start);
   recenterButton.addEventListener("click", () => acceptedPosition && onRecenter(acceptedPosition));
-  followButton.addEventListener("click", () => {
-    if (!acceptedPosition) return;
-    setFollowState(onFollowDirection(currentHeading()));
-  });
-  northUpButton.addEventListener("click", () => { onNorthUp(); setFollowState("north-up"); });
   stopButton.addEventListener("click", stop);
   documentObject?.addEventListener?.("visibilitychange", visibilityChanged);
   render(state);
 
   return {
-    start, stop, receive, setFollowState,
+    start, stop, receive,
     getState: () => state,
     getAcceptedPosition: () => acceptedPosition,
     destroy() {

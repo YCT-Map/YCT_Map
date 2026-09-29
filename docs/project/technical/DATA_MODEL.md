@@ -35,7 +35,7 @@ All field names and types are indicative — actual implementation may differ.
 
 ## Current Phase 4 Sprint 001 Implementation
 
-`Location` remains the stable UUID outdoor-place identity. It now includes a controlled physical place type, multiple functional `Category` records, Draft/Published/Archived publication state, nullable representative coordinates, independent verification state, nullable creator/updater actors and timestamps.
+`Location` remains the stable UUID outdoor-place identity. It now includes a controlled physical place type, multiple functional `Category` records, Draft/Published/Archived publication state, nullable representative coordinates, independent verification state, nullable creator/updater actors and timestamps. The default-false `is_checkpoint` flag is a presentation-only editor decision for prominent wayfinding landmarks; it does not change publication, verification, routing readiness or category.
 
 `LocationAlias` retains its one-to-many relationship and adds controlled alias kinds. Alias names are case-insensitively unique only within one place; the same alias may identify multiple places in search.
 
@@ -75,6 +75,7 @@ Represents a navigable physical campus destination.
 | publication_status | enum | DRAFT, PUBLISHED, ARCHIVED |
 | description | string | Optional brief description |
 | representative point | coordinates | Map/search presentation point; not an Entrance |
+| is_checkpoint | boolean | Prominent map-landmark presentation only; default false |
 | entrances | relation | Zero or more separately managed physical arrival points |
 | geometry | polygon | Building/area outline — irregular polygons supported |
 | floor_count | integer | Optional — number of floors |
@@ -190,6 +191,8 @@ Promotion from UNVERIFIED to FIELD_VERIFIED requires deliberate editor action af
 Sprint 003 adds nullable, history-preserving routing `created_by`/`updated_by` actors in routing migration `0006`, and repeatable `ContributionResolution` audit actions in contributions migration `0002`. A resolution points to exactly one affected campus record (or none for an explicit no-change action). Approval, resolution, publication, verification and routing availability remain independent states.
 
 Routing migration `0007` adds segment revision/fingerprint and verification-history foundations. Migration `0008` adds prospective active-capture timing and related Path Survey evidence fields. Migration `0009_entrancenetworkanchor_connector_geometry.py` adds only nullable arrival-connector geometry and preserves every existing anchor as legacy node-only until an editor explicitly confirms a connector.
+
+Locations migration `0006_location_is_checkpoint.py` adds the default-false checkpoint presentation flag. It contains no data operation and does not select or alter the trust state of any existing place. It remains unapplied to the current local SQLite database until owner review.
 
 Never rewrite an already-applied migration. Correct data issues through new migrations.
 

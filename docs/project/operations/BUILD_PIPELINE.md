@@ -17,7 +17,7 @@ Phase 5 — Real YabaTech Data, Verification & Launch   NOT STARTED
 
 Current:            PHASE 4 SPRINT 004 — IMPLEMENTATION + TECHNICAL AUDIT COMPLETE
 Accepted:           PHASE 4 SPRINTS 001, 002 AND 003
-Next expected:      Sprint 004 physical-device / real-campus field acceptance
+Next expected:      Owner review of checkpoint hierarchy + flexible progressive navigation, then Sprint 004 physical field acceptance
 ```
 
 Status values in use: `NOT STARTED` `IN PROGRESS` `BLOCKED` `COMPLETE` `ACCEPTED`

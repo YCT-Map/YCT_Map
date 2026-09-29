@@ -239,6 +239,37 @@ test("accepted live position is offered and sent through the protected live rout
   assert.deepEqual(JSON.parse(request.options.body).position, { latitude: 6.518, longitude: 3.374, accuracy_metres: 10 });
 });
 
+test("only trustworthy tracker progress is emitted for progressive route presentation", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  const progressUpdates = [];
+  const controller = createUserNavigation({
+    panel: harness.panel, features: [destination, origin], routeUrl: "/api/routes/",
+    liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {},
+    onRouteProgress: (progress) => progressUpdates.push(progress), now: () => 1_000,
+    requestRoute: async () => ({ ok: true, json: async () => routePayload(
+      [[3.374, 6.518], [3.375, 6.518]], 110,
+    ) }),
+  });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 5, timestamp: 1_000 });
+  controller.begin(destination);
+  chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+
+  controller.updateLivePosition({ longitude: 3.3742, latitude: 6.518, accuracyMetres: 5, timestamp: 5_000 });
+  assert.equal(progressUpdates.length, 1);
+  assert.equal(progressUpdates[0].state, "walking");
+  const trustworthyProgress = progressUpdates[0].progressMetres;
+
+  controller.updateLivePosition({ longitude: 3.3743, latitude: 6.518, accuracyMetres: 80, timestamp: 9_000 });
+  assert.equal(progressUpdates.length, 1, "uncertain GPS must freeze route presentation");
+  controller.updateLivePosition({ longitude: 3.3740, latitude: 6.518, accuracyMetres: 5, timestamp: 13_000 });
+  assert.equal(progressUpdates.length, 1, "one backward anomaly must not move the rendered route");
+  controller.updateLivePosition({ longitude: 3.37401, latitude: 6.518, accuracyMetres: 5, timestamp: 17_000 });
+  assert.equal(progressUpdates.length, 2, "confirmed backtracking follows tracker-authoritative progress");
+  assert.ok(progressUpdates[1].progressMetres < trustworthyProgress);
+});
+
 function navigationSelectors() {
   return ["#user-route-form", "#user-route-origin-live", "#user-route-live-status", "#user-route-mapped-origins",
     "#user-route-request-status", "#user-route-destination", "#show-user-route",

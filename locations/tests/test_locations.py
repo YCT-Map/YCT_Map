@@ -33,6 +33,14 @@ class LocationModelTests(TestCase):
         with self.assertRaises(ValidationError):
             location.full_clean()
 
+    def test_checkpoint_defaults_false_and_is_independent_of_other_states(self):
+        location = Location(name="Campus landmark")
+        self.assertFalse(location.is_checkpoint)
+        location.is_checkpoint = True
+        location.publication_status = Location.PublicationStatus.DRAFT
+        location.verification_state = Location.VerificationState.UNVERIFIED
+        self.assertTrue(location.is_checkpoint)
+
     def test_coordinate_validation_rejects_out_of_range_values(self):
         location = self.make_location(entrance_latitude=Decimal("91.000000"))
 
@@ -130,6 +138,7 @@ class LocationEndpointTests(TestCase):
                 "description",
                 "verification_state",
                 "verification_label",
+                "is_checkpoint",
                 "aliases",
                 "categories",
                 "place_type",
@@ -142,6 +151,14 @@ class LocationEndpointTests(TestCase):
             },
         )
         self.assertNotIn("created_at", feature["properties"])
+        self.assertIs(feature["properties"]["is_checkpoint"], False)
+
+    def test_checkpoint_is_explicit_in_public_geojson(self):
+        self.library.is_checkpoint = True
+        self.library.save(update_fields=("is_checkpoint",))
+        feature = next(item for item in self.client.get(self.url).json()["features"]
+                       if item["properties"]["id"] == str(self.library.id))
+        self.assertIs(feature["properties"]["is_checkpoint"], True)
 
     def test_search_is_case_insensitive_and_partial(self):
         response = self.client.get(self.url, {"q": "lIbRa"})
@@ -195,7 +212,7 @@ class LocationEndpointTests(TestCase):
 class MapPageTests(TestCase):
     def test_map_page_contains_approved_map_configuration(self):
         response = self.client.get(reverse("locations:map"))
-        asset_version = "campus-core-liberty-2"
+        asset_version = "checkpoint-flex-nav-1"
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "https://tiles.openfreemap.org/styles/liberty")
@@ -219,8 +236,8 @@ class MapPageTests(TestCase):
         self.assertContains(response, 'id="user-location-controls"')
         self.assertContains(response, 'id="locate-me"')
         self.assertContains(response, 'id="recenter-me"')
-        self.assertContains(response, 'id="follow-direction"')
-        self.assertContains(response, 'id="north-up"')
+        self.assertNotContains(response, 'id="follow-direction"')
+        self.assertNotContains(response, 'id="north-up"')
         self.assertContains(response, 'id="direction-status"')
         self.assertContains(response, 'id="stop-location"')
         self.assertContains(response, "Location is optional and stays on this device.")
@@ -231,7 +248,7 @@ class MapPageTests(TestCase):
     def test_current_modules_use_the_same_cache_version(self):
         app_path = settings.BASE_DIR / "static/yct_map/js/app.js"
         app_source = app_path.read_text(encoding="utf-8")
-        asset_version = "campus-core-liberty-2"
+        asset_version = "checkpoint-flex-nav-1"
 
         for module in (
             "api.js",

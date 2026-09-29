@@ -1,12 +1,12 @@
-import { fetchLocations } from "./api.js?v=campus-core-liberty-2";
-import { createContributions } from "./contributions.js?v=campus-core-liberty-2";
-import { createDestinationPanel } from "./destination-panel.js?v=campus-core-liberty-2";
-import { createMap } from "./map.js?v=campus-core-liberty-2";
-import { createSearch } from "./search.js?v=campus-core-liberty-2";
-import { createRouteInspector } from "./route-inspector.js?v=campus-core-liberty-2";
-import { createUserLocation } from "./user-location.js?v=campus-core-liberty-2";
-import { createUserNavigation } from "./user-navigation.js?v=campus-core-liberty-2";
-import { createDisclosureMenu } from "./disclosure-menu.js?v=campus-core-liberty-2";
+import { fetchLocations } from "./api.js?v=checkpoint-flex-nav-1";
+import { createContributions } from "./contributions.js?v=checkpoint-flex-nav-1";
+import { createDestinationPanel } from "./destination-panel.js?v=checkpoint-flex-nav-1";
+import { createMap } from "./map.js?v=checkpoint-flex-nav-1";
+import { createSearch } from "./search.js?v=checkpoint-flex-nav-1";
+import { createRouteInspector } from "./route-inspector.js?v=checkpoint-flex-nav-1";
+import { createUserLocation } from "./user-location.js?v=checkpoint-flex-nav-1";
+import { createUserNavigation } from "./user-navigation.js?v=checkpoint-flex-nav-1";
+import { createDisclosureMenu } from "./disclosure-menu.js?v=checkpoint-flex-nav-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -66,6 +66,7 @@ async function start() {
       routeUrl: config.routeUrl,
       liveRouteUrl: config.liveRouteUrl,
       onRoute: (route, origin, destination, options) => mapController?.showUserRoute(route, origin, destination, options),
+      onRouteProgress: (progress) => mapController?.updateUserRouteProgress(progress),
       onClear: () => mapController?.clearUserRoute(),
       onRouteStale: (stale) => mapController?.setUserRouteStale(stale),
       onBrowse: () => document.querySelector("#location-search")?.focus(),
@@ -117,8 +118,6 @@ async function start() {
       },
       onRecenter: () => mapController?.recenterUserLocation(),
       onHeading: (heading) => mapController?.updateUserHeading(heading),
-      onFollowDirection: () => mapController?.enableFollowDirection() || "north-up",
-      onNorthUp: () => mapController?.northUp(),
     });
     setInterfaceState("browsing");
 
@@ -128,7 +127,6 @@ async function start() {
         config,
         features,
         onSelect: selectDestination,
-        onFollowStateChange: (state) => userLocationController?.setFollowState(state),
         onReady: () => setStatus(`${features.length} campus destinations · YabaTech area`, "ready"),
         onError: () => {
           mapError.hidden = false;

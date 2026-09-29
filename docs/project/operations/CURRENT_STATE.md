@@ -12,7 +12,7 @@
 | **Date** | 2026-09-29 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 4 — EDITOR & MAPPING TOOLS |
-| **Pipeline Phase** | CAMPUS CORE CAMERA + LIBERTY DETAIL RESTORATION IMPLEMENTED / OWNER VISUAL REVIEW REQUIRED; PHASE 4 SPRINT 004 PHYSICAL OWNER ACCEPTANCE PENDING |
+| **Pipeline Phase** | CHECKPOINT HIERARCHY + FLEXIBLE LIVE NAVIGATION IMPLEMENTED / OWNER REVIEW REQUIRED; PHASE 4 SPRINT 004 PHYSICAL OWNER ACCEPTANCE PENDING |
 | **Latest Meaningful Commit** | Campus presentation and core camera (`feat: refine campus map presentation and camera`) |
 
 ---
@@ -31,7 +31,7 @@
 | Field verification | NOT STARTED |
 | Routing dataset | 47 OSM-derived nodes plus 2 manual nodes; 54 OSM-derived segments; 2 active entrance anchors; all UNVERIFIED |
 | Deployment | PRODUCTION CONFIGURATION PREPARED; NO DEPLOYMENT PERFORMED |
-| Test suite | 176 DJANGO + 112 JAVASCRIPT TESTS PASSING |
+| Test suite | 178 DJANGO + 115 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -150,13 +150,17 @@ Phase 4 Sprints 001, 002 and 003 are OWNER ACCEPTED / COMPLETE. Sprint 002 now i
 
 Phase 4 Sprint 004 is IMPLEMENTATION COMPLETE / TECHNICAL AUDIT COMPLETE / PHYSICAL OWNER ACCEPTANCE PENDING. It adds explicit mobile Path Survey sessions, private accuracy-classified samples with temporary IndexedDB buffering, revision-bound trace matching, separate reviewer disposition, append-only verification history and permission-gated grant/revoke actions. No survey automatically edits the graph or grants `FIELD_VERIFIED`.
 
-The public-map Destination Density & Semantic Zoom upgrade is OWNER REVIEWED / COMMITTED. MapLibre clusters published outdoor destinations at overview and mid zoom, reveals individual category-coloured points and labels at close zoom, expands clusters on click/tap and retains selected destinations in a separate foreground source.
+The public-map Destination Density & Semantic Zoom upgrade is OWNER REVIEWED / COMMITTED and remains the clustering foundation. The local checkpoint hierarchy supersedes its ordinary-point presentation while preserving cluster expansion, filtering and the separate selected-destination foreground source.
 
 The Field-Test Stabilization sprint is OWNER REVIEWED / COMMITTED. The public route-origin native select is replaced by an accessible in-page radio-card chooser, the mobile route sheet avoids WebGL backdrop blur, and transient live-start matching failures wait for newer accepted positions within a strict three-attempt/ten-second bound. Routing safety thresholds and the established GPS stabilizer are unchanged.
 
-The Navigation Orientation & Follow Mode sprint is IMPLEMENTED / OWNER REVIEW REQUIRED. Browser/device-supported absolute phone orientation now has presentation priority over movement heading, with circular smoothing, a four-second freshness limit, heading-up follow, route-aware look-ahead, manual-gesture suspension, Resume following and North up. Orientation remains transient and client-only; unsupported or denied compass access does not block GPS or routing.
+The Flexible Live Navigation correction supersedes the unaccepted camera-follow presentation. Browser/device-supported absolute phone orientation still has presentation priority over movement heading, with circular smoothing and a four-second freshness limit, but heading rotates only the blue user marker. The map remains user-controlled; Recenter is a one-shot bearing-preserving action and MapLibre's standard compass provides optional reset.
 
-The Campus Core Camera + Liberty Detail Restoration is IMPLEMENTED / OWNER VISUAL REVIEW REQUIRED. Initial load and Home now centre the approved campus point with responsive close framing (desktop 17.6–18.0; mobile 17.0–17.5) instead of fitting the whole campus boundary. The whole-campus overview remains available separately and users retain zoom 15–20 within the existing context bounds. Home exits camera follow and returns north-up; destination, route and active-follow cameras retain ownership of their respective flows.
+The Checkpoint Map Hierarchy is IMPLEMENTED / OWNER REVIEW REQUIRED. `Location.is_checkpoint` is a new default-false, editor-controlled flag exposed explicitly in outdoor GeoJSON. Checkpoints receive a permanent YCT-green landmark and earlier label; ordinary destinations retain clustering, close labels, invisible 30 px interaction targets and the selected overlay without permanent dots. No existing Location was automatically changed and the local migration has not been applied.
+
+Live route presentation now keeps the full route authoritative for progress, off-route, ETA and arrival logic while rendering trusted progress as a subtle completed line plus a strong remaining-route line. Uncertain evidence freezes the last trustworthy visual state; successful rerouting resets presentation to the replacement route and failure retains the previous route. Manual routes stay complete and the user marker is not snapped.
+
+The Campus Core Camera + Liberty Detail Restoration is IMPLEMENTED / OWNER VISUAL REVIEW REQUIRED. Initial load and Home now centre the approved campus point with responsive close framing (desktop 17.6–18.0; mobile 17.0–17.5) instead of fitting the whole campus boundary. The whole-campus overview remains available separately and users retain zoom 15–20 within the existing context bounds. Home deliberately returns to the north-up campus core; destination and initial route framing remain separate one-time camera actions.
 
 OpenFreeMap Liberty once again renders its native OSM colors, buildings, paths, land use and available POI labels. The rejected outside mask, ivory canvas, building shadow and runtime Liberty layer mutations were removed. YCT retains a lightweight orientation polygon plus its destination-density, selected-state and navigation layers. The routing graph, GPS/navigation algorithms, public destination data and boundary coordinates are unchanged.
 
@@ -172,7 +176,7 @@ Physical Samsung/mobile Path Survey acceptance still requires final real-device 
 
 ## Next Approved Task
 
-Owner-test the campus-core entry/Home camera and restored Liberty/OSM detail on desktop and Samsung-sized portrait/landscape views. Confirm native POIs and colors are visible, the core dominates first load, manual zoom-out reaches the whole campus/context, and destination/route/follow cameras remain independent. Navigation Orientation & Follow Mode and Phase 4 Sprint 004 physical-device acceptance remain pending. Detailed ContributionResolution QA is deferred but is not represented as completed.
+Owner-test the checkpoint hierarchy and flexible progressive live navigation locally, including the exact Samsung/Edge field checklist supplied with this build. No current Location is a checkpoint until the owner deliberately selects the editor checkbox and applies the pending local migration. Phase 4 Sprint 004 physical-device acceptance remains pending. Detailed ContributionResolution QA is deferred but is not represented as completed.
 
 ---
 

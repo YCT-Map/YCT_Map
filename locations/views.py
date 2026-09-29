@@ -14,7 +14,7 @@ from routing.destinations import resolve_destination
 MAP_CENTRE = {"longitude": 3.37424, "latitude": 6.51857}
 MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 MAPLIBRE_VERSION = "6.10.0"
-UI_ASSET_VERSION = "campus-core-liberty-2"
+UI_ASSET_VERSION = "checkpoint-flex-nav-1"
 
 
 def _routing_state(destination_key):
@@ -109,6 +109,7 @@ def location_collection(request):
                     "description": location.description,
                     "verification_state": location.verification_state,
                     "verification_label": location.get_verification_state_display(),
+                    "is_checkpoint": location.is_checkpoint,
                     "aliases": list(location.aliases.values_list("name", flat=True)),
                     "categories": [
                         {"slug": item.slug, "name": item.name}

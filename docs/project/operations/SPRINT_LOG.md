@@ -779,3 +779,16 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Owner review found the restored orientation boundary too visually dominant at close zoom.
 - Kept the polygon coordinates and 8% interior fill unchanged. Replaced the rigid dark outline with a softer green interpolation: 1.5 px/55% at zoom 15, 1 px/38% at zoom 17 and 0.6 px/22% at zoom 20.
 - This is presentation-only and does not change campus geometry, data trust, routing, GPS/navigation or Path Survey behavior.
+
+---
+
+## Checkpoint Map Hierarchy + Flexible Live Navigation
+
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+**Date:** 2026-09-29
+
+- Added a default-false `Location.is_checkpoint` editor flag, an explicit public GeoJSON property and a local migration. The flag is independent from publication, verification, routing readiness and category; no current record was automatically changed and the migration was not applied to the local database.
+- Kept the single clustered outdoor source. Unclustered checkpoints now use a permanent YCT-green 8–9 px landmark, white outline, subtle halo and earlier label. Ordinary destinations use close-zoom labels plus the existing invisible 30 px interaction target, with no permanent dot. Selected destinations remain prominent regardless of checkpoint state.
+- Removed the application-specific Follow Direction / North Up camera state and controls while retaining device-orientation acquisition, heading priority and map-aligned blue chevron rotation. Map gestures remain free and Recenter performs one bearing-preserving move without enabling a lock; MapLibre's ordinary compass is available.
+- Added pure Haversine-consistent route slicing. Live routes retain full authoritative geometry for tracking, off-route, ETA and arrival while showing a subdued completed section and strong remaining section from trusted progress only. Manual routes remain complete; reroute success resets the visual split and failure preserves the prior route.
+- Added checkpoint/editor/API, route-slicing, trustworthy-progress, camera and regression coverage. Verification passes with 178 Django tests and 115 JavaScript tests plus clean system, migration-drift, syntax, compilation and whitespace gates. Physical Samsung/Edge and checkpoint visual acceptance remain pending.

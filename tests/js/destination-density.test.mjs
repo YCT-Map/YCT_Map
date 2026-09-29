@@ -8,6 +8,8 @@ import {
   DESTINATION_HIT_LAYER_ID,
   DESTINATION_LABEL_LAYER_ID,
   DESTINATION_POINT_LAYER_ID,
+  CHECKPOINT_HALO_LAYER_ID,
+  CHECKPOINT_LABEL_LAYER_ID,
   DESTINATION_SOURCE_ID,
   NAVIGATION_FOREGROUND_LAYER_ORDER,
   SELECTED_DESTINATION_HALO_LAYER_ID,
@@ -24,12 +26,13 @@ import {
   setVisibleDestinationFeatures,
 } from "../../static/yct_map/js/map.js";
 
-function destination(id, coordinates = [3.3742, 6.5185], destinationType = "location") {
+function destination(id, coordinates = [3.3742, 6.5185], destinationType = "location", isCheckpoint = false) {
   return {
     type: "Feature",
     id,
     geometry: { type: "Point", coordinates },
-    properties: { id, name: `Place ${id}`, category: "library", destination_type: destinationType },
+    properties: { id, name: `Place ${id}`, category: "library", destination_type: destinationType,
+      is_checkpoint: isCheckpoint },
   };
 }
 
@@ -45,34 +48,42 @@ test("outdoor destination source uses campus-scale native clustering", () => {
   assert.deepEqual(DESTINATION_CLUSTER_CONFIG, { cluster: true, clusterRadius: 50, clusterMaxZoom: 16 });
 });
 
-test("semantic zoom separates clusters, unclustered markers, and close labels", () => {
+test("semantic zoom separates clusters, checkpoint landmarks, and close ordinary labels", () => {
   const layers = new Map(destinationLayerDefinitions().map((layer) => [layer.id, layer]));
   const cluster = layers.get(DESTINATION_CLUSTER_LAYER_ID);
   const count = layers.get(DESTINATION_CLUSTER_COUNT_LAYER_ID);
   const point = layers.get(DESTINATION_POINT_LAYER_ID);
   const hit = layers.get(DESTINATION_HIT_LAYER_ID);
   const label = layers.get(DESTINATION_LABEL_LAYER_ID);
+  const checkpointLabel = layers.get(CHECKPOINT_LABEL_LAYER_ID);
+  const checkpointFilter = ["all", ["!", ["has", "point_count"]], ["==", ["get", "is_checkpoint"], true]];
+  const ordinaryFilter = ["all", ["!", ["has", "point_count"]], ["!=", ["get", "is_checkpoint"], true]];
 
   assert.deepEqual(cluster.filter, ["has", "point_count"]);
   assert.deepEqual(count.filter, ["has", "point_count"]);
-  assert.deepEqual(point.filter, ["!", ["has", "point_count"]]);
+  assert.deepEqual(point.filter, checkpointFilter);
   assert.deepEqual(hit.filter, ["!", ["has", "point_count"]]);
-  assert.deepEqual(label.filter, ["!", ["has", "point_count"]]);
-  assert.equal(label.minzoom, 16.5);
+  assert.deepEqual(label.filter, ordinaryFilter);
+  assert.equal(label.minzoom, 17.2);
+  assert.deepEqual(checkpointLabel.filter, checkpointFilter);
+  assert.equal(checkpointLabel.minzoom, 15.8);
   assert.equal(label.layout["text-field"][1], "name");
   assert.deepEqual(label.layout["text-size"],
-    ["interpolate", ["linear"], ["zoom"], 16.5, 10.5, 20, 12]);
+    ["interpolate", ["linear"], ["zoom"], 17.2, 10.5, 20, 12]);
 });
 
-test("ordinary destinations use quiet visible anchors and a separate mobile hit target", () => {
+test("ordinary destinations have no visible marker while checkpoints and the shared hit target remain", () => {
   const layers = new Map(destinationLayerDefinitions().map((layer) => [layer.id, layer]));
   const point = layers.get(DESTINATION_POINT_LAYER_ID);
+  const halo = layers.get(CHECKPOINT_HALO_LAYER_ID);
   const hit = layers.get(DESTINATION_HIT_LAYER_ID);
 
   assert.notEqual(point.id, hit.id);
   assert.deepEqual(point.paint["circle-radius"],
-    ["interpolate", ["linear"], ["zoom"], 15, 4, 17.5, 5, 20, 6]);
-  assert.equal(point.paint["circle-stroke-width"], 1.5);
+    ["interpolate", ["linear"], ["zoom"], 15, 8, 20, 9]);
+  assert.equal(point.paint["circle-color"], "#17663c");
+  assert.equal(point.paint["circle-stroke-width"], 2.5);
+  assert.deepEqual(halo.filter, point.filter);
   assert.equal(hit.paint["circle-radius"], 15);
   assert.equal(hit.paint["circle-color"], "rgba(0,0,0,0.01)");
   assert.deepEqual(hit.filter, ["!", ["has", "point_count"]]);
@@ -103,6 +114,9 @@ test("selected destination uses an independent source and replaces its single fe
   const selectedLayers = selectedDestinationLayerDefinitions();
   assert.ok(selectedLayers.every((layer) => layer.source === SELECTED_DESTINATION_SOURCE_ID));
   assert.notEqual(SELECTED_DESTINATION_SOURCE_ID, DESTINATION_SOURCE_ID);
+
+  setSelectedDestination(map, destination("checkpoint", [3.376, 6.52], "location", true));
+  assert.equal(updates.at(-1).features[0].properties.is_checkpoint, true);
 
   setSelectedDestination(map, destination("inside", [3.375, 6.519], "internal"));
   assert.deepEqual(updates.at(-1).features, []);

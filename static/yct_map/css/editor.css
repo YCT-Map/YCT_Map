@@ -31,6 +31,9 @@ button, input, select, textarea { font: inherit; }
 .editor-form input:focus, .editor-form select:focus, .editor-form textarea:focus { outline: 3px solid rgba(23,102,60,.18); border-color: var(--green); }
 .editor-form ul { margin: .3rem 0 0; padding: 0; list-style: none; }
 .editor-field > .editor-input[type=checkbox], .editor-field ul input { width: auto; }
+.editor-checkbox-field { grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: .55rem; }
+.editor-checkbox-field input[type=checkbox] { margin: 0; }
+.editor-checkbox-field small, .editor-checkbox-field .errorlist { grid-column: 1 / -1; }
 .editor-field ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .5rem; }
 .editor-field ul label { display: flex; align-items: center; gap: .55rem; font-weight: 500; }
 .editor-field ul input[type=checkbox] { order: -1; flex: 0 0 auto; margin: 0; }

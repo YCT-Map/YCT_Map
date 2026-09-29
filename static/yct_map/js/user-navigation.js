@@ -1,5 +1,5 @@
-import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=campus-core-liberty-2";
-import { createOffRouteDetector } from "./off-route.js?v=campus-core-liberty-2";
+import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=checkpoint-flex-nav-1";
+import { createOffRouteDetector } from "./off-route.js?v=checkpoint-flex-nav-1";
 
 export const MAX_LIVE_POSITION_AGE_MS = 30_000;
 export const MAX_LIVE_ROUTE_ATTEMPTS = 3;
@@ -8,7 +8,7 @@ const TRANSIENT_LIVE_ROUTE_CODES = new Set(["NO_SAFE_NETWORK_MATCH", "INSUFFICIE
 const LIVE_ROUTE_FINAL_MESSAGE = "Your location is clear, but it cannot yet be safely connected to the mapped campus paths. Choose a mapped starting point or try live location again after moving closer to a mapped walkway.";
 
 export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, onRoute, onClear, onBrowse,
-  onCancel, onStateChange, onRouteStale, requestRoute = fetch, now = Date.now,
+  onCancel, onStateChange, onRouteStale, onRouteProgress = () => {}, requestRoute = fetch, now = Date.now,
   setDeadline = globalThis.setTimeout, clearDeadline = globalThis.clearTimeout }) {
   const form = panel.querySelector("#user-route-form");
   const liveOriginInput = panel.querySelector("#user-route-origin-live");
@@ -430,6 +430,9 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     const progress = activeTracker.update(position);
     renderProgress(progress);
     const routeState = offRouteDetector.evaluate(position, activeTracker.getCoordinates(), { arrived: progress.state === "arrived" });
+    const trustworthyProgress = ["walking", "stationary", "arrived"].includes(progress.state)
+      && ["following", "arrived"].includes(routeState.state) && !routeState.shouldReroute;
+    if (trustworthyProgress) onRouteProgress({ progressMetres: progress.progressMetres, state: progress.state });
     if (routeState.state === "checking-position") {
       panel.querySelector("#user-route-progress-status").textContent = routeState.reason === "location-uncertain"
         ? "Location uncertain · retaining your last trustworthy route state" : "Checking your position…";

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLiveRouteTracker, formatEta, projectOntoRoute } from "../../static/yct_map/js/live-route-progress.js";
+import { createLiveRouteTracker, formatEta, projectOntoRoute,
+  sliceRouteAtDistance } from "../../static/yct_map/js/live-route-progress.js";
 
 const route = [[3.3740, 6.5180], [3.3745, 6.5180], [3.3750, 6.5185]];
 
@@ -43,4 +44,36 @@ test("route replacement resets progress while preserving trustworthy walking pac
   const result = tracker.update({ longitude: 3.37415, latitude: 6.5180, accuracyMetres: 5, timestamp: 17_000 });
   assert.equal(result.progressMetres, 0);
   assert.equal(result.etaSource, "live");
+});
+
+test("route slicing handles start, mid-leg, exact vertex, end, and does not mutate input", () => {
+  const input = route.map((point) => [...point]);
+  const firstLeg = projectOntoRoute(route[1], route).along;
+  const start = sliceRouteAtDistance(route, 0);
+  assert.deepEqual(start.completedCoordinates, [route[0]]);
+  assert.deepEqual(start.remainingCoordinates, route);
+
+  const middle = sliceRouteAtDistance(route, firstLeg / 2);
+  assert.equal(middle.completedCoordinates.length, 2);
+  assert.deepEqual(middle.completedCoordinates.at(-1), middle.remainingCoordinates[0]);
+  assert.ok(middle.progressPoint[0] > route[0][0] && middle.progressPoint[0] < route[1][0]);
+
+  const vertex = sliceRouteAtDistance(route, firstLeg);
+  assert.deepEqual(vertex.progressPoint, route[1]);
+  assert.deepEqual(vertex.completedCoordinates.at(-1), route[1]);
+  assert.deepEqual(vertex.remainingCoordinates[0], route[1]);
+
+  const end = sliceRouteAtDistance(route, Number.POSITIVE_INFINITY);
+  assert.deepEqual(end.completedCoordinates, route);
+  assert.deepEqual(end.remainingCoordinates, [route.at(-1)]);
+  assert.deepEqual(route, input);
+});
+
+test("route slicing tolerates empty, single-point and degenerate legs", () => {
+  assert.deepEqual(sliceRouteAtDistance([], 10).remainingCoordinates, []);
+  assert.deepEqual(sliceRouteAtDistance([[3.374, 6.518]], 10).remainingCoordinates, [[3.374, 6.518]]);
+  const degenerate = [[3.374, 6.518], [3.374, 6.518], [3.375, 6.518]];
+  const sliced = sliceRouteAtDistance(degenerate, 20);
+  assert.ok(sliced.remainingCoordinates.length >= 2);
+  assert.ok(sliced.progressPoint[0] > 3.374);
 });

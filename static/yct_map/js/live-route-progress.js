@@ -11,6 +11,60 @@ export function distanceMetres(a, b) {
   return 2 * EARTH_RADIUS_METRES * Math.asin(Math.sqrt(haversine));
 }
 
+export function sliceRouteAtDistance(coordinates, requestedProgressMetres) {
+  const route = Array.isArray(coordinates)
+    ? coordinates.map((coordinate) => Array.isArray(coordinate) ? [...coordinate] : coordinate)
+    : [];
+  if (route.length === 0) {
+    return { progressMetres: 0, totalDistanceMetres: 0, progressPoint: null,
+      completedCoordinates: [], remainingCoordinates: [] };
+  }
+  if (route.length === 1) {
+    return { progressMetres: 0, totalDistanceMetres: 0, progressPoint: [...route[0]],
+      completedCoordinates: [[...route[0]]], remainingCoordinates: [[...route[0]]] };
+  }
+
+  const lengths = route.slice(0, -1).map((coordinate, index) => distanceMetres(coordinate, route[index + 1]));
+  const totalDistanceMetres = lengths.reduce((sum, length) => sum + length, 0);
+  const progressMetres = Math.min(totalDistanceMetres, Math.max(0, Number(requestedProgressMetres) || 0));
+  if (progressMetres <= 0) {
+    return { progressMetres, totalDistanceMetres, progressPoint: [...route[0]],
+      completedCoordinates: [[...route[0]]], remainingCoordinates: route };
+  }
+  if (progressMetres >= totalDistanceMetres) {
+    return { progressMetres, totalDistanceMetres, progressPoint: [...route.at(-1)],
+      completedCoordinates: route, remainingCoordinates: [[...route.at(-1)]] };
+  }
+
+  let traversed = 0;
+  for (let index = 0; index < lengths.length; index += 1) {
+    const legLength = lengths[index];
+    if (legLength === 0) continue;
+    const legEnd = traversed + legLength;
+    if (progressMetres <= legEnd) {
+      const fraction = (progressMetres - traversed) / legLength;
+      const atVertex = fraction >= 1 - Number.EPSILON;
+      const progressPoint = atVertex ? [...route[index + 1]] : [
+        route[index][0] + (route[index + 1][0] - route[index][0]) * fraction,
+        route[index][1] + (route[index + 1][1] - route[index][1]) * fraction,
+      ];
+      const completedCoordinates = route.slice(0, index + 1);
+      const remainingCoordinates = route.slice(index + 1);
+      if (!atVertex) {
+        completedCoordinates.push(progressPoint);
+        remainingCoordinates.unshift(progressPoint);
+      } else {
+        completedCoordinates.push(progressPoint);
+      }
+      return { progressMetres, totalDistanceMetres, progressPoint,
+        completedCoordinates, remainingCoordinates };
+    }
+    traversed = legEnd;
+  }
+  return { progressMetres: totalDistanceMetres, totalDistanceMetres, progressPoint: [...route.at(-1)],
+    completedCoordinates: route, remainingCoordinates: [[...route.at(-1)]] };
+}
+
 function projectToLeg(point, start, end) {
   const latitudeRadians = point[1] * Math.PI / 180;
   const scaleX = 111_320 * Math.max(Math.cos(latitudeRadians), 0.01);

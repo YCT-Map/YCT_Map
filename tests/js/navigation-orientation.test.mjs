@@ -8,8 +8,7 @@ import {
   normalizeHeading,
   selectDisplayedHeading,
 } from "../../static/yct_map/js/device-orientation.js";
-import { createFollowModeState, navigationCameraLayout,
-  userLocationFeature } from "../../static/yct_map/js/map.js";
+import { recenterCameraOptions, userLocationFeature } from "../../static/yct_map/js/map.js";
 
 test("heading normalization handles wrap, negatives, portrait and landscape", () => {
   assert.equal(normalizeHeading(0), 0);
@@ -103,22 +102,11 @@ test("marker heading changes presentation without changing GPS position", () => 
   assert.equal("heading" in dot.properties, false);
 });
 
-test("follow mode suspends only for real user gestures and resumes deliberately", () => {
-  const states = [];
-  const mode = createFollowModeState((state) => states.push(state));
-  assert.equal(mode.enable(), "following");
-  assert.equal(mode.suspendForGesture(null), "following", "programmatic camera events do not suspend");
-  assert.equal(mode.suspendForGesture({ type: "touchstart" }), "suspended");
-  assert.equal(mode.resume(), "following");
-  assert.equal(mode.northUp(), "north-up");
-  assert.deepEqual(states, ["following", "suspended", "following", "north-up"]);
-});
-
-test("look-ahead layout reserves a mobile route panel and desktop side panel", () => {
-  const mobile = navigationCameraLayout({ viewportWidth: 390, viewportHeight: 800, routePanelHeight: 180 });
-  assert.ok(mobile.padding.bottom >= 204);
-  assert.ok(mobile.offset[1] > 0, "user marker is placed below the usable-map centre");
-  const desktop = navigationCameraLayout({ viewportWidth: 1440, viewportHeight: 900, routePanelHeight: 400 });
-  assert.ok(desktop.padding.right >= 320);
-  assert.ok(desktop.offset[0] < 0);
+test("recenter is a one-shot camera move that preserves user bearing", () => {
+  const options = recenterCameraOptions({ longitude: 3.3742, latitude: 6.5185 }, 16, false);
+  assert.deepEqual(options.center, [3.3742, 6.5185]);
+  assert.equal(options.zoom, 17);
+  assert.equal("bearing" in options, false, "recenter must not rotate or lock the camera");
+  assert.equal("padding" in options, false);
+  assert.equal(recenterCameraOptions({ longitude: 3.3742, latitude: 6.5185 }, 18, true).duration, 0);
 });

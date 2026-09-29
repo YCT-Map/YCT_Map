@@ -105,11 +105,12 @@ class EditorPlaceCrudTests(TestCase):
         return values
 
     def test_create_draft_with_multiple_categories_aliases_and_audit_actor(self):
-        response = self.client.post(reverse("editor:place-create"), self.payload())
+        response = self.client.post(reverse("editor:place-create"), self.payload(is_checkpoint="on"))
         location = Location.objects.get(name="TEST — Student Centre")
         self.assertRedirects(response, reverse("editor:place-detail", args=(location.id,)))
         self.assertEqual(location.publication_status, Location.PublicationStatus.DRAFT)
         self.assertEqual(location.verification_state, Location.VerificationState.UNVERIFIED)
+        self.assertTrue(location.is_checkpoint)
         self.assertIsNone(location.representative_latitude)
         self.assertEqual(set(location.categories.values_list("slug", flat=True)), {"academic", "student-services"})
         self.assertEqual(set(location.aliases.values_list("alias_kind", flat=True)), {"ABBREVIATION", "COMMON_NAME"})

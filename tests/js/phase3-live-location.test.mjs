@@ -140,7 +140,7 @@ class FakeElement {
 
 function locationHarness() {
   const root = new FakeElement();
-  const selectors = ["#locate-me", "#recenter-me", "#stop-location", "#follow-direction", "#north-up",
+  const selectors = ["#locate-me", "#recenter-me", "#stop-location",
     "#location-message", "#location-accuracy", "#direction-status"];
   root.queries = new Map(selectors.map((selector) => [selector, new FakeElement()]));
   return { root, get: (selector) => root.querySelector(selector) };

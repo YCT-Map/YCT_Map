@@ -101,6 +101,11 @@ class Location(models.Model):
         choices=VerificationState.choices,
         default=VerificationState.UNVERIFIED,
     )
+    is_checkpoint = models.BooleanField(
+        default=False,
+        verbose_name="Show as map checkpoint",
+        help_text="Emphasize this place as a prominent wayfinding landmark.",
+    )
     # Retained as a compatibility flag while callers migrate to publication_status.
     is_active = models.BooleanField(default=False)
     created_by = models.ForeignKey(

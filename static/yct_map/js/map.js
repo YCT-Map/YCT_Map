@@ -1,8 +1,12 @@
+import { sliceRouteAtDistance } from "./live-route-progress.js?v=checkpoint-flex-nav-1";
+
 export const DESTINATION_SOURCE_ID = "demo-destinations";
 export const DESTINATION_CLUSTER_LAYER_ID = "destination-clusters";
 export const DESTINATION_CLUSTER_COUNT_LAYER_ID = "destination-cluster-counts";
 export const DESTINATION_POINT_LAYER_ID = "demo-destination-circles";
 export const DESTINATION_LABEL_LAYER_ID = "demo-destination-labels";
+export const CHECKPOINT_HALO_LAYER_ID = "checkpoint-destination-halos";
+export const CHECKPOINT_LABEL_LAYER_ID = "checkpoint-destination-labels";
 export const DESTINATION_HIT_LAYER_ID = "destination-interaction-targets";
 export const SELECTED_DESTINATION_SOURCE_ID = "selected-destination";
 export const SELECTED_DESTINATION_MARKER_LAYER_ID = "selected-destination-marker";
@@ -23,6 +27,8 @@ const NETWORK_NODE_LAYER_ID = "demo-walkable-network-nodes";
 const ROUTE_SOURCE_ID = "calculated-demo-route";
 const ROUTE_LAYER_ID = "calculated-demo-route-line";
 const USER_ROUTE_SOURCE_ID = "user-demo-route";
+const USER_ROUTE_COMPLETED_SOURCE_ID = "user-completed-route";
+const USER_ROUTE_COMPLETED_LAYER_ID = "user-completed-route-line";
 const USER_ROUTE_CASING_LAYER_ID = "user-demo-route-casing";
 const USER_ROUTE_LAYER_ID = "user-demo-route-line";
 const USER_ENDPOINT_SOURCE_ID = "user-route-endpoints";
@@ -35,7 +41,6 @@ const USER_LOCATION_DOT_LAYER_ID = "live-user-location-dot";
 const USER_LOCATION_CHEVRON_LAYER_ID = "live-user-location-chevron";
 const CONTRIBUTION_SOURCE_ID = "pending-contribution-point";
 const CONTRIBUTION_LAYER_ID = "pending-contribution-point-circle";
-const FOLLOW_CAMERA_THROTTLE_MS = 120;
 export const CAMPUS_CORE_CAMERA = Object.freeze({
   mobileBreakpoint: 672,
   desktop: Object.freeze({ offset: 0.25, minZoom: 17.6, maxZoom: 18, fallbackZoom: 17.8 }),
@@ -58,6 +63,7 @@ export const NAVIGATION_FOREGROUND_LAYER_ORDER = Object.freeze([
   USER_ACCURACY_LAYER_ID,
   SELECTED_DESTINATION_HALO_LAYER_ID,
   SELECTED_DESTINATION_MARKER_LAYER_ID,
+  USER_ROUTE_COMPLETED_LAYER_ID,
   USER_ROUTE_CASING_LAYER_ID,
   USER_ROUTE_LAYER_ID,
   USER_ENDPOINT_CIRCLE_LAYER_ID,
@@ -72,9 +78,11 @@ export const CAMPUS_INTERACTIVE_LAYER_ORDER = Object.freeze([
   CAMPUS_LABEL_LAYER_ID,
   DESTINATION_CLUSTER_LAYER_ID,
   DESTINATION_CLUSTER_COUNT_LAYER_ID,
+  CHECKPOINT_HALO_LAYER_ID,
   DESTINATION_POINT_LAYER_ID,
   DESTINATION_HIT_LAYER_ID,
   DESTINATION_LABEL_LAYER_ID,
+  CHECKPOINT_LABEL_LAYER_ID,
   ...NAVIGATION_FOREGROUND_LAYER_ORDER,
 ]);
 
@@ -142,34 +150,12 @@ export function campusOrientationLayerDefinitions() {
   };
 }
 
-export function navigationCameraLayout({ viewportWidth, viewportHeight, routePanelHeight = 0 } = {}) {
-  const width = Math.max(320, Number(viewportWidth) || 320);
-  const height = Math.max(320, Number(viewportHeight) || 320);
-  const panel = Math.max(0, Math.min(Number(routePanelHeight) || 0, height * 0.55));
-  const mobile = width < 672;
-  const bottom = mobile ? panel + 24 : 32;
-  const usableHeight = height - bottom;
-  const lookAheadOffset = Math.max(35, Math.min(120, usableHeight * 0.16));
+export function recenterCameraOptions(position, currentZoom, reducedMotion = false) {
   return {
-    padding: { top: 24, right: mobile ? 24 : 320, bottom, left: 24 },
-    offset: [mobile ? 0 : -130, lookAheadOffset],
-  };
-}
-
-export function createFollowModeState(onChange = () => {}) {
-  let mode = "north-up";
-  function change(next) { mode = next; onChange(mode); return mode; }
-  return {
-    enable: () => change("following"),
-    suspendForGesture(originalEvent) {
-      if (mode !== "following" || !originalEvent) return mode;
-      return change("suspended");
-    },
-    resume: () => mode === "north-up" ? mode : change("following"),
-    northUp: () => change("north-up"),
-    isEnabled: () => mode !== "north-up",
-    isFollowing: () => mode === "following",
-    getMode: () => mode,
+    center: [position.longitude, position.latitude],
+    zoom: Math.max(Number(currentZoom) || 0, 17),
+    duration: reducedMotion ? 0 : 650,
+    essential: false,
   };
 }
 
@@ -198,6 +184,8 @@ export function selectedDestinationSourceDefinition() {
 export function destinationLayerDefinitions() {
   const unclustered = ["!", ["has", "point_count"]];
   const clustered = ["has", "point_count"];
+  const checkpoint = ["all", unclustered, ["==", ["get", "is_checkpoint"], true]];
+  const ordinary = ["all", unclustered, ["!=", ["get", "is_checkpoint"], true]];
   return [
     {
       id: DESTINATION_CLUSTER_LAYER_ID,
@@ -227,16 +215,28 @@ export function destinationLayerDefinitions() {
       paint: { "text-color": "#ffffff", "text-halo-color": "rgba(13,68,42,.35)", "text-halo-width": 1 },
     },
     {
+      id: CHECKPOINT_HALO_LAYER_ID,
+      type: "circle",
+      source: DESTINATION_SOURCE_ID,
+      filter: checkpoint,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 15, 11, 20, 13],
+        "circle-color": "rgba(23,102,60,.12)",
+        "circle-stroke-color": "rgba(23,102,60,.2)",
+        "circle-stroke-width": 1,
+      },
+    },
+    {
       id: DESTINATION_POINT_LAYER_ID,
       type: "circle",
       source: DESTINATION_SOURCE_ID,
-      filter: unclustered,
+      filter: checkpoint,
       paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 15, 4, 17.5, 5, 20, 6],
-        "circle-color": DESTINATION_COLOR,
-        "circle-stroke-color": "rgba(255,255,255,.94)",
-        "circle-stroke-width": 1.5,
-        "circle-opacity": 0.92,
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 15, 8, 20, 9],
+        "circle-color": "#17663c",
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 2.5,
+        "circle-opacity": 0.98,
       },
     },
     {
@@ -254,19 +254,37 @@ export function destinationLayerDefinitions() {
       id: DESTINATION_LABEL_LAYER_ID,
       type: "symbol",
       source: DESTINATION_SOURCE_ID,
-      filter: unclustered,
-      minzoom: 16.5,
+      filter: ordinary,
+      minzoom: 17.2,
       layout: {
         "text-field": ["get", "name"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 16.5, 10.5, 20, 12],
-        "text-offset": [0, 0.9],
-        "text-anchor": "top",
+        "text-size": ["interpolate", ["linear"], ["zoom"], 17.2, 10.5, 20, 12],
+        "text-anchor": "center",
         "text-font": ["Noto Sans Regular"],
       },
       paint: {
         "text-color": "#163127",
         "text-halo-color": "#fffdf8",
         "text-halo-width": 1.5,
+      },
+    },
+    {
+      id: CHECKPOINT_LABEL_LAYER_ID,
+      type: "symbol",
+      source: DESTINATION_SOURCE_ID,
+      filter: checkpoint,
+      minzoom: 15.8,
+      layout: {
+        "text-field": ["get", "name"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 15.8, 11, 20, 12.5],
+        "text-offset": [0, 1.25],
+        "text-anchor": "top",
+        "text-font": ["Noto Sans Regular"],
+      },
+      paint: {
+        "text-color": "#0d442a",
+        "text-halo-color": "#fffdf8",
+        "text-halo-width": 1.75,
       },
     },
   ];
@@ -484,8 +502,7 @@ class CampusFocusControl {
   }
 }
 
-export async function createMap({ container, config, features, onSelect, onReady, onError,
-  onFollowStateChange = () => {} }) {
+export async function createMap({ container, config, features, onSelect, onReady, onError }) {
   const [maplibregl, campusBoundary, demoNetwork] = await Promise.all([
     import(config.moduleUrl),
     loadCampusBoundary(config.campusBoundaryUrl),
@@ -500,9 +517,9 @@ export async function createMap({ container, config, features, onSelect, onReady
   let latestUserPosition = null;
   let displayedHeading = null;
   let displayedHeadingSource = null;
-  const followMode = createFollowModeState(onFollowStateChange);
-  let followCameraTimer = null;
   let liveRouteActive = false;
+  let activeUserRouteCoordinates = [];
+  let lastRenderedProgressMetres = 0;
 
   const map = new maplibregl.Map({
     container,
@@ -514,7 +531,7 @@ export async function createMap({ container, config, features, onSelect, onReady
     cooperativeGestures: false,
   });
 
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+  map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
   map.addControl(new CampusFocusControl(() => focusCampusCore({ resetNavigation: true })), "bottom-right");
   map.addControl(
     new maplibregl.AttributionControl({ compact: true, customAttribution: "YCT Map campus data · OSM-derived UNVERIFIED route data" }),
@@ -568,10 +585,14 @@ export async function createMap({ container, config, features, onSelect, onReady
       });
     }
 
-    map.addSource(USER_ROUTE_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addSource(USER_ROUTE_COMPLETED_SOURCE_ID, { type: "geojson", data: featureCollection() });
+    map.addSource(USER_ROUTE_SOURCE_ID, { type: "geojson", data: featureCollection() });
     map.addSource(CONTRIBUTION_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     map.addLayer({ id: CONTRIBUTION_LAYER_ID, type: "circle", source: CONTRIBUTION_SOURCE_ID,
       paint: { "circle-radius": 11, "circle-color": "#f3b51b", "circle-stroke-color": "#7a4d00", "circle-stroke-width": 3 } });
+    map.addLayer({ id: USER_ROUTE_COMPLETED_LAYER_ID, type: "line", source: USER_ROUTE_COMPLETED_SOURCE_ID,
+      paint: { "line-color": "#71849b", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 3, 18, 5],
+        "line-opacity": 0.34 } });
     map.addLayer({ id: USER_ROUTE_CASING_LAYER_ID, type: "line", source: USER_ROUTE_SOURCE_ID,
       paint: { "line-color": "rgba(255,255,255,.92)", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 8, 18, 12] } });
     map.addLayer({ id: USER_ROUTE_LAYER_ID, type: "line", source: USER_ROUTE_SOURCE_ID,
@@ -620,12 +641,6 @@ export async function createMap({ container, config, features, onSelect, onReady
     }
   });
 
-  for (const eventName of ["dragstart", "rotatestart", "zoomstart"]) {
-    map.on(eventName, (event) => {
-      followMode.suspendForGesture(event?.originalEvent);
-    });
-  }
-
   function focus(feature) {
     if (!loaded) {
       pendingFocus = feature;
@@ -648,11 +663,6 @@ export async function createMap({ container, config, features, onSelect, onReady
   }
 
   function focusCampusCore({ animate = true, resetNavigation = false } = {}) {
-    if (resetNavigation) {
-      followMode.northUp();
-      if (followCameraTimer !== null) globalThis.clearTimeout(followCameraTimer);
-      followCameraTimer = null;
-    }
     const camera = campusCoreCamera({
       centre: config.centre,
       overviewZoom: campusOverviewCamera()?.zoom,
@@ -702,7 +712,10 @@ export async function createMap({ container, config, features, onSelect, onReady
       console.error("Unsafe route geometry was not rendered", error);
       throw error;
     }
-    map.getSource(USER_ROUTE_SOURCE_ID).setData({ type: "FeatureCollection", features: [routeFeature] });
+    activeUserRouteCoordinates = coordinates.map((coordinate) => [...coordinate]);
+    lastRenderedProgressMetres = 0;
+    map.getSource(USER_ROUTE_COMPLETED_SOURCE_ID).setData(featureCollection());
+    map.getSource(USER_ROUTE_SOURCE_ID).setData(featureCollection([routeFeature]));
     liveRouteActive = originType === "live";
     setUserRouteStale(false);
     map.getSource(USER_ENDPOINT_SOURCE_ID).setData({ type: "FeatureCollection", features: [
@@ -720,14 +733,37 @@ export async function createMap({ container, config, features, onSelect, onReady
 
   function clearUserRoute() {
     liveRouteActive = false;
-    map.getSource(USER_ROUTE_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
-    map.getSource(USER_ENDPOINT_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
+    activeUserRouteCoordinates = [];
+    lastRenderedProgressMetres = 0;
+    map.getSource(USER_ROUTE_COMPLETED_SOURCE_ID)?.setData(featureCollection());
+    map.getSource(USER_ROUTE_SOURCE_ID)?.setData(featureCollection());
+    map.getSource(USER_ENDPOINT_SOURCE_ID)?.setData(featureCollection());
+  }
+
+  function routeLineFeature(coordinates) {
+    return coordinates.length >= 2
+      ? { type: "Feature", geometry: { type: "LineString", coordinates }, properties: {} }
+      : null;
+  }
+
+  function updateUserRouteProgress({ progressMetres, state } = {}) {
+    if (!loaded || !liveRouteActive || activeUserRouteCoordinates.length < 2
+        || !["walking", "stationary", "arrived"].includes(state) || !Number.isFinite(progressMetres)) return false;
+    if (state !== "arrived" && Math.abs(progressMetres - lastRenderedProgressMetres) < 1.5) return false;
+    const slice = sliceRouteAtDistance(activeUserRouteCoordinates, progressMetres);
+    const completed = routeLineFeature(slice.completedCoordinates);
+    const remaining = routeLineFeature(slice.remainingCoordinates);
+    map.getSource(USER_ROUTE_COMPLETED_SOURCE_ID).setData(featureCollection(completed ? [completed] : []));
+    map.getSource(USER_ROUTE_SOURCE_ID).setData(featureCollection(remaining ? [remaining] : []));
+    lastRenderedProgressMetres = slice.progressMetres;
+    return true;
   }
 
   function setUserRouteStale(stale) {
     if (!loaded) return;
     map.setPaintProperty(USER_ROUTE_LAYER_ID, "line-opacity", stale ? 0.38 : 0.96);
     map.setPaintProperty(USER_ROUTE_CASING_LAYER_ID, "line-opacity", stale ? 0.45 : 1);
+    map.setPaintProperty(USER_ROUTE_COMPLETED_LAYER_ID, "line-opacity", stale ? 0.18 : 0.34);
   }
 
   function renderUserLocation() {
@@ -735,33 +771,6 @@ export async function createMap({ container, config, features, onSelect, onReady
     map.getSource(USER_LOCATION_SOURCE_ID).setData({ type: "FeatureCollection", features: [
       userLocationFeature(latestUserPosition, displayedHeading, displayedHeadingSource),
     ] });
-  }
-
-  function routePanelHeight() {
-    if (!liveRouteActive) return 0;
-    const panel = document.querySelector("#user-route-panel");
-    return panel && !panel.hidden ? panel.getBoundingClientRect().height : 0;
-  }
-
-  function applyFollowCamera({ immediate = false } = {}) {
-    if (!loaded || !latestUserPosition || !followMode.isFollowing()) return false;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const layout = navigationCameraLayout({ viewportWidth: map.getContainer().clientWidth,
-      viewportHeight: map.getContainer().clientHeight, routePanelHeight: routePanelHeight() });
-    const options = { center: [latestUserPosition.longitude, latestUserPosition.latitude],
-      zoom: Math.max(map.getZoom(), 17), padding: layout.padding, offset: layout.offset,
-      duration: reducedMotion || immediate ? 0 : 180, essential: false };
-    if (displayedHeading !== null) options.bearing = displayedHeading;
-    map.easeTo(options);
-    return true;
-  }
-
-  function scheduleFollowCamera() {
-    if (!followMode.isFollowing() || followCameraTimer !== null) return;
-    followCameraTimer = globalThis.setTimeout(() => {
-      followCameraTimer = null;
-      applyFollowCamera();
-    }, FOLLOW_CAMERA_THROTTLE_MS);
   }
 
   function showUserLocation(position, { focus: shouldFocus = false } = {}) {
@@ -772,52 +781,25 @@ export async function createMap({ container, config, features, onSelect, onReady
     if (!loaded) return;
     renderUserLocation();
     map.getSource(USER_ACCURACY_SOURCE_ID).setData({ type: "FeatureCollection", features: [accuracyPolygon(position)] });
-    if (followMode.isFollowing()) scheduleFollowCamera();
-    else if (shouldFocus) recenterUserLocation();
+    if (shouldFocus) recenterUserLocation();
   }
 
   function updateUserHeading({ headingDegrees, source }) {
     displayedHeading = Number.isFinite(headingDegrees) ? headingDegrees : null;
     displayedHeadingSource = source || null;
     renderUserLocation();
-    scheduleFollowCamera();
-  }
-
-  function enableFollowDirection() {
-    if (!latestUserPosition) return "north-up";
-    followMode.enable();
-    applyFollowCamera({ immediate: true });
-    return "following";
-  }
-
-  function northUp() {
-    followMode.northUp();
-    if (followCameraTimer !== null) globalThis.clearTimeout(followCameraTimer);
-    followCameraTimer = null;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    map.easeTo({ bearing: 0, duration: reducedMotion ? 0 : 350, essential: false });
-    return "north-up";
   }
 
   function recenterUserLocation() {
     if (!loaded || !latestUserPosition) return false;
-    if (followMode.isEnabled()) {
-      followMode.resume();
-      applyFollowCamera({ immediate: true });
-      return true;
-    }
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    map.easeTo({ center: [latestUserPosition.longitude, latestUserPosition.latitude], zoom: Math.max(map.getZoom(), 17),
-      duration: reducedMotion ? 0 : 650, essential: false });
+    map.easeTo(recenterCameraOptions(latestUserPosition, map.getZoom(), reducedMotion));
     return true;
   }
 
   function clearUserLocation() {
-    followMode.northUp();
     displayedHeading = null;
     displayedHeadingSource = null;
-    if (followCameraTimer !== null) globalThis.clearTimeout(followCameraTimer);
-    followCameraTimer = null;
     latestUserPosition = null;
     map.getSource(USER_LOCATION_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
     map.getSource(USER_ACCURACY_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
@@ -842,7 +824,7 @@ export async function createMap({ container, config, features, onSelect, onReady
   }
 
   return { focus, focusCampus: focusCampusCore, focusCampusCore, focusCampusOverview,
-    setVisibleFeatures, showRoute, showUserRoute, clearUserRoute, setUserRouteStale,
-    showUserLocation, updateUserHeading, enableFollowDirection, northUp, recenterUserLocation, clearUserLocation,
+    setVisibleFeatures, showRoute, showUserRoute, updateUserRouteProgress, clearUserRoute, setUserRouteStale,
+    showUserLocation, updateUserHeading, recenterUserLocation, clearUserLocation,
     pickContributionPoint, clearContributionPoint, map };
 }
