@@ -1,12 +1,12 @@
-import { fetchLocations } from "./api.js?v=destination-density-1";
-import { createContributions } from "./contributions.js?v=destination-density-1";
-import { createDestinationPanel } from "./destination-panel.js?v=destination-density-1";
-import { createMap } from "./map.js?v=destination-density-1";
-import { createSearch } from "./search.js?v=destination-density-1";
-import { createRouteInspector } from "./route-inspector.js?v=destination-density-1";
-import { createUserLocation } from "./user-location.js?v=destination-density-1";
-import { createUserNavigation } from "./user-navigation.js?v=destination-density-1";
-import { createDisclosureMenu } from "./disclosure-menu.js?v=destination-density-1";
+import { fetchLocations } from "./api.js?v=field-test-stabilization-1";
+import { createContributions } from "./contributions.js?v=field-test-stabilization-1";
+import { createDestinationPanel } from "./destination-panel.js?v=field-test-stabilization-1";
+import { createMap } from "./map.js?v=field-test-stabilization-1";
+import { createSearch } from "./search.js?v=field-test-stabilization-1";
+import { createRouteInspector } from "./route-inspector.js?v=field-test-stabilization-1";
+import { createUserLocation } from "./user-location.js?v=field-test-stabilization-1";
+import { createUserNavigation } from "./user-navigation.js?v=field-test-stabilization-1";
+import { createDisclosureMenu } from "./disclosure-menu.js?v=field-test-stabilization-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");

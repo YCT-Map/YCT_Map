@@ -1,5 +1,5 @@
-import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=destination-density-1";
-import { createGeolocationService } from "./geolocation.js?v=destination-density-1";
+import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=field-test-stabilization-1";
+import { createGeolocationService } from "./geolocation.js?v=field-test-stabilization-1";
 
 const COPY = {
   idle: "Location is optional and stays on this device.",

@@ -169,6 +169,12 @@ Phase 3 is OWNER ACCEPTED / COMPLETE. Sprint 004 preserved manual routing and ac
 
 ---
 
+## Field-Test Route-Setup Stabilization
+
+The public client preserves the live-origin matching limits described above. If route setup returns `NO_SAFE_NETWORK_MATCH` or `INSUFFICIENT_ACCURACY`, it may retry only when the existing location controller supplies a newer accepted position that still satisfies the 40 m client usability contract. Recovery performs at most three total attempts within ten seconds, never polls and never overlaps requests. All other error codes stop immediately. Changing origin or destination, cancelling, or closing aborts pending setup.
+
+This recovery addresses short-lived mismatch between an accepted display position and network matching without widening backend safety thresholds, inventing connectors, or creating a second GPS pipeline.
+
 ## Not In V1
 
 - Multi-stop routing

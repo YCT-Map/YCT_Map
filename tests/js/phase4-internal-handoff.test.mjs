@@ -28,7 +28,8 @@ class FakeElement {
 }
 
 const selectors = [
-  "#user-route-form", "#user-route-origin", "#user-route-destination", "#show-user-route",
+  "#user-route-form", "#user-route-origin-live", "#user-route-live-status", "#user-route-mapped-origins",
+  "#user-route-request-status", "#user-route-destination", "#show-user-route",
   "#user-route-error", "#user-route-result", "#user-route-form-state", "#user-route-from",
   "#user-route-to", "#user-route-distance", "#user-route-eta", "#user-route-data-notice",
   "#user-route-progress-status", "#user-route-eta-source", "#change-route-origin",
@@ -43,6 +44,20 @@ function harness() {
   const panel = new FakeElement(ownerDocument);
   panel.queries = new Map(selectors.map((selector) => [selector, new FakeElement(ownerDocument)]));
   return { panel, get: (selector) => panel.querySelector(selector) };
+}
+
+function chooseMappedOrigin(state, value) {
+  const label = state.get("#user-route-mapped-origins").children
+    .find((candidate) => candidate.children[0]?.value === value);
+  const input = label.children[0];
+  input.checked = true;
+  input.listeners.get("change")();
+}
+
+function chooseLiveOrigin(state) {
+  const input = state.get("#user-route-origin-live");
+  input.checked = true;
+  input.listeners.get("change")();
 }
 
 const origin = { properties: { id: "origin", name: "Administration", routing_available: true } };
@@ -97,7 +112,7 @@ test("manual route retains compact and expanded internal-place handoff without c
     requestRoute: async () => ({ ok: true, json: async () => payload() }),
   });
   controller.begin(internal);
-  state.get("#user-route-origin").value = "origin";
+  chooseMappedOrigin(state, "origin");
   await state.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
   assert.equal(state.get("#user-route-summary-destination").textContent, "Lecture Room 3");
   assert.equal(state.get("#user-route-to").textContent, "New Building — Main Entrance");
@@ -117,7 +132,7 @@ test("stable accuracy-qualified live arrival announces the entrance and exposes 
   });
   controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 8, timestamp: 1_000 });
   controller.begin(internal);
-  state.get("#user-route-origin").value = "__live__";
+  chooseLiveOrigin(state);
   await state.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
   controller.updateLivePosition({ longitude: 3.3746, latitude: 6.518, accuracyMetres: 8, timestamp: 5_000 });
   controller.updateLivePosition({ longitude: 3.3746, latitude: 6.518, accuracyMetres: 8, timestamp: 9_000 });

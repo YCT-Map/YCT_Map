@@ -11,13 +11,17 @@ class FakeElement {
     this.disabled = false;
     this.selected = false;
     this.value = "";
-    this.textContent = "";
+    this._textContent = "";
+    this.textWrites = 0;
     this.dataset = {};
     this.children = [];
     this.listeners = new Map();
     this.attributes = new Map();
     this.classList = { add() {}, remove() {} };
   }
+
+  get textContent() { return this._textContent; }
+  set textContent(value) { this._textContent = value; this.textWrites += 1; }
 
   get options() {
     return this.children;
@@ -61,6 +65,20 @@ function createHarness(selectors) {
   return { ownerDocument, panel, get: (selector) => panel.querySelector(selector) };
 }
 
+function chooseMappedOrigin(harness, value) {
+  const label = harness.get("#user-route-mapped-origins").children
+    .find((candidate) => candidate.children[0]?.value === value);
+  const input = label.children[0];
+  input.checked = true;
+  input.listeners.get("change")();
+}
+
+function chooseLiveOrigin(harness) {
+  const input = harness.get("#user-route-origin-live");
+  input.checked = true;
+  input.listeners.get("change")();
+}
+
 const destination = {
   id: "destination-id",
   properties: {
@@ -101,30 +119,7 @@ test("anchored destination exposes Directions and emits the selected feature", (
 });
 
 test("public navigation opens, excludes destination, renders result, and clears", async () => {
-  const harness = createHarness([
-    "#user-route-form",
-    "#user-route-origin",
-    "#user-route-destination",
-    "#show-user-route",
-    "#user-route-error",
-    "#user-route-result",
-    "#user-route-form-state",
-    "#user-route-from",
-    "#user-route-to",
-    "#user-route-distance",
-    "#user-route-eta",
-    "#user-route-data-notice",
-    "#user-route-progress-status",
-    "#user-route-eta-source",
-    "#change-route-origin",
-    "#change-route-destination",
-    "#clear-user-route",
-    "#close-user-route",
-    "#cancel-user-route",
-    "#retry-reroute",
-    "#toggle-route-details",
-    "#user-route-summary-destination",
-  ]);
+  const harness = createHarness(navigationSelectors());
   const states = [];
   const routeCalls = [];
   const requestedUrls = [];
@@ -157,11 +152,12 @@ test("public navigation opens, excludes destination, renders result, and clears"
   assert.equal(controller.begin(destination), true);
   assert.equal(harness.panel.hidden, false);
   assert.equal(states.at(-1), "choosing-origin");
-  assert.deepEqual(harness.get("#user-route-origin").options.map((option) => option.value), ["", "__live__", "origin-id"]);
+  assert.equal(harness.get("#user-route-origin-live").value, "__live__");
+  assert.deepEqual(harness.get("#user-route-mapped-origins").children
+    .map((label) => label.children[0].value), ["origin-id"]);
   assert.equal(harness.get("#show-user-route").disabled, true);
 
-  harness.get("#user-route-origin").value = "origin-id";
-  harness.get("#user-route-origin").listeners.get("change")();
+  chooseMappedOrigin(harness, "origin-id");
   assert.equal(harness.get("#show-user-route").disabled, false);
   await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
 
@@ -189,7 +185,8 @@ test("public navigation opens, excludes destination, renders result, and clears"
 
 test("Cancel restores the selected destination through the application callback", () => {
   const harness = createHarness([
-    "#user-route-form", "#user-route-origin", "#user-route-destination", "#show-user-route",
+    "#user-route-form", "#user-route-origin-live", "#user-route-live-status", "#user-route-mapped-origins",
+    "#user-route-request-status", "#user-route-destination", "#show-user-route",
     "#user-route-error", "#user-route-result", "#user-route-form-state", "#user-route-from",
     "#user-route-to", "#user-route-distance", "#user-route-eta", "#change-route-origin",
     "#user-route-data-notice", "#user-route-progress-status", "#user-route-eta-source",
@@ -214,7 +211,8 @@ test("Cancel restores the selected destination through the application callback"
 
 test("accepted live position is offered and sent through the protected live route contract", async () => {
   globalThis.document = { cookie: "csrftoken=test-token" };
-  const selectors = ["#user-route-form", "#user-route-origin", "#user-route-destination", "#show-user-route",
+  const selectors = ["#user-route-form", "#user-route-origin-live", "#user-route-live-status",
+    "#user-route-mapped-origins", "#user-route-request-status", "#user-route-destination", "#show-user-route",
     "#user-route-error", "#user-route-result", "#user-route-form-state", "#user-route-from", "#user-route-to",
     "#user-route-distance", "#user-route-eta", "#user-route-data-notice", "#user-route-progress-status",
     "#user-route-eta-source", "#change-route-origin", "#change-route-destination", "#clear-user-route",
@@ -233,7 +231,7 @@ test("accepted live position is offered and sent through the protected live rout
   });
   controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 10, timestamp: 1_000 });
   controller.begin(destination);
-  harness.get("#user-route-origin").value = "__live__";
+  chooseLiveOrigin(harness);
   await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
   assert.equal(request.url, "/api/routes/from-position/");
   assert.equal(request.options.method, "POST");
@@ -242,7 +240,8 @@ test("accepted live position is offered and sent through the protected live rout
 });
 
 function navigationSelectors() {
-  return ["#user-route-form", "#user-route-origin", "#user-route-destination", "#show-user-route",
+  return ["#user-route-form", "#user-route-origin-live", "#user-route-live-status", "#user-route-mapped-origins",
+    "#user-route-request-status", "#user-route-destination", "#show-user-route",
     "#user-route-error", "#user-route-result", "#user-route-form-state", "#user-route-from", "#user-route-to",
     "#user-route-distance", "#user-route-eta", "#user-route-data-notice", "#user-route-progress-status",
     "#user-route-eta-source", "#change-route-origin", "#change-route-destination", "#clear-user-route",
@@ -273,7 +272,7 @@ test("confirmed deviation performs one controlled route replacement", async () =
   });
   controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 5, timestamp: 1_000 });
   controller.begin(destination);
-  harness.get("#user-route-origin").value = "__live__";
+  chooseLiveOrigin(harness);
   await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
   for (const [longitude, timestamp] of [[3.3741, 5_000], [3.3742, 9_000], [3.3743, 13_000]]) {
     controller.updateLivePosition({ longitude, latitude: 6.5182, accuracyMetres: 5, timestamp });
@@ -303,7 +302,7 @@ test("failed reroute retains guidance and exposes a retry action", async () => {
   const position = { longitude: 3.374, latitude: 6.518, accuracyMetres: 5, timestamp: 1_000 };
   controller.updateLivePosition(position);
   controller.begin(destination);
-  harness.get("#user-route-origin").value = "__live__";
+  chooseLiveOrigin(harness);
   await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
   assert.equal(await controller.performReroute({ ...position, timestamp: 5_000 }), false);
   assert.equal(staleStates.at(-1), true);
@@ -313,13 +312,14 @@ test("failed reroute retains guidance and exposes a retry action", async () => {
 
 test("a stale live position cannot be reused as a new route origin", async () => {
   globalThis.document = { cookie: "csrftoken=test-token" };
-  const harness=createHarness(navigationSelectors()); let requests=0;
+  const harness=createHarness(navigationSelectors()); let requests=0; let clock=1_000;
   const controller=createUserNavigation({panel:harness.panel,features:[destination,origin],routeUrl:"/api/routes/",
-    liveRouteUrl:"/api/routes/from-position/",onRoute(){},onClear(){},now:()=>40_001,
+    liveRouteUrl:"/api/routes/from-position/",onRoute(){},onClear(){},now:()=>clock,
     requestRoute:async()=>{requests+=1;return {ok:true,json:async()=>routePayload()};}});
   controller.updateLivePosition({longitude:3.374,latitude:6.518,accuracyMetres:5,timestamp:1_000});
   controller.begin(destination);
-  harness.get("#user-route-origin").value="__live__";
+  chooseLiveOrigin(harness);
+  clock=40_001;
   await harness.get("#user-route-form").listeners.get("submit")({preventDefault(){}});
   assert.equal(requests,0);
   assert.match(harness.get("#user-route-error").textContent,/no longer current/);
@@ -340,4 +340,172 @@ test("foreground suspension hides and restores a route without resetting it", ()
   assert.equal(harness.panel.hidden, false);
   assert.equal(harness.get("#user-route-destination").textContent, destination.properties.name);
   assert.equal(clears, 0);
+});
+
+test("origin cards keep live first, filter mapped starts, and avoid GPS-driven rebuilding", () => {
+  const harness = createHarness(navigationSelectors());
+  const unroutable = { id: "no-anchor", properties: { id: "no-anchor", name: "No anchor", routing_available: false } };
+  let clock = 1_000;
+  const controller = createUserNavigation({ panel: harness.panel,
+    features: [destination, origin, unroutable], routeUrl: "/api/routes/", onRoute() {}, onClear() {}, now: () => clock });
+
+  controller.begin(destination);
+  assert.equal(harness.get("#user-route-origin-live").value, "__live__");
+  assert.deepEqual(harness.get("#user-route-mapped-origins").children.map((label) => label.children[0].value), ["origin-id"]);
+  assert.equal(harness.get("#user-route-live-status").textContent, "Locate first");
+  const mappedCards = harness.get("#user-route-mapped-origins").children;
+
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 5, timestamp: 1_000 });
+  const statusWrites = harness.get("#user-route-live-status").textWrites;
+  clock = 1_100;
+  controller.updateLivePosition({ longitude: 3.37401, latitude: 6.51801, accuracyMetres: 5, timestamp: 1_100 });
+  assert.equal(harness.get("#user-route-mapped-origins").children, mappedCards);
+  assert.equal(harness.get("#user-route-live-status").textWrites, statusWrites);
+  assert.equal(harness.get("#user-route-origin-live").disabled, false);
+  assert.match(harness.get("#user-route-live-status").textContent, /Live location ready/);
+
+  clock = 40_001;
+  controller.updateLivePosition({ longitude: 3.37401, latitude: 6.51801, accuracyMetres: 5, timestamp: 1_100 });
+  assert.equal(harness.get("#user-route-origin-live").disabled, true);
+  assert.equal(harness.get("#user-route-live-status").textContent, "Waiting for a current location");
+});
+
+test("transient live-start failure waits for a newer accepted position and then succeeds", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  const timestamps = [];
+  let inFlight = 0;
+  let maxInFlight = 0;
+  let calls = 0;
+  const controller = createUserNavigation({ panel: harness.panel, features: [destination, origin],
+    routeUrl: "/api/routes/", liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {},
+    now: () => 2_000, setDeadline: () => 1, clearDeadline() {},
+    requestRoute: async (_url, options) => {
+      inFlight += 1; maxInFlight = Math.max(maxInFlight, inFlight); calls += 1;
+      timestamps.push(JSON.parse(options.body).position.latitude);
+      await Promise.resolve(); inFlight -= 1;
+      return calls === 1
+        ? { ok: false, json: async () => ({ code: "NO_SAFE_NETWORK_MATCH", error: "Unsafe match." }) }
+        : { ok: true, json: async () => routePayload() };
+    } });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 6, timestamp: 1_000 });
+  controller.begin(destination); chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+  controller.updateLivePosition({ longitude: 3.3741, latitude: 6.5181, accuracyMetres: 5, timestamp: 1_000 });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(calls, 1, "the same timestamp must not trigger a retry");
+  controller.updateLivePosition({ longitude: 3.3742, latitude: 6.5182, accuracyMetres: 5, timestamp: 1_500 });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(calls, 2);
+  assert.equal(maxInFlight, 1);
+  assert.deepEqual(timestamps, [6.518, 6.5182]);
+  assert.equal(harness.get("#user-route-result").hidden, false);
+});
+
+test("live-start recovery is bounded at three attempts with an honest fallback", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  let calls = 0;
+  const controller = createUserNavigation({ panel: harness.panel, features: [destination, origin],
+    routeUrl: "/api/routes/", liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {},
+    now: () => 2_000, setDeadline: () => 1, clearDeadline() {},
+    requestRoute: async () => { calls += 1; return { ok: false,
+      json: async () => ({ code: "INSUFFICIENT_ACCURACY", error: "Try again." }) }; } });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 10, timestamp: 1_000 });
+  controller.begin(destination); chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+  for (const timestamp of [1_200, 1_400, 1_600]) {
+    controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 10, timestamp });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  assert.equal(calls, 3);
+  assert.match(harness.get("#user-route-error").textContent, /cannot yet be safely connected/);
+  assert.equal(harness.get("#show-user-route").disabled, false);
+  assert.equal(harness.get("#show-user-route").textContent, "Show route");
+});
+
+test("non-retryable live errors stop immediately and changing origin clears the error", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  let calls = 0;
+  const controller = createUserNavigation({ panel: harness.panel, features: [destination, origin],
+    routeUrl: "/api/routes/", liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {},
+    now: () => 1_000, setDeadline: () => 1, clearDeadline() {}, requestRoute: async () => {
+      calls += 1; return { ok: false, json: async () => ({ code: "NO_ROUTE", error: "No route." }) };
+    } });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 8, timestamp: 1_000 });
+  controller.begin(destination); chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+  controller.updateLivePosition({ longitude: 3.375, latitude: 6.519, accuracyMetres: 5, timestamp: 1_100 });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(calls, 1);
+  assert.equal(harness.get("#user-route-error").hidden, false);
+  chooseMappedOrigin(harness, "origin-id");
+  assert.equal(harness.get("#user-route-error").hidden, true);
+  assert.equal(harness.get("#show-user-route").disabled, false);
+});
+
+test("cancel aborts pending live recovery and prevents later GPS retries", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  let calls = 0;
+  const controller = createUserNavigation({ panel: harness.panel, features: [destination, origin],
+    routeUrl: "/api/routes/", liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {},
+    now: () => 1_000, setDeadline: () => 1, clearDeadline() {}, requestRoute: async () => {
+      calls += 1; return { ok: false,
+        json: async () => ({ code: "NO_SAFE_NETWORK_MATCH", error: "Unsafe match." }) };
+    } });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 8, timestamp: 1_000 });
+  controller.begin(destination); chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+  harness.get("#cancel-user-route").listeners.get("click")();
+  controller.updateLivePosition({ longitude: 3.375, latitude: 6.519, accuracyMetres: 5, timestamp: 1_100 });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(calls, 1);
+  assert.equal(harness.panel.hidden, true);
+});
+
+for (const action of ["mapped origin", "close", "change destination"]) {
+  test(`${action} cancels pending live recovery`, async () => {
+    globalThis.document = { cookie: "csrftoken=test-token" };
+    const harness = createHarness(navigationSelectors());
+    let calls = 0;
+    const controller = createUserNavigation({ panel: harness.panel, features: [destination, origin],
+      routeUrl: "/api/routes/", liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {},
+      now: () => 1_000, setDeadline: () => 1, clearDeadline() {}, requestRoute: async () => {
+        calls += 1; return { ok: false,
+          json: async () => ({ code: "NO_SAFE_NETWORK_MATCH", error: "Unsafe match." }) };
+      } });
+    controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 8, timestamp: 1_000 });
+    controller.begin(destination); chooseLiveOrigin(harness);
+    await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+    if (action === "mapped origin") chooseMappedOrigin(harness, "origin-id");
+    else harness.get(action === "close" ? "#close-user-route" : "#change-route-destination").listeners.get("click")();
+    controller.updateLivePosition({ longitude: 3.375, latitude: 6.519, accuracyMetres: 5, timestamp: 1_100 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(calls, 1);
+  });
+}
+
+test("route setup disables duplicate submission and restores the button after failure", async () => {
+  const harness = createHarness(navigationSelectors());
+  let calls = 0;
+  let finishRequest;
+  const pending = new Promise((resolve) => { finishRequest = resolve; });
+  const controller = createUserNavigation({ panel: harness.panel, features: [destination, origin],
+    routeUrl: "/api/routes/", onRoute() {}, onClear() {}, requestRoute: async () => {
+      calls += 1; await pending; return { ok: false, json: async () => ({ code: "NO_ROUTE", error: "No route." }) };
+    } });
+  controller.begin(destination); chooseMappedOrigin(harness, "origin-id");
+  const submit = harness.get("#user-route-form").listeners.get("submit");
+  const first = submit({ preventDefault() {} });
+  const duplicate = submit({ preventDefault() {} });
+  assert.equal(calls, 1);
+  assert.equal(harness.get("#show-user-route").disabled, true);
+  assert.match(harness.get("#user-route-request-status").textContent, /Calculating route/);
+  finishRequest();
+  await Promise.all([first, duplicate]);
+  assert.equal(harness.get("#show-user-route").disabled, false);
+  assert.equal(harness.get("#show-user-route").textContent, "Show route");
+  assert.equal(harness.get("#user-route-error").textContent, "No route.");
 });

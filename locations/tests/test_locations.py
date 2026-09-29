@@ -195,7 +195,7 @@ class LocationEndpointTests(TestCase):
 class MapPageTests(TestCase):
     def test_map_page_contains_approved_map_configuration(self):
         response = self.client.get(reverse("locations:map"))
-        asset_version = "destination-density-1"
+        asset_version = "field-test-stabilization-1"
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "https://tiles.openfreemap.org/styles/liberty")
@@ -207,6 +207,10 @@ class MapPageTests(TestCase):
         self.assertContains(response, 'data-route-url="/api/routes/"')
         self.assertContains(response, 'id="destination-directions"')
         self.assertContains(response, 'id="user-route-panel"')
+        self.assertContains(response, 'id="user-route-origin-options"')
+        self.assertContains(response, 'id="user-route-origin-live"')
+        self.assertContains(response, 'id="user-route-mapped-origins"')
+        self.assertNotContains(response, '<select id="user-route-origin"')
         self.assertContains(response, f"app.js?v={asset_version}")
         self.assertContains(response, f"app.css?v={asset_version}")
         self.assertContains(response, 'data-contribution-url="/api/contributions/"')
@@ -224,7 +228,7 @@ class MapPageTests(TestCase):
     def test_current_modules_use_the_same_cache_version(self):
         app_path = settings.BASE_DIR / "static/yct_map/js/app.js"
         app_source = app_path.read_text(encoding="utf-8")
-        asset_version = "destination-density-1"
+        asset_version = "field-test-stabilization-1"
 
         for module in (
             "api.js",

@@ -171,8 +171,18 @@
       <div id="user-route-form-state">
         <p class="route-destination-copy">To <strong id="user-route-destination"></strong></p>
         <form id="user-route-form">
-          <label for="user-route-origin">Choose a starting point</label>
-          <select id="user-route-origin" required></select>
+          <fieldset id="user-route-origin-options" class="route-origin-options">
+            <legend>Choose a starting point</legend>
+            <label class="route-origin-option route-origin-live" for="user-route-origin-live">
+              <input id="user-route-origin-live" name="user-route-origin" type="radio" value="__live__">
+              <span class="route-origin-copy">
+                <strong>Use my live location</strong>
+                <small id="user-route-live-status">Locate first</small>
+              </span>
+            </label>
+            <div id="user-route-mapped-origins" class="route-origin-mapped"></div>
+          </fieldset>
+          <p id="user-route-request-status" class="route-request-status" role="status" aria-live="polite" hidden></p>
           <button id="show-user-route" class="primary-action" type="submit">Show route</button>
           <button id="cancel-user-route" class="secondary-action" type="button">Cancel</button>
         </form>

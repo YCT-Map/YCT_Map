@@ -507,7 +507,18 @@ input {
 .route-destination-copy { margin: .3rem 0 .7rem; color: var(--muted); font-size: .8rem; }
 #user-route-form { display: grid; gap: .45rem; }
 #user-route-form label { font-size: .72rem; font-weight: 750; }
-#user-route-origin { min-height: 2.75rem; padding: 0 .65rem; border: 1px solid var(--line); border-radius: .65rem; background: white; }
+.route-origin-options { min-width: 0; margin: 0; padding: 0; border: 0; }
+.route-origin-options legend { margin-bottom: .4rem; padding: 0; font-size: .72rem; font-weight: 750; }
+.route-origin-mapped { display: grid; gap: .4rem; max-height: min(14rem, 32dvh); margin-top: .4rem; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.route-origin-option { display: flex; align-items: center; gap: .65rem; min-height: 3rem; padding: .6rem .7rem; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: .7rem; cursor: pointer; }
+.route-origin-option:has(input:checked) { background: #edf7f1; border-color: var(--green-700); box-shadow: inset 0 0 0 1px var(--green-700); }
+.route-origin-option:has(input:focus-visible) { outline: 3px solid rgba(23, 102, 60, .24); outline-offset: 2px; }
+.route-origin-option:has(input:disabled) { color: var(--muted); cursor: not-allowed; background: #f4f6f4; }
+.route-origin-option input { flex: 0 0 auto; width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--green-700); }
+.route-origin-copy { display: grid; min-width: 0; gap: .12rem; }
+.route-origin-copy strong { overflow-wrap: anywhere; font-size: .76rem; }
+.route-origin-copy small { color: var(--muted); font-size: .66rem; font-weight: 600; }
+.route-request-status { margin: .15rem 0 0; color: var(--green-700); font-size: .72rem; font-weight: 750; }
 .route-place { display: flex; min-width: 0; gap: .6rem; align-items: center; margin: .55rem 0; font-size: .78rem; }
 .route-place > span:last-child,
 .route-destination-copy,
@@ -875,7 +886,13 @@ input {
     touch-action: pan-y;
   }
 
-  .user-route-panel { padding-bottom: calc(var(--safe-bottom) + .35rem); }
+  .user-route-panel {
+    padding-bottom: calc(var(--safe-bottom) + .35rem);
+    background: #fffffc;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .route-origin-option { min-height: 3.15rem; }
   .user-route-panel[data-route-state="active"] {
     max-height: min(28dvh, 10.5rem);
     padding-top: .65rem;

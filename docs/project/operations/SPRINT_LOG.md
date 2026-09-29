@@ -695,3 +695,18 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Established deliberate foreground ordering so active route lines, selected destinations, route endpoints and live-location indicators remain readable above density layers.
 - Added eight JavaScript behavior tests. Current verification is 176 Django tests and 85 JavaScript tests passing; owner desktop/mobile visual review remains required.
 - No schema, migration, endpoint contract, production database, campus record, routing graph, verification state or deployment resource changed. No commit or push is included.
+
+---
+
+## Field-Test Stabilization Sprint
+
+**Status:** IMPLEMENTED — OWNER REVIEW REQUIRED
+**Date:** 2026-09-29
+
+- Replaced the public native route-origin select with an accessible, keyboard-operable in-page radio-card chooser. Live location remains first; mapped starts remain limited to route-capable destinations other than the selected destination.
+- GPS updates change only the live card's small availability/status state and do not reconstruct the mapped-origin list or repeatedly write an unchanged status.
+- Removed mobile route-sheet backdrop blur over the MapLibre canvas in favor of an opaque sheet while preserving desktop presentation.
+- Added explicit calculating, recovery, error-reset and cancellation states with duplicate-request locking.
+- Added bounded live-start recovery for structured `NO_SAFE_NETWORK_MATCH` and `INSUFFICIENT_ACCURACY` responses: newer accepted fixes only, at most three attempts inside ten seconds, no polling and no concurrent requests.
+- Preserved backend matching thresholds, GPS stabilization, A*, route geometry, ETA, live progress, off-route detection and rerouting behavior.
+- Verification passes with 176 Django tests and 94 JavaScript tests. Physical Samsung/Edge owner review remains required; no field-verification status is granted.
