@@ -149,4 +149,20 @@ No priority values should be inferred automatically from current campus records.
 
 ---
 
+### BL-009
+
+```
+ID:         BL-009
+Idea:       YCT-owned campus geometry enrichment
+Reason:     Replace or augment contextual base-map assumptions with field-reviewed campus boundary, building footprints, pedestrian paths, relevant land/areas and landmarks owned by YCT Map.
+Priority:   MEDIUM
+Dependency: Approved data model and explicit campus field-review workflow
+Release:    Later data-enrichment phase
+Status:     OPEN
+```
+
+OSM/OpenFreeMap geometry remains contextual and `UNVERIFIED` unless it passes the project's explicit field-verification process. This item must preserve provenance and must not silently promote base-map geometry into trusted campus records.
+
+---
+
 > Add items here when they arise during sprints. Do not implement them without approval.

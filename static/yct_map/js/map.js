@@ -3,6 +3,7 @@ export const DESTINATION_CLUSTER_LAYER_ID = "destination-clusters";
 export const DESTINATION_CLUSTER_COUNT_LAYER_ID = "destination-cluster-counts";
 export const DESTINATION_POINT_LAYER_ID = "demo-destination-circles";
 export const DESTINATION_LABEL_LAYER_ID = "demo-destination-labels";
+export const DESTINATION_HIT_LAYER_ID = "destination-interaction-targets";
 export const SELECTED_DESTINATION_SOURCE_ID = "selected-destination";
 export const SELECTED_DESTINATION_MARKER_LAYER_ID = "selected-destination-marker";
 export const SELECTED_DESTINATION_HALO_LAYER_ID = "selected-destination-halo";
@@ -13,9 +14,9 @@ export const DESTINATION_CLUSTER_CONFIG = Object.freeze({
 });
 const CAMPUS_SOURCE_ID = "yabatech-campus-orientation";
 const CAMPUS_LABEL_SOURCE_ID = "yabatech-campus-label-point";
-const CAMPUS_FILL_LAYER_ID = "yabatech-campus-fill";
-const CAMPUS_LINE_LAYER_ID = "yabatech-campus-outline";
-const CAMPUS_LABEL_LAYER_ID = "yabatech-campus-label";
+export const CAMPUS_FILL_LAYER_ID = "yabatech-campus-fill";
+export const CAMPUS_LINE_LAYER_ID = "yabatech-campus-outline";
+export const CAMPUS_LABEL_LAYER_ID = "yabatech-campus-label";
 const NETWORK_SOURCE_ID = "demo-walkable-network";
 const NETWORK_LINE_LAYER_ID = "demo-walkable-network-lines";
 const NETWORK_NODE_LAYER_ID = "demo-walkable-network-nodes";
@@ -35,6 +36,11 @@ const USER_LOCATION_CHEVRON_LAYER_ID = "live-user-location-chevron";
 const CONTRIBUTION_SOURCE_ID = "pending-contribution-point";
 const CONTRIBUTION_LAYER_ID = "pending-contribution-point-circle";
 const FOLLOW_CAMERA_THROTTLE_MS = 120;
+export const CAMPUS_CORE_CAMERA = Object.freeze({
+  mobileBreakpoint: 672,
+  desktop: Object.freeze({ offset: 0.25, minZoom: 17.6, maxZoom: 18, fallbackZoom: 17.8 }),
+  mobile: Object.freeze({ offset: 0.85, minZoom: 17, maxZoom: 17.5, fallbackZoom: 17.25 }),
+});
 
 const DESTINATION_COLOR = [
   "match",
@@ -49,19 +55,91 @@ const DESTINATION_COLOR = [
 
 export const NAVIGATION_FOREGROUND_LAYER_ORDER = Object.freeze([
   ROUTE_LAYER_ID,
-  USER_ROUTE_CASING_LAYER_ID,
-  USER_ROUTE_LAYER_ID,
   USER_ACCURACY_LAYER_ID,
   SELECTED_DESTINATION_HALO_LAYER_ID,
   SELECTED_DESTINATION_MARKER_LAYER_ID,
+  USER_ROUTE_CASING_LAYER_ID,
+  USER_ROUTE_LAYER_ID,
   USER_ENDPOINT_CIRCLE_LAYER_ID,
   USER_ENDPOINT_LABEL_LAYER_ID,
   USER_LOCATION_DOT_LAYER_ID,
   USER_LOCATION_CHEVRON_LAYER_ID,
 ]);
 
+export const CAMPUS_INTERACTIVE_LAYER_ORDER = Object.freeze([
+  CAMPUS_FILL_LAYER_ID,
+  CAMPUS_LINE_LAYER_ID,
+  CAMPUS_LABEL_LAYER_ID,
+  DESTINATION_CLUSTER_LAYER_ID,
+  DESTINATION_CLUSTER_COUNT_LAYER_ID,
+  DESTINATION_POINT_LAYER_ID,
+  DESTINATION_HIT_LAYER_ID,
+  DESTINATION_LABEL_LAYER_ID,
+  ...NAVIGATION_FOREGROUND_LAYER_ORDER,
+]);
+
 function featureCollection(features = []) {
   return { type: "FeatureCollection", features };
+}
+
+export function bufferBoundsMetres(bounds, bufferMetres = 400) {
+  if (!bounds || bounds.length !== 2 || bufferMetres < 0) return null;
+  const [[west, south], [east, north]] = bounds;
+  const latitude = (south + north) / 2;
+  const latitudeDelta = bufferMetres / 111_320;
+  const longitudeDelta = bufferMetres / (111_320 * Math.max(Math.cos(latitude * Math.PI / 180), 0.01));
+  return [[west - longitudeDelta, south - latitudeDelta], [east + longitudeDelta, north + latitudeDelta]];
+}
+
+export function campusCameraConstraints(campusBounds) {
+  return { minZoom: 15, maxZoom: 20,
+    ...(campusBounds ? { maxBounds: bufferBoundsMetres(campusBounds, 400) } : {}) };
+}
+
+export function campusCoreCamera({ centre, overviewZoom, viewportWidth } = {}) {
+  if (!Array.isArray(centre) || centre.length !== 2 || !centre.every(Number.isFinite)) {
+    throw new TypeError("Campus core camera requires the approved campus centre.");
+  }
+  const profile = Number(viewportWidth) < CAMPUS_CORE_CAMERA.mobileBreakpoint
+    ? CAMPUS_CORE_CAMERA.mobile : CAMPUS_CORE_CAMERA.desktop;
+  const baseline = Number(overviewZoom);
+  const proposed = Number.isFinite(baseline) ? baseline + profile.offset : profile.fallbackZoom;
+  return {
+    center: [...centre],
+    zoom: Math.min(profile.maxZoom, Math.max(profile.minZoom, proposed)),
+  };
+}
+
+export function campusOrientationLayerDefinitions() {
+  return {
+    fill: {
+      id: CAMPUS_FILL_LAYER_ID,
+      type: "fill",
+      source: CAMPUS_SOURCE_ID,
+      paint: { "fill-color": "#17663c", "fill-opacity": 0.08 },
+    },
+    line: {
+      id: CAMPUS_LINE_LAYER_ID,
+      type: "line",
+      source: CAMPUS_SOURCE_ID,
+      paint: {
+        "line-color": "#2f7656",
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 15, 0.55, 17, 0.38, 20, 0.22],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 15, 1.5, 17, 1, 20, 0.6],
+      },
+    },
+    label: {
+      id: CAMPUS_LABEL_LAYER_ID,
+      type: "symbol",
+      source: CAMPUS_LABEL_SOURCE_ID,
+      minzoom: 13,
+      layout: { "text-field": ["get", "name"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 13, 13, 17, 17],
+        "text-font": ["Noto Sans Regular"], "text-letter-spacing": 0.04 },
+      paint: { "text-color": "#0d442a", "text-halo-color": "rgba(255, 255, 252, 0.96)",
+        "text-halo-width": 2 },
+    },
+  };
 }
 
 export function navigationCameraLayout({ viewportWidth, viewportHeight, routePanelHeight = 0 } = {}) {
@@ -127,10 +205,10 @@ export function destinationLayerDefinitions() {
       source: DESTINATION_SOURCE_ID,
       filter: clustered,
       paint: {
-        "circle-radius": ["step", ["get", "point_count"], 20, 10, 24, 25, 28],
+        "circle-radius": ["step", ["get", "point_count"], 15, 10, 18, 25, 21],
         "circle-color": ["step", ["get", "point_count"], "#17663c", 10, "#145733", 25, "#0d442a"],
         "circle-stroke-color": "rgba(255,255,255,.96)",
-        "circle-stroke-width": 2.5,
+        "circle-stroke-width": 2,
         "circle-opacity": 0.94,
       },
     },
@@ -141,7 +219,7 @@ export function destinationLayerDefinitions() {
       filter: clustered,
       layout: {
         "text-field": ["get", "point_count_abbreviated"],
-        "text-size": ["step", ["get", "point_count"], 12, 10, 13, 25, 14],
+        "text-size": ["step", ["get", "point_count"], 11, 10, 12, 25, 13],
         "text-font": ["Noto Sans Regular"],
         "text-allow-overlap": true,
         "text-ignore-placement": true,
@@ -154,11 +232,22 @@ export function destinationLayerDefinitions() {
       source: DESTINATION_SOURCE_ID,
       filter: unclustered,
       paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 7, 18, 11],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 15, 4, 17.5, 5, 20, 6],
         "circle-color": DESTINATION_COLOR,
-        "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 3,
-        "circle-opacity": 0.96,
+        "circle-stroke-color": "rgba(255,255,255,.94)",
+        "circle-stroke-width": 1.5,
+        "circle-opacity": 0.92,
+      },
+    },
+    {
+      id: DESTINATION_HIT_LAYER_ID,
+      type: "circle",
+      source: DESTINATION_SOURCE_ID,
+      filter: unclustered,
+      paint: {
+        "circle-radius": 15,
+        "circle-color": "rgba(0,0,0,0.01)",
+        "circle-stroke-width": 0,
       },
     },
     {
@@ -166,17 +255,17 @@ export function destinationLayerDefinitions() {
       type: "symbol",
       source: DESTINATION_SOURCE_ID,
       filter: unclustered,
-      minzoom: 16.3,
+      minzoom: 16.5,
       layout: {
         "text-field": ["get", "name"],
-        "text-size": 11,
-        "text-offset": [0, 1.5],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 16.5, 10.5, 20, 12],
+        "text-offset": [0, 0.9],
         "text-anchor": "top",
         "text-font": ["Noto Sans Regular"],
       },
       paint: {
         "text-color": "#163127",
-        "text-halo-color": "#ffffff",
+        "text-halo-color": "#fffdf8",
         "text-halo-width": 1.5,
       },
     },
@@ -258,17 +347,15 @@ export function bindDestinationInteractions({ map, featureIndex, onSelect }) {
   map.on("click", DESTINATION_CLUSTER_LAYER_ID, (event) => {
     return expandDestinationCluster(map, event.features?.[0]);
   });
-  for (const layerId of [DESTINATION_CLUSTER_LAYER_ID, DESTINATION_POINT_LAYER_ID, DESTINATION_LABEL_LAYER_ID]) {
+  for (const layerId of [DESTINATION_CLUSTER_LAYER_ID, DESTINATION_HIT_LAYER_ID]) {
     map.on("mouseenter", layerId, () => { map.getCanvas().style.cursor = "pointer"; });
     map.on("mouseleave", layerId, () => { map.getCanvas().style.cursor = ""; });
   }
-  for (const layerId of [DESTINATION_POINT_LAYER_ID, DESTINATION_LABEL_LAYER_ID]) {
-    map.on("click", layerId, (event) => {
-      const selectedId = String(event.features?.[0]?.id || event.features?.[0]?.properties?.id || "");
-      const selected = featureIndex.get(selectedId);
-      if (selected) onSelect(selected);
-    });
-  }
+  map.on("click", DESTINATION_HIT_LAYER_ID, (event) => {
+    const selectedId = String(event.features?.[0]?.id || event.features?.[0]?.properties?.id || "");
+    const selected = featureIndex.get(selectedId);
+    if (selected) onSelect(selected);
+  });
 }
 
 export function raiseNavigationLayers(map) {
@@ -406,6 +493,7 @@ export async function createMap({ container, config, features, onSelect, onReady
   ]);
   const featureIndex = new Map(features.map((feature) => [String(feature.id), feature]));
   const campusBounds = campusBoundary ? boundsFor(campusBoundary) : null;
+  const cameraConstraints = campusCameraConstraints(campusBounds);
   let visibleFeatures = features;
   let loaded = false;
   let pendingFocus = null;
@@ -421,14 +509,13 @@ export async function createMap({ container, config, features, onSelect, onReady
     style: config.styleUrl,
     center: config.centre,
     zoom: 16,
-    minZoom: 14,
-    maxZoom: 20,
+    ...cameraConstraints,
     attributionControl: false,
     cooperativeGestures: false,
   });
 
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
-  map.addControl(new CampusFocusControl(() => focusCampus()), "bottom-right");
+  map.addControl(new CampusFocusControl(() => focusCampusCore({ resetNavigation: true })), "bottom-right");
   map.addControl(
     new maplibregl.AttributionControl({ compact: true, customAttribution: "YCT Map campus data · OSM-derived UNVERIFIED route data" }),
     "bottom-right",
@@ -436,31 +523,16 @@ export async function createMap({ container, config, features, onSelect, onReady
 
   map.on("load", () => {
     loaded = true;
+    const campusLayers = campusOrientationLayerDefinitions();
     if (campusBoundary) {
       map.addSource(CAMPUS_SOURCE_ID, { type: "geojson", data: campusBoundary });
-      map.addLayer({
-        id: CAMPUS_FILL_LAYER_ID,
-        type: "fill",
-        source: CAMPUS_SOURCE_ID,
-        paint: {
-          "fill-color": "#17663c",
-          "fill-opacity": 0.08,
-        },
-      });
-      map.addLayer({
-        id: CAMPUS_LINE_LAYER_ID,
-        type: "line",
-        source: CAMPUS_SOURCE_ID,
-        paint: {
-          "line-color": "#17663c",
-          "line-opacity": 0.72,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 13, 1.5, 17, 2.5],
-        },
-      });
+      map.addLayer(campusLayers.fill);
+      map.addLayer(campusLayers.line);
       map.addSource(CAMPUS_LABEL_SOURCE_ID, { type: "geojson", data: {
         type: "Feature", geometry: { type: "Point", coordinates: config.centre },
         properties: { name: "YabaTech Campus" },
       }});
+      map.addLayer(campusLayers.label);
     }
     if (demoNetwork?.features?.length) {
       map.addSource(NETWORK_SOURCE_ID, { type: "geojson", data: demoNetwork });
@@ -530,11 +602,6 @@ export async function createMap({ container, config, features, onSelect, onReady
     map.addSource(SELECTED_DESTINATION_SOURCE_ID, selectedDestinationSourceDefinition());
     for (const layer of destinationLayerDefinitions()) map.addLayer(layer);
     for (const layer of selectedDestinationLayerDefinitions()) map.addLayer(layer);
-    if (campusBoundary) {
-      map.addLayer({ id: CAMPUS_LABEL_LAYER_ID, type: "symbol", source: CAMPUS_LABEL_SOURCE_ID, minzoom: 13,
-        layout: { "text-field": ["get", "name"], "text-size": ["interpolate", ["linear"], ["zoom"], 13, 13, 17, 17], "text-font": ["Noto Sans Regular"], "text-letter-spacing": 0.04 },
-        paint: { "text-color": "#0d442a", "text-halo-color": "rgba(255, 255, 252, 0.96)", "text-halo-width": 2 } });
-    }
     raiseNavigationLayers(map);
     bindDestinationInteractions({ map, featureIndex, onSelect });
 
@@ -542,7 +609,7 @@ export async function createMap({ container, config, features, onSelect, onReady
       focus(pendingFocus);
       pendingFocus = null;
     } else {
-      focusCampus({ animate: false });
+      focusCampusCore({ animate: false });
     }
     onReady();
   });
@@ -567,18 +634,45 @@ export async function createMap({ container, config, features, onSelect, onReady
     focusDestination(map, feature);
   }
 
-  function focusCampus({ animate = true } = {}) {
-    const duration = animate ? 700 : 0;
+  function reducedMotionDuration(duration) {
+    return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? 0 : duration;
+  }
+
+  function campusOverviewCamera() {
+    if (!campusBounds || typeof map.cameraForBounds !== "function") return null;
+    try {
+      return map.cameraForBounds(campusBounds, { padding: campusPadding() });
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function focusCampusCore({ animate = true, resetNavigation = false } = {}) {
+    if (resetNavigation) {
+      followMode.northUp();
+      if (followCameraTimer !== null) globalThis.clearTimeout(followCameraTimer);
+      followCameraTimer = null;
+    }
+    const camera = campusCoreCamera({
+      centre: config.centre,
+      overviewZoom: campusOverviewCamera()?.zoom,
+      viewportWidth: map.getContainer?.()?.clientWidth ?? window.innerWidth,
+    });
+    map.easeTo({ ...camera, ...(resetNavigation ? { bearing: 0 } : {}),
+      duration: reducedMotionDuration(animate ? 700 : 0), essential: false });
+  }
+
+  function focusCampusOverview({ animate = true } = {}) {
+    const duration = reducedMotionDuration(animate ? 700 : 0);
     if (campusBounds) {
       map.fitBounds(campusBounds, {
         padding: campusPadding(),
-        maxZoom: 16.2,
         duration,
         essential: false,
       });
       return;
     }
-    map.flyTo({ center: config.centre, zoom: 16, duration, essential: false });
+    map.easeTo({ center: config.centre, zoom: 16, duration, essential: false });
   }
 
   function setVisibleFeatures(nextFeatures) {
@@ -747,7 +841,8 @@ export async function createMap({ container, config, features, onSelect, onReady
     return true;
   }
 
-  return { focus, focusCampus, setVisibleFeatures, showRoute, showUserRoute, clearUserRoute, setUserRouteStale,
+  return { focus, focusCampus: focusCampusCore, focusCampusCore, focusCampusOverview,
+    setVisibleFeatures, showRoute, showUserRoute, clearUserRoute, setUserRouteStale,
     showUserLocation, updateUserHeading, enableFollowDirection, northUp, recenterUserLocation, clearUserLocation,
     pickContributionPoint, clearContributionPoint, map };
 }

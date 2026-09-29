@@ -1,12 +1,12 @@
-import { fetchLocations } from "./api.js?v=navigation-orientation-1";
-import { createContributions } from "./contributions.js?v=navigation-orientation-1";
-import { createDestinationPanel } from "./destination-panel.js?v=navigation-orientation-1";
-import { createMap } from "./map.js?v=navigation-orientation-1";
-import { createSearch } from "./search.js?v=navigation-orientation-1";
-import { createRouteInspector } from "./route-inspector.js?v=navigation-orientation-1";
-import { createUserLocation } from "./user-location.js?v=navigation-orientation-1";
-import { createUserNavigation } from "./user-navigation.js?v=navigation-orientation-1";
-import { createDisclosureMenu } from "./disclosure-menu.js?v=navigation-orientation-1";
+import { fetchLocations } from "./api.js?v=campus-core-liberty-2";
+import { createContributions } from "./contributions.js?v=campus-core-liberty-2";
+import { createDestinationPanel } from "./destination-panel.js?v=campus-core-liberty-2";
+import { createMap } from "./map.js?v=campus-core-liberty-2";
+import { createSearch } from "./search.js?v=campus-core-liberty-2";
+import { createRouteInspector } from "./route-inspector.js?v=campus-core-liberty-2";
+import { createUserLocation } from "./user-location.js?v=campus-core-liberty-2";
+import { createUserNavigation } from "./user-navigation.js?v=campus-core-liberty-2";
+import { createDisclosureMenu } from "./disclosure-menu.js?v=campus-core-liberty-2";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");

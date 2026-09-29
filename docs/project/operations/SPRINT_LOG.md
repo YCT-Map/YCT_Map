@@ -729,3 +729,53 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Real user drag/rotate/zoom gestures suspend camera follow while programmatic camera changes do not. GPS, marker and route progress continue during inspection.
 - Compass readings remain transient in the browser and are neither transmitted nor persisted. Path Survey evidence remains separate.
 - Verification passes with 176 Django tests and 103 JavaScript tests. Physical Samsung S21+/Edge HTTPS acceptance remains pending.
+
+---
+
+## Campus-First Map Redesign
+
+**Status:** IMPLEMENTED — OWNER VISUAL REVIEW REQUIRED
+**Date:** 2026-09-29
+
+- Added a lightweight outside-campus mask derived at runtime from the unchanged OSM way `671850885` orientation polygon. The campus remains unmasked while surrounding context receives a named 55% warm-neutral treatment below every YCT Map interactive layer.
+- Constrained ordinary browsing to zoom 15–20 and a campus-geometry-derived buffer of approximately 400 m, preserving surrounding approach-road context without allowing Lagos-scale browsing.
+- Reduced the boundary's visual weight and established an overview-only campus label so close destination labels can dominate.
+- Added one-time, defensive Liberty-style discovery by source layer/type: flat neutral buildings replace 3D extrusions, lower-ranked generic POIs are strongly softened, higher-ranked POIs remain subdued, pedestrian paths retain emphasis, minor roads recede and source-backed land/open-space distinctions remain restrained.
+- Preserved destination clustering, category/search filtering, independent selected destinations, route/endpoints/live-location priority, return-to-campus behavior and map-failure search fallback. No routing graph, GPS/navigation logic, campus geometry or persisted data changed.
+- Added five JavaScript contract tests. Verification passes with 176 Django tests and 108 JavaScript tests; owner desktop and Samsung-sized portrait/landscape visual review remains required.
+- No migration, production access, deployment, commit or push is included.
+
+---
+
+## YCT Map Visual Identity + Destination Density Polish
+
+**Status:** IMPLEMENTED — OWNER VISUAL REVIEW REQUIRED
+**Date:** 2026-09-29
+
+- Preserved the complete uncommitted Campus-First Map Redesign as the baseline and added a tunable 24% warm-ivory interior canvas derived from the same unchanged orientation-only polygon.
+- Defensively discovered and raised source-backed campus land, flat buildings and pedestrian paths above the canvas, then retained the outside mask above those contextual features. Lower-ranked generic POIs and internal road/path labels recede further without removing useful surrounding-road context.
+- Kept Liberty 3D disabled. Buildings now use warm neutral fill, zoom-aware softer outlines and a close-zoom translated 2D shadow from the existing vector source; no height, pitch or fabricated geometry is involved.
+- Changed ordinary destinations from 7–11 px dominant circles to 4/5/6 px category anchors at zoom 15/17.5/20. A separate invisible 15 px-radius unclustered hit layer owns click/tap selection.
+- Reduced cluster radii to 15/18/21 px and moved collision-managed destination labels to label-first close zoom from 16.5. The independent selected marker and gold halo remain unchanged, while routes, endpoints and live location retain foreground priority.
+- Verification passes with 176 Django tests and 110 JavaScript tests. Owner desktop and Samsung-sized portrait/landscape visual review remains required.
+- No campus geometry, routing graph, GPS/navigation algorithm, Path Survey model/data, database, migration, production service, commit or push is included.
+
+---
+
+## Campus Core Camera + Liberty Detail Restoration
+
+**Status:** IMPLEMENTED — OWNER VISUAL REVIEW REQUIRED
+**Date:** 2026-09-29
+
+- Replaced full-boundary initial framing with a responsive campus-core camera centred on the existing approved `[3.37424, 6.51857]` coordinate. The MapLibre boundary-fit zoom remains an input baseline, but desktop clamps to 17.6–18.0 and mobile to 17.0–17.5 so the campus core dominates first load.
+- Changed Home/Return to YabaTech to the same core camera. Home exits camera-follow state, cancels a pending follow-camera update and returns north-up. A separate whole-campus overview helper retains deliberate boundary `fitBounds` behavior.
+- Preserved zoom 15–20, the campus-derived approximately 400 m context bounds, destination focus, route fitting, reroute camera protection, live recentering and Follow Direction ownership.
+- At the owner's direction, superseded the unaccepted custom base-map treatment: removed the outside mask, ivory canvas, translated building shadow and every runtime Liberty POI/building/path/land mutation. OpenFreeMap Liberty again renders its native OSM colors and available labels, while YCT keeps its lightweight orientation boundary and application-owned overlays.
+- Preserved destination clustering, micro markers, 30 px interaction targets, labels, selected state, route endpoints and live location. No campus geometry, routing graph, GPS/navigation algorithm, Path Survey, database, migration, production service, deployment, commit or push is included.
+- Verification passes with 176 Django tests and 112 JavaScript tests. Owner desktop and physical-mobile visual review remains required.
+
+### Owner-review correction — campus outline
+
+- Owner review found the restored orientation boundary too visually dominant at close zoom.
+- Kept the polygon coordinates and 8% interior fill unchanged. Replaced the rigid dark outline with a softer green interpolation: 1.5 px/55% at zoom 15, 1 px/38% at zoom 17 and 0.6 px/22% at zoom 20.
+- This is presentation-only and does not change campus geometry, data trust, routing, GPS/navigation or Path Survey behavior.

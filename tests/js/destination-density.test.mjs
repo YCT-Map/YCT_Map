@@ -5,6 +5,7 @@ import {
   DESTINATION_CLUSTER_CONFIG,
   DESTINATION_CLUSTER_COUNT_LAYER_ID,
   DESTINATION_CLUSTER_LAYER_ID,
+  DESTINATION_HIT_LAYER_ID,
   DESTINATION_LABEL_LAYER_ID,
   DESTINATION_POINT_LAYER_ID,
   DESTINATION_SOURCE_ID,
@@ -49,15 +50,39 @@ test("semantic zoom separates clusters, unclustered markers, and close labels", 
   const cluster = layers.get(DESTINATION_CLUSTER_LAYER_ID);
   const count = layers.get(DESTINATION_CLUSTER_COUNT_LAYER_ID);
   const point = layers.get(DESTINATION_POINT_LAYER_ID);
+  const hit = layers.get(DESTINATION_HIT_LAYER_ID);
   const label = layers.get(DESTINATION_LABEL_LAYER_ID);
 
   assert.deepEqual(cluster.filter, ["has", "point_count"]);
   assert.deepEqual(count.filter, ["has", "point_count"]);
   assert.deepEqual(point.filter, ["!", ["has", "point_count"]]);
+  assert.deepEqual(hit.filter, ["!", ["has", "point_count"]]);
   assert.deepEqual(label.filter, ["!", ["has", "point_count"]]);
-  assert.equal(label.minzoom, 16.3);
+  assert.equal(label.minzoom, 16.5);
   assert.equal(label.layout["text-field"][1], "name");
+  assert.deepEqual(label.layout["text-size"],
+    ["interpolate", ["linear"], ["zoom"], 16.5, 10.5, 20, 12]);
 });
+
+test("ordinary destinations use quiet visible anchors and a separate mobile hit target", () => {
+  const layers = new Map(destinationLayerDefinitions().map((layer) => [layer.id, layer]));
+  const point = layers.get(DESTINATION_POINT_LAYER_ID);
+  const hit = layers.get(DESTINATION_HIT_LAYER_ID);
+
+  assert.notEqual(point.id, hit.id);
+  assert.deepEqual(point.paint["circle-radius"],
+    ["interpolate", ["linear"], ["zoom"], 15, 4, 17.5, 5, 20, 6]);
+  assert.equal(point.paint["circle-stroke-width"], 1.5);
+  assert.equal(hit.paint["circle-radius"], 15);
+  assert.equal(hit.paint["circle-color"], "rgba(0,0,0,0.01)");
+  assert.deepEqual(hit.filter, ["!", ["has", "point_count"]]);
+  assert.deepEqual(clusterRadii(layers.get(DESTINATION_CLUSTER_LAYER_ID)), [15, 18, 21]);
+});
+
+function clusterRadii(layer) {
+  const expression = layer.paint["circle-radius"];
+  return [expression[2], expression[4], expression[6]];
+}
 
 test("selected destination uses an independent source and replaces its single feature", () => {
   const updates = [];
@@ -143,7 +168,8 @@ test("cluster click requests expansion zoom without selecting a destination", as
   assert.equal(cameraUpdates[0].zoom, 17);
   assert.equal(selected.length, 0);
 
-  listeners.get(`click:${DESTINATION_POINT_LAYER_ID}`)({ features: [feature] });
+  assert.equal(listeners.has(`click:${DESTINATION_POINT_LAYER_ID}`), false);
+  listeners.get(`click:${DESTINATION_HIT_LAYER_ID}`)({ features: [feature] });
   assert.deepEqual(selected, [feature]);
 });
 

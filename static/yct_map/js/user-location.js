@@ -1,7 +1,7 @@
-import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=navigation-orientation-1";
-import { createGeolocationService } from "./geolocation.js?v=navigation-orientation-1";
+import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=campus-core-liberty-2";
+import { createGeolocationService } from "./geolocation.js?v=campus-core-liberty-2";
 import { createDeviceOrientationService, DEVICE_HEADING_STALE_MS,
-  selectDisplayedHeading } from "./device-orientation.js?v=navigation-orientation-1";
+  selectDisplayedHeading } from "./device-orientation.js?v=campus-core-liberty-2";
 
 const COPY = {
   idle: "Location is optional and stays on this device.",

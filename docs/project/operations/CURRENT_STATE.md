@@ -12,8 +12,8 @@
 | **Date** | 2026-09-29 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 4 — EDITOR & MAPPING TOOLS |
-| **Pipeline Phase** | PHASE 4 SPRINT 004 IMPLEMENTATION + TECHNICAL AUDIT COMPLETE / PHYSICAL OWNER ACCEPTANCE PENDING |
-| **Latest Meaningful Commit** | Pre-deployment cleanup and production-readiness preparation (`feat: complete phase 4 and prepare YCT Map for deployment`) |
+| **Pipeline Phase** | CAMPUS CORE CAMERA + LIBERTY DETAIL RESTORATION IMPLEMENTED / OWNER VISUAL REVIEW REQUIRED; PHASE 4 SPRINT 004 PHYSICAL OWNER ACCEPTANCE PENDING |
+| **Latest Meaningful Commit** | Campus presentation and core camera (`feat: refine campus map presentation and camera`) |
 
 ---
 
@@ -31,7 +31,7 @@
 | Field verification | NOT STARTED |
 | Routing dataset | 47 OSM-derived nodes plus 2 manual nodes; 54 OSM-derived segments; 2 active entrance anchors; all UNVERIFIED |
 | Deployment | PRODUCTION CONFIGURATION PREPARED; NO DEPLOYMENT PERFORMED |
-| Test suite | 176 DJANGO + 103 JAVASCRIPT TESTS PASSING |
+| Test suite | 176 DJANGO + 112 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -156,6 +156,12 @@ The Field-Test Stabilization sprint is OWNER REVIEWED / COMMITTED. The public ro
 
 The Navigation Orientation & Follow Mode sprint is IMPLEMENTED / OWNER REVIEW REQUIRED. Browser/device-supported absolute phone orientation now has presentation priority over movement heading, with circular smoothing, a four-second freshness limit, heading-up follow, route-aware look-ahead, manual-gesture suspension, Resume following and North up. Orientation remains transient and client-only; unsupported or denied compass access does not block GPS or routing.
 
+The Campus Core Camera + Liberty Detail Restoration is IMPLEMENTED / OWNER VISUAL REVIEW REQUIRED. Initial load and Home now centre the approved campus point with responsive close framing (desktop 17.6–18.0; mobile 17.0–17.5) instead of fitting the whole campus boundary. The whole-campus overview remains available separately and users retain zoom 15–20 within the existing context bounds. Home exits camera follow and returns north-up; destination, route and active-follow cameras retain ownership of their respective flows.
+
+OpenFreeMap Liberty once again renders its native OSM colors, buildings, paths, land use and available POI labels. The rejected outside mask, ivory canvas, building shadow and runtime Liberty layer mutations were removed. YCT retains a lightweight orientation polygon plus its destination-density, selected-state and navigation layers. The routing graph, GPS/navigation algorithms, public destination data and boundary coordinates are unchanged.
+
+The orientation-only campus outline now becomes thinner and more transparent toward close zoom. This preserves overview guidance while preventing the unverified polygon from competing with Liberty roads, buildings and POIs or appearing like a surveyed legal boundary.
+
 ---
 
 ## Known Blockers
@@ -166,7 +172,7 @@ Physical Samsung/mobile Path Survey acceptance still requires final real-device 
 
 ## Next Approved Task
 
-Owner-test Navigation Orientation & Follow Mode on Samsung S21+/Edge over HTTPS, then complete the remaining physical-device and real-campus acceptance for Phase 4 Sprint 004. Phase 4 remains open until that evidence is accepted. Detailed ContributionResolution QA is deferred but is not represented as completed.
+Owner-test the campus-core entry/Home camera and restored Liberty/OSM detail on desktop and Samsung-sized portrait/landscape views. Confirm native POIs and colors are visible, the core dominates first load, manual zoom-out reaches the whole campus/context, and destination/route/follow cameras remain independent. Navigation Orientation & Follow Mode and Phase 4 Sprint 004 physical-device acceptance remain pending. Detailed ContributionResolution QA is deferred but is not represented as completed.
 
 ---
 

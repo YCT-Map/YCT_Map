@@ -1,5 +1,5 @@
-import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=navigation-orientation-1";
-import { createOffRouteDetector } from "./off-route.js?v=navigation-orientation-1";
+import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=campus-core-liberty-2";
+import { createOffRouteDetector } from "./off-route.js?v=campus-core-liberty-2";
 
 export const MAX_LIVE_POSITION_AGE_MS = 30_000;
 export const MAX_LIVE_ROUTE_ATTEMPTS = 3;
