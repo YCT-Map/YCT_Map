@@ -124,6 +124,23 @@ button, input, select, textarea { font: inherit; }
 .survey-metrics strong { display:block; font-size:1.25rem; color:var(--green); }
 .survey-actions { display:flex; flex-wrap:wrap; gap:.5rem; align-items:end; }
 .survey-match { margin:1rem 0; border-left:4px solid #17663c; }
+.survey-review-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(105px,1fr)); gap:.55rem; margin:1rem 0; }
+.survey-review-summary span,.survey-match-summary span { padding:.65rem; border:1px solid var(--line); border-radius:.6rem; background:#f8faf8; }
+.survey-review-summary strong { display:block; color:var(--green); font-size:1.1rem; }
+.survey-review-legend,.survey-match-summary { display:flex; flex-wrap:wrap; gap:.55rem 1rem; margin:.75rem 0; color:var(--muted); font-size:.88rem; }
+.survey-review-legend span { display:inline-flex; align-items:center; gap:.35rem; }
+.survey-key { width:1.65rem; height:.3rem; border-radius:1rem; background:#8b9690; }
+.survey-key--trace { background:#1769e0; }
+.survey-key--match { background:#17663c; }
+.survey-key--discrepancy { background:#b43b2d; }
+.survey-match-heading { display:flex; justify-content:space-between; align-items:start; gap:.75rem; }
+.survey-match-heading h3 { margin-top:0; }
+.survey-review-badge { flex:0 0 auto; padding:.3rem .55rem; border-radius:99px; font-size:.75rem; font-weight:800; }
+.survey-review-badge--pending { color:#7b4a04; background:#fff0ce; }
+.survey-review-badge--recorded { color:#11572f; background:#dcefe3; }
+.survey-match--pending { border-left-color:#c47a12; background:#fffaf0; }
+.survey-match--useful_partial,.survey-match--rejected,.survey-match--discrepancy_confirmed { border-left-color:#17663c; }
+.survey-review-note { padding:.65rem; border-radius:.45rem; background:#fff; }
 @media (max-width:640px){
   .survey-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:.45rem}
   .survey-metrics span{padding:.65rem}.survey-metrics strong{font-size:1.05rem}
@@ -131,6 +148,7 @@ button, input, select, textarea { font: inherit; }
   #survey-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem}
   #survey-actions .editor-primary,#survey-actions .editor-danger{grid-column:1/-1}
   .survey-match{overflow-wrap:anywhere}.survey-match form textarea,.survey-match form select{width:100%;min-height:2.75rem}
+  .survey-match-heading{display:grid}.survey-review-badge{justify-self:start}
 }
 .survey-field-map { height:clamp(300px,48vh,520px); min-height:300px; }
 @media (max-width:640px){.survey-field-map{height:46dvh;min-height:280px;max-height:430px}}

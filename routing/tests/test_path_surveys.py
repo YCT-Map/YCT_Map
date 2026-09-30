@@ -1,5 +1,6 @@
 from datetime import timedelta
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib import admin
 from django.contrib.auth import get_user_model
@@ -25,7 +26,7 @@ class PathSurveyTests(TestCase):
         cls.editor.groups.add(Group.objects.get(name="Editor"))
         cls.reviewer = get_user_model().objects.create_user("reviewer", password="test-password-42")
         cls.reviewer.user_permissions.add(*Permission.objects.filter(codename__in=(
-            "review_path_survey", "grant_field_verified", "revoke_field_verified")))
+            "conduct_path_survey", "review_path_survey", "grant_field_verified", "revoke_field_verified")))
 
     def setUp(self):
         self.a = WalkableNode.objects.create(label="A", longitude=3.374000, latitude=6.518000,
@@ -44,6 +45,25 @@ class PathSurveyTests(TestCase):
         survey.refresh_from_db(); self.assertTrue(survey.interrupted)
         transition_survey(survey, PathSurvey.Status.PAUSED, self.editor)
         with self.assertRaises(ValidationError): transition_survey(survey, PathSurvey.Status.REVIEWED, self.editor)
+
+    def test_duplicate_completion_is_idempotent_and_analysis_runs_once(self):
+        survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.ACTIVE)
+        with patch("routing.survey_services.analyse_survey") as analyse:
+            transition_survey(survey, PathSurvey.Status.COMPLETED, self.editor)
+            transition_survey(survey, PathSurvey.Status.COMPLETED, self.editor)
+        survey.refresh_from_db()
+        self.assertEqual(survey.status, PathSurvey.Status.COMPLETED)
+        analyse.assert_called_once()
+
+    def test_replayed_finish_post_is_safe_and_does_not_duplicate_matches(self):
+        survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.ACTIVE)
+        self.client.force_login(self.editor)
+        url = reverse("editor:survey-detail", args=(survey.id,))
+        first = self.client.post(url, {"action": "finish", "active_capture_seconds": "4"}, follow=True)
+        second = self.client.post(url, {"action": "finish", "active_capture_seconds": "4"}, follow=True)
+        self.assertEqual((first.status_code, second.status_code), (200, 200))
+        self.assertNotContains(second, "Cannot change survey")
+        self.assertEqual(survey.segment_matches.count(), 0)
 
     def test_only_owner_controls_active_survey(self):
         survey = PathSurvey.objects.create(owner=self.editor)
@@ -168,6 +188,61 @@ class PathSurveyTests(TestCase):
         self.assertIn(discrepancy, response.context["matches"])
         self.assertIn(ambiguous, response.context["diagnostic_matches"])
         self.assertContains(response, "retained for diagnostics")
+
+    def test_completed_review_page_is_read_only_and_summarises_match_state(self):
+        survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.ACTIVE)
+        PathSurveySample.objects.create(survey=survey, sequence=1, captured_at=timezone.now(),
+            longitude=3.374, latitude=6.518, accuracy_metres=8,
+            classification=PathSurveySample.Classification.ACCEPTED)
+        survey.status = PathSurvey.Status.COMPLETED
+        survey.save(update_fields=("status",))
+        match = SurveySegmentMatch.objects.create(survey=survey, segment=self.segment,
+            segment_revision=1, segment_fingerprint=self.segment.geometry_fingerprint,
+            classification=SurveySegmentMatch.Classification.DISCREPANCY,
+            coverage_percent=20, mean_distance_metres=14)
+        node_count, segment_count = WalkableNode.objects.count(), WalkableSegment.objects.count()
+        self.client.force_login(self.editor)
+        response = self.client.get(reverse("editor:survey-detail", args=(survey.id,)))
+        self.assertContains(response, 'id="survey-review-map"', html=False)
+        self.assertContains(response, "Pending review")
+        self.assertEqual(response.context["match_summary"]["pending"], 1)
+        self.assertEqual(response.context["match_summary"]["reviewed"], 0)
+        self.assertEqual(WalkableNode.objects.count(), node_count)
+        self.assertEqual(WalkableSegment.objects.count(), segment_count)
+        match.refresh_from_db()
+        self.assertEqual(match.disposition, SurveySegmentMatch.Disposition.PENDING)
+
+    def test_record_review_only_persists_reason_and_has_visible_feedback(self):
+        survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.COMPLETED)
+        match = SurveySegmentMatch.objects.create(survey=survey, segment=self.segment,
+            segment_revision=1, segment_fingerprint=self.segment.geometry_fingerprint,
+            classification=SurveySegmentMatch.Classification.DISCREPANCY,
+            coverage_percent=20, mean_distance_metres=14)
+        self.client.force_login(self.reviewer)
+        response = self.client.post(reverse("editor:survey-match-review", args=(survey.id, match.id)), {
+            "action": "review", "disposition": "USEFUL_PARTIAL",
+            "reason": "Useful evidence; another pass is still required.",
+        }, follow=True)
+        self.assertEqual(response.status_code, 200)
+        match.refresh_from_db()
+        self.assertEqual(match.disposition, SurveySegmentMatch.Disposition.USEFUL_PARTIAL)
+        self.assertEqual(match.reviewer_note, "Useful evidence; another pass is still required.")
+        self.assertContains(response, "Review recorded")
+        self.assertContains(response, "Useful evidence; another pass is still required.")
+        self.assertEqual(response.context["match_summary"]["reviewed"], 1)
+
+    def test_record_review_only_requires_reason_and_known_disposition(self):
+        survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.COMPLETED)
+        match = SurveySegmentMatch.objects.create(survey=survey, segment=self.segment,
+            segment_revision=1, segment_fingerprint=self.segment.geometry_fingerprint,
+            classification=SurveySegmentMatch.Classification.DISCREPANCY,
+            coverage_percent=20, mean_distance_metres=14)
+        self.client.force_login(self.reviewer)
+        url = reverse("editor:survey-match-review", args=(survey.id, match.id))
+        self.client.post(url, {"action": "review", "disposition": "USEFUL_PARTIAL", "reason": ""})
+        match.refresh_from_db(); self.assertEqual(match.disposition, SurveySegmentMatch.Disposition.PENDING)
+        self.client.post(url, {"action": "review", "disposition": "NOT_REAL", "reason": "Checked"})
+        match.refresh_from_db(); self.assertEqual(match.disposition, SurveySegmentMatch.Disposition.PENDING)
 
     def test_completed_evidence_is_immutable_and_matching_creates_revision_bound_candidate(self):
         survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.ACTIVE)

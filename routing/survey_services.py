@@ -34,6 +34,11 @@ def transition_survey(survey, target, actor):
     survey = PathSurvey.objects.select_for_update().get(pk=survey.pk)
     if survey.owner_id != actor.pk and not actor.is_superuser:
         raise PermissionDenied("Only the survey owner may control this survey.")
+    # Mobile browsers may replay a delayed Finish submission after the first
+    # request has already completed. Exact completion replay is safe and must
+    # not rerun analysis; every other invalid transition still fails normally.
+    if survey.status == PathSurvey.Status.COMPLETED and target == PathSurvey.Status.COMPLETED:
+        return survey
     if target not in TRANSITIONS.get(survey.status, set()):
         raise ValidationError(f"Cannot change survey from {survey.get_status_display()} to {target}.")
     survey.status = target

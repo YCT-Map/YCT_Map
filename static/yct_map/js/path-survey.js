@@ -73,6 +73,35 @@ export function createSurveyController({id, status, nextSequence=0, send, geoloc
 }
 
 export function traceFeature(coordinates) { return coordinates.length < 2 ? {type:"FeatureCollection",features:[]} : {type:"Feature",properties:{evidence:true},geometry:{type:"LineString",coordinates}}; }
+export function createLifecycleSubmissionGate({synchronize, submit, onBusy=()=>{}, onBlocked=()=>{}}) {
+  let pending = null;
+  let submitted = false;
+  return {
+    request(action) {
+      if (submitted) return Promise.resolve(true);
+      if (pending) return pending;
+      onBusy(action);
+      pending = Promise.resolve().then(synchronize).then((synchronized) => {
+        if (!synchronized) {
+          pending = null;
+          onBlocked();
+          return false;
+        }
+        submitted = true;
+        submit(action);
+        return true;
+      }).catch((error) => {
+        pending = null;
+        onBlocked(error);
+        return false;
+      });
+      return pending;
+    },
+    get busy() { return pending !== null; },
+    get submitted() { return submitted; },
+  };
+}
+
 export function createFieldMap({maplibregl, element, statusElement, network, trace}) {
   const map = new maplibregl.Map({container:element,style:"https://tiles.openfreemap.org/styles/liberty",center:[3.37424,6.51857],zoom:16});
   let currentTrace=trace; let currentPosition=null;
@@ -94,6 +123,29 @@ export function createFieldMap({maplibregl, element, statusElement, network, tra
     updateTrace(coordinates){currentTrace=coordinates;const source=map.getSource("survey-trace");if(source)source.setData(traceFeature(coordinates));},
     updatePosition(position){currentPosition=position;const source=map.getSource("survey-position");if(source)source.setData({type:"Feature",properties:{accuracy:position.coords.accuracy},geometry:{type:"Point",coordinates:[position.coords.longitude,position.coords.latitude]}});},
   };
+}
+
+export function createReviewMap({maplibregl, element, statusElement, network, trace}) {
+  const map = new maplibregl.Map({container:element,style:"https://tiles.openfreemap.org/styles/liberty",center:[3.37424,6.51857],zoom:16});
+  const setStatus = (message,state="ready") => { element.dataset.state=state; statusElement.textContent=message; };
+  map.on("error",()=>setStatus("Basemap detail is temporarily unavailable. The persisted evidence summary remains unchanged.","error"));
+  map.on("load",()=>{
+    map.addSource("survey-review-network",{type:"geojson",data:network});
+    map.addLayer({id:"survey-review-network-unmatched",type:"line",source:"survey-review-network",filter:["==",["get","match_classification"],"UNMATCHED"],paint:{
+      "line-color":"#8b9690","line-width":2,"line-opacity":.38,"line-dasharray":[2,2],
+    }});
+    map.addLayer({id:"survey-review-network-candidates",type:"line",source:"survey-review-network",filter:["!=",["get","match_classification"],"UNMATCHED"],paint:{
+      "line-color":["match",["get","match_classification"],"DISCREPANCY","#b43b2d","STRONG","#17663c","PARTIAL","#c47a12","AMBIGUOUS","#7656b5","#8b9690"],
+      "line-width":4,"line-opacity":.82,
+    }});
+    map.addSource("survey-review-trace",{type:"geojson",data:traceFeature(trace)});
+    map.addLayer({id:"survey-review-trace",type:"line",source:"survey-review-trace",paint:{"line-color":"#1769e0","line-width":5,"line-opacity":.82}});
+    const coordinates=[...network.features.flatMap((feature)=>feature.geometry.coordinates),...trace];
+    if(coordinates.length){const bounds=coordinates.reduce((value,point)=>value.extend(point),new maplibregl.LngLatBounds(coordinates[0],coordinates[0]));map.fitBounds(bounds,{padding:35,maxZoom:18,duration:0});}
+    setStatus("Read-only evidence overview ready. Blue is the usable trace; graph colours show persisted candidate analysis.");
+    map.resize();
+  });
+  return map;
 }
 
 if (root) {
@@ -124,19 +176,35 @@ if (root) {
   window.addEventListener("pagehide", () => controller.stop());
   document.querySelector("#begin-gps")?.addEventListener("click", () => controller.start());
   let lifecycleApproved = false;
-  document.querySelector("#survey-actions")?.addEventListener("submit", async (event) => {
+  const actionsForm = document.querySelector("#survey-actions");
+  const lifecycleGate = createLifecycleSubmissionGate({
+    synchronize: async () => {
+      await controller.ready;
+      const synchronized = await controller.flush();
+      return Boolean(synchronized && !controller.bufferSize);
+    },
+    onBusy: () => actionsForm?.querySelectorAll('button[name="action"]').forEach((button)=>{button.disabled=true;}),
+    onBlocked: () => {
+      actionsForm?.querySelectorAll('button[name="action"]').forEach((button)=>{button.disabled=false;});
+      quality.textContent = "Pending survey evidence must synchronize before changing the survey state.";
+    },
+    submit: (action) => {
+      lifecycleApproved = true;
+      const actionInput = document.createElement("input");
+      actionInput.type = "hidden"; actionInput.name = "action"; actionInput.value = action;
+      actionsForm.append(actionInput);
+      actionsForm.requestSubmit();
+    },
+  });
+  actionsForm?.addEventListener("submit", (event) => {
     controller.stop();
     if (lifecycleApproved) return;
     event.preventDefault();
-    await controller.ready;
-    const synchronized = await controller.flush();
-    if (!synchronized || controller.bufferSize) {
-      quality.textContent = "Pending survey evidence must synchronize before changing the survey state.";
-      return;
-    }
-    lifecycleApproved = true;
-    event.currentTarget.requestSubmit(event.submitter);
+    const action = event.submitter?.value;
+    if (action) void lifecycleGate.request(action);
   });
-  const mapElement=document.querySelector("#survey-field-map");
-  if(mapElement){const network=JSON.parse(document.querySelector("#survey-network-data").textContent);const trace=JSON.parse(document.querySelector("#survey-trace-data").textContent);import("https://unpkg.com/maplibre-gl@6.10.0/dist/maplibre-gl.mjs").then((maplibregl)=>{fieldMap=createFieldMap({maplibregl,element:mapElement,statusElement:document.querySelector("#survey-map-status"),network,trace});if(pendingPosition)fieldMap.updatePosition(pendingPosition);}).catch(()=>{mapElement.dataset.state="error";document.querySelector("#survey-map-status").textContent="The field map could not load. GPS recording and evidence synchronization remain available.";});}
+  const fieldMapElement=document.querySelector("#survey-field-map");
+  const reviewMapElement=document.querySelector("#survey-review-map");
+  const mapElement=fieldMapElement || reviewMapElement;
+  if(mapElement){const network=JSON.parse(document.querySelector("#survey-network-data").textContent);const trace=JSON.parse(document.querySelector("#survey-trace-data").textContent);import("https://unpkg.com/maplibre-gl@6.10.0/dist/maplibre-gl.mjs").then((maplibregl)=>{if(fieldMapElement){fieldMap=createFieldMap({maplibregl,element:fieldMapElement,statusElement:document.querySelector("#survey-map-status"),network,trace});if(pendingPosition)fieldMap.updatePosition(pendingPosition);}else{createReviewMap({maplibregl,element:reviewMapElement,statusElement:document.querySelector("#survey-map-status"),network,trace});}}).catch(()=>{mapElement.dataset.state="error";document.querySelector("#survey-map-status").textContent=fieldMapElement?"The field map could not load. GPS recording and evidence synchronization remain available.":"The evidence map could not load. Persisted review evidence remains available below.";});}
 }

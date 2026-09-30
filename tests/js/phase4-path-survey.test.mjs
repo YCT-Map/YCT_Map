@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { createElapsedClock, createSurveyController, formatDuration, qualityFor, shouldRecord, traceFeature } from "../../static/yct_map/js/path-survey.js";
+import { createElapsedClock, createLifecycleSubmissionGate, createReviewMap, createSurveyController, formatDuration, qualityFor, shouldRecord, traceFeature } from "../../static/yct_map/js/path-survey.js";
 
 test("accuracy bands are explicit and no non-active state records", () => {
   assert.equal(qualityFor(8).classification, "ACCEPTED");
@@ -61,4 +61,34 @@ test("field trace renders only synchronized usable coordinates", () => {
   assert.match(source,/updateTrace\(counts\.trace\)/);
   assert.match(source,/GPS recording and evidence synchronization remain available/);
   assert.match(source,/Pending survey evidence must synchronize before changing the survey state/);
+});
+
+test("lifecycle gate coalesces delayed duplicate finish taps", async () => {
+  let release; let synchronizations=0; const submissions=[]; const busy=[];
+  const gate=createLifecycleSubmissionGate({
+    synchronize:()=>{synchronizations+=1;return new Promise((resolve)=>{release=resolve;});},
+    submit:(action)=>submissions.push(action), onBusy:(action)=>busy.push(action),
+  });
+  const first=gate.request("finish");
+  const second=gate.request("finish");
+  await Promise.resolve();
+  assert.equal(synchronizations,1);
+  release(true);
+  assert.equal(await first,true); assert.equal(await second,true);
+  assert.deepEqual(submissions,["finish"]); assert.deepEqual(busy,["finish"]);
+});
+
+test("completed review map uses independent read-only evidence sources", () => {
+  const handlers={}; const sources=[]; const layers=[];
+  class Bounds { extend(){return this;} }
+  class Map { on(name,callback){handlers[name]=callback;} addSource(id,config){sources.push([id,config]);}
+    addLayer(layer){layers.push(layer);} fitBounds(){} resize(){} }
+  const element={dataset:{}}; const statusElement={textContent:""};
+  createReviewMap({maplibregl:{Map,LngLatBounds:Bounds},element,statusElement,
+    network:{type:"FeatureCollection",features:[{type:"Feature",properties:{match_classification:"STRONG"},geometry:{type:"LineString",coordinates:[[3.374,6.518],[3.375,6.518]]}}]},
+    trace:[[3.374,6.518],[3.3745,6.518]]});
+  handlers.load();
+  assert.deepEqual(sources.map(([id])=>id),["survey-review-network","survey-review-trace"]);
+  assert.deepEqual(layers.map((layer)=>layer.id),["survey-review-network-unmatched","survey-review-network-candidates","survey-review-trace"]);
+  assert.match(statusElement.textContent,/Read-only evidence overview ready/);
 });

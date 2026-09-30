@@ -580,13 +580,10 @@ def survey_detail(request, survey_id):
             messages.success(request, "Survey review recorded. No segment was automatically verified.")
             return redirect("editor:survey-detail", survey_id=survey.pk)
     counts = survey.samples.aggregate(raw=Count("id"),
+        accepted=Count("id", filter=Q(classification="ACCEPTED")),
+        weak=Count("id", filter=Q(classification="WEAK")),
         usable=Count("id", filter=~Q(classification="REJECTED")),
         rejected=Count("id", filter=Q(classification="REJECTED")))
-    network = {"type": "FeatureCollection", "features": [
-        {"type": "Feature", "geometry": segment.geometry,
-         "properties": {"id": str(segment.id), "verification": segment.verification_state}}
-        for segment in WalkableSegment.objects.filter(is_active=True)
-    ]}
     trace = [[float(sample.longitude), float(sample.latitude)] for sample in
              survey.samples.exclude(classification="REJECTED").order_by("sequence")]
     matches = list(survey.segment_matches.select_related("segment"))
@@ -599,9 +596,36 @@ def survey_detail(request, survey_id):
         meaningful = (match.classification == SurveySegmentMatch.Classification.DISCREPANCY or
                       (float(match.coverage_percent) >= 1 and nearby_count >= 3))
         (primary_matches if meaningful else diagnostic_matches).append(match)
+    match_lookup = {str(match.segment_id): match for match in matches}
+    diagnostic_ids = {str(match.segment_id) for match in diagnostic_matches}
+    network = {"type": "FeatureCollection", "features": [
+        {"type": "Feature", "geometry": segment.geometry,
+         "properties": {"id": str(segment.id), "label": segment.label,
+             "verification": segment.verification_state,
+             "match_classification": (match_lookup[str(segment.id)].classification
+                                      if str(segment.id) in match_lookup else "UNMATCHED"),
+             "match_disposition": (match_lookup[str(segment.id)].disposition
+                                   if str(segment.id) in match_lookup else "NONE"),
+             "coverage_percent": (float(match_lookup[str(segment.id)].coverage_percent)
+                                  if str(segment.id) in match_lookup else 0),
+             "diagnostic_only": str(segment.id) in diagnostic_ids}}
+        for segment in WalkableSegment.objects.filter(is_active=True)
+    ]}
+    classification_counts = {choice: 0 for choice, _ in SurveySegmentMatch.Classification.choices}
+    disposition_counts = {choice: 0 for choice, _ in SurveySegmentMatch.Disposition.choices}
+    for match in matches:
+        classification_counts[match.classification] += 1
+        disposition_counts[match.disposition] += 1
+    match_summary = {
+        "total": len(matches),
+        "classification": classification_counts,
+        "disposition": disposition_counts,
+        "reviewed": len(matches) - disposition_counts[SurveySegmentMatch.Disposition.PENDING],
+        "pending": disposition_counts[SurveySegmentMatch.Disposition.PENDING],
+    }
     return render(request, "editor/survey_detail.html", {"survey": survey, "can_review": can_review,
         "matches": primary_matches, "diagnostic_matches": diagnostic_matches, "sample_counts": counts,
-        "survey_network": network, "survey_trace": trace})
+        "match_summary": match_summary, "survey_network": network, "survey_trace": trace})
 
 
 @require_POST
@@ -649,9 +673,20 @@ def survey_match_review(request, survey_id, match_id):
     try:
         if action in ("grant", "revoke"):
             decide_verification(match, grant=action == "grant", actor=request.user, reason=reason)
+        elif action == "review":
+            if not reason.strip():
+                raise ValidationError("A review reason is required.")
+            disposition = request.POST.get("disposition")
+            allowed = {SurveySegmentMatch.Disposition.USEFUL_PARTIAL,
+                       SurveySegmentMatch.Disposition.REJECTED,
+                       SurveySegmentMatch.Disposition.DISCREPANCY_CONFIRMED}
+            if disposition not in allowed:
+                raise ValidationError("Choose a valid review disposition.")
+            match.disposition = disposition
+            match.reviewer_note = reason.strip()
+            match.full_clean(); match.save(update_fields=("disposition", "reviewer_note"))
         else:
-            match.disposition = request.POST.get("disposition", SurveySegmentMatch.Disposition.REJECTED)
-            match.reviewer_note = reason; match.full_clean(); match.save()
+            raise ValidationError("Choose a valid evidence action.")
     except ValidationError as error:
         messages.error(request, "; ".join(error.messages))
     else:
