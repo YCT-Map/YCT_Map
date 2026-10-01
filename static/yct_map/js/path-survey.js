@@ -125,27 +125,62 @@ export function createFieldMap({maplibregl, element, statusElement, network, tra
   };
 }
 
-export function createReviewMap({maplibregl, element, statusElement, network, trace}) {
+export function createReviewMap({maplibregl, element, statusElement, network, trace, candidates={type:"FeatureCollection",features:[]}, onCandidate=()=>{}}) {
   const map = new maplibregl.Map({container:element,style:"https://tiles.openfreemap.org/styles/liberty",center:[3.37424,6.51857],zoom:16});
   const setStatus = (message,state="ready") => { element.dataset.state=state; statusElement.textContent=message; };
   map.on("error",()=>setStatus("Basemap detail is temporarily unavailable. The persisted evidence summary remains unchanged.","error"));
   map.on("load",()=>{
     map.addSource("survey-review-network",{type:"geojson",data:network});
-    map.addLayer({id:"survey-review-network-unmatched",type:"line",source:"survey-review-network",filter:["==",["get","match_classification"],"UNMATCHED"],paint:{
+    map.addLayer({id:"survey-review-network-unmatched",type:"line",source:"survey-review-network",filter:["==",["get","review_state"],"unobserved"],paint:{
       "line-color":"#8b9690","line-width":2,"line-opacity":.38,"line-dasharray":[2,2],
     }});
-    map.addLayer({id:"survey-review-network-candidates",type:"line",source:"survey-review-network",filter:["!=",["get","match_classification"],"UNMATCHED"],paint:{
-      "line-color":["match",["get","match_classification"],"DISCREPANCY","#b43b2d","STRONG","#17663c","PARTIAL","#c47a12","AMBIGUOUS","#7656b5","#8b9690"],
+    map.addLayer({id:"survey-review-network-evidence",type:"line",source:"survey-review-network",filter:["!=",["get","review_state"],"unobserved"],paint:{
+      "line-color":["match",["get","review_state"],"conflict","#b43b2d","verified","#17663c","supported","#17663c","needs-confirmation","#c47a12","#8b9690"],
       "line-width":4,"line-opacity":.82,
     }});
     map.addSource("survey-review-trace",{type:"geojson",data:traceFeature(trace)});
     map.addLayer({id:"survey-review-trace",type:"line",source:"survey-review-trace",paint:{"line-color":"#1769e0","line-width":5,"line-opacity":.82}});
-    const coordinates=[...network.features.flatMap((feature)=>feature.geometry.coordinates),...trace];
+    map.addSource("survey-review-candidates",{type:"geojson",data:candidates});
+    map.addLayer({id:"survey-review-candidate-paths",type:"line",source:"survey-review-candidates",paint:{
+      "line-color":"#7656b5","line-width":5,"line-opacity":.9,"line-dasharray":[2,1.4],
+    }});
+    map.addLayer({id:"survey-review-candidate-labels",type:"symbol",source:"survey-review-candidates",layout:{
+      "symbol-placement":"line-center","text-field":["get","id"],"text-size":12,"text-allow-overlap":true,
+    },paint:{"text-color":"#5d3aa1","text-halo-color":"#fff","text-halo-width":2}});
+    map.on("click","survey-review-candidate-paths",(event)=>{
+      const feature=event.features?.[0]; if(!feature)return;
+      const coordinates=feature.geometry.coordinates;
+      const bounds=coordinates.reduce((value,point)=>value.extend(point),new maplibregl.LngLatBounds(coordinates[0],coordinates[0]));
+      map.fitBounds(bounds,{padding:70,maxZoom:19,duration:500}); onCandidate(feature.properties);
+    });
+    const coordinates=[...network.features.flatMap((feature)=>feature.geometry.coordinates),...trace,
+      ...candidates.features.flatMap((feature)=>feature.geometry.coordinates)];
     if(coordinates.length){const bounds=coordinates.reduce((value,point)=>value.extend(point),new maplibregl.LngLatBounds(coordinates[0],coordinates[0]));map.fitBounds(bounds,{padding:35,maxZoom:18,duration:0});}
     setStatus("Read-only evidence overview ready. Blue is the usable trace; graph colours show persisted candidate analysis.");
     map.resize();
   });
-  return map;
+  return {
+    map,
+    setFilter(mode) {
+      if (mode === "needs-confirmation") {
+        map.setFilter("survey-review-network-unmatched", ["==", ["get", "review_state"], "__hidden__"]);
+        map.setFilter("survey-review-network-evidence", ["in", ["get", "review_state"], ["literal", ["needs-confirmation", "conflict"]]]);
+        map.setFilter("survey-review-candidate-paths", ["==", ["get", "status"], "Needs confirmation"]);
+        map.setFilter("survey-review-candidate-labels", ["==", ["get", "status"], "Needs confirmation"]);
+      } else {
+        map.setFilter("survey-review-network-unmatched", ["==", ["get", "review_state"], "unobserved"]);
+        map.setFilter("survey-review-network-evidence", ["!=", ["get", "review_state"], "unobserved"]);
+        map.setFilter("survey-review-candidate-paths", null);
+        map.setFilter("survey-review-candidate-labels", null);
+      }
+    },
+    focusCandidate(id) {
+      const feature=candidates.features.find((item)=>item.properties.id===id); if(!feature)return false;
+      const coordinates=feature.geometry.coordinates;
+      const bounds=coordinates.reduce((value,point)=>value.extend(point),new maplibregl.LngLatBounds(coordinates[0],coordinates[0]));
+      map.fitBounds(bounds,{padding:70,maxZoom:19,duration:500}); onCandidate(feature.properties); return true;
+    },
+  };
 }
 
 if (root) {
@@ -159,7 +194,7 @@ if (root) {
   const startClock = () => { timingAvailable=true; activeDisplay.textContent=formatDuration(clock.seconds); clock.start(); if(!heartbeat) heartbeat=setInterval(persistTiming,5000); persistTiming(); };
   const stopClock = () => { clock.stop(); clearInterval(heartbeat); heartbeat=null; persistTiming(); };
   if (sessionDisplay) sessionDisplay.textContent = formatDuration(sessionDisplay.dataset.seconds);
-  let fieldMap = null; let pendingPosition = null;
+  let fieldMap = null; let reviewMap = null; let pendingPosition = null;
   const controller = createSurveyController({id: root.dataset.surveyId, status: root.dataset.status,
     nextSequence: root.dataset.nextSequence,
     geolocation: navigator.geolocation, onStatus: (message) => { quality.textContent = message; }, onCaptureStart:startClock, onCaptureStop:stopClock,
@@ -206,5 +241,5 @@ if (root) {
   const fieldMapElement=document.querySelector("#survey-field-map");
   const reviewMapElement=document.querySelector("#survey-review-map");
   const mapElement=fieldMapElement || reviewMapElement;
-  if(mapElement){const network=JSON.parse(document.querySelector("#survey-network-data").textContent);const trace=JSON.parse(document.querySelector("#survey-trace-data").textContent);import("https://unpkg.com/maplibre-gl@6.10.0/dist/maplibre-gl.mjs").then((maplibregl)=>{if(fieldMapElement){fieldMap=createFieldMap({maplibregl,element:fieldMapElement,statusElement:document.querySelector("#survey-map-status"),network,trace});if(pendingPosition)fieldMap.updatePosition(pendingPosition);}else{createReviewMap({maplibregl,element:reviewMapElement,statusElement:document.querySelector("#survey-map-status"),network,trace});}}).catch(()=>{mapElement.dataset.state="error";document.querySelector("#survey-map-status").textContent=fieldMapElement?"The field map could not load. GPS recording and evidence synchronization remain available.":"The evidence map could not load. Persisted review evidence remains available below.";});}
+  if(mapElement){const network=JSON.parse(document.querySelector("#survey-network-data").textContent);const trace=JSON.parse(document.querySelector("#survey-trace-data").textContent);const candidates=document.querySelector("#survey-candidate-data")?JSON.parse(document.querySelector("#survey-candidate-data").textContent):{type:"FeatureCollection",features:[]};const showCandidate=(properties)=>{const card=document.querySelector("#survey-candidate-focus");if(!card)return;card.hidden=false;card.querySelector("[data-candidate-id]").textContent=properties.id;card.querySelector("[data-candidate-length]").textContent=`${properties.length_metres} m`;card.querySelector("[data-candidate-passes]").textContent=`${properties.pass_count} good pass${Number(properties.pass_count)===1?"":"es"}`;card.querySelector("[data-candidate-status]").textContent=properties.status;card.querySelector("[data-candidate-near]").textContent=properties.near;card.querySelector("[data-candidate-review]").href=properties.review_url;};import("https://unpkg.com/maplibre-gl@6.10.0/dist/maplibre-gl.mjs").then((maplibregl)=>{if(fieldMapElement){fieldMap=createFieldMap({maplibregl,element:fieldMapElement,statusElement:document.querySelector("#survey-map-status"),network,trace});if(pendingPosition)fieldMap.updatePosition(pendingPosition);}else{reviewMap=createReviewMap({maplibregl,element:reviewMapElement,statusElement:document.querySelector("#survey-map-status"),network,trace,candidates,onCandidate:showCandidate});}}).catch(()=>{mapElement.dataset.state="error";document.querySelector("#survey-map-status").textContent=fieldMapElement?"The field map could not load. GPS recording and evidence synchronization remain available.":"The evidence map could not load. Persisted review evidence remains available below.";});document.querySelectorAll("[data-survey-filter]").forEach((button)=>button.addEventListener("click",()=>{document.querySelectorAll("[data-survey-filter]").forEach((item)=>item.setAttribute("aria-pressed",String(item===button)));reviewMap?.setFilter(button.dataset.surveyFilter);}));document.querySelectorAll("[data-focus-candidate]").forEach((button)=>button.addEventListener("click",()=>reviewMap?.focusCandidate(button.dataset.focusCandidate)));}
 }

@@ -1,12 +1,13 @@
-import { fetchLocations } from "./api.js?v=checkpoint-flex-nav-1";
-import { createContributions } from "./contributions.js?v=checkpoint-flex-nav-1";
-import { createDestinationPanel } from "./destination-panel.js?v=checkpoint-flex-nav-1";
-import { createMap } from "./map.js?v=checkpoint-flex-nav-1";
-import { createSearch } from "./search.js?v=checkpoint-flex-nav-1";
-import { createRouteInspector } from "./route-inspector.js?v=checkpoint-flex-nav-1";
-import { createUserLocation } from "./user-location.js?v=checkpoint-flex-nav-1";
-import { createUserNavigation } from "./user-navigation.js?v=checkpoint-flex-nav-1";
-import { createDisclosureMenu } from "./disclosure-menu.js?v=checkpoint-flex-nav-1";
+import { fetchLocations } from "./api.js?v=field-mapping-1";
+import { createContributions } from "./contributions.js?v=field-mapping-1";
+import { createDestinationPanel } from "./destination-panel.js?v=field-mapping-1";
+import { createMap } from "./map.js?v=field-mapping-1";
+import { createSearch } from "./search.js?v=field-mapping-1";
+import { createRouteInspector } from "./route-inspector.js?v=field-mapping-1";
+import { createUserLocation } from "./user-location.js?v=field-mapping-1";
+import { createUserNavigation } from "./user-navigation.js?v=field-mapping-1";
+import { createDisclosureMenu } from "./disclosure-menu.js?v=field-mapping-1";
+import { loadSupportedLocationArea } from "./supported-area.js?v=field-mapping-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -26,6 +27,7 @@ const config = {
   routeUrl: shell.dataset.routeUrl,
   liveRouteUrl: shell.dataset.liveRouteUrl,
   contributionUrl: shell.dataset.contributionUrl,
+  headingDiagnosticsAvailable: shell.dataset.headingDiagnostics === "true",
   centre: [Number(shell.dataset.centreLongitude), Number(shell.dataset.centreLatitude)],
 };
 
@@ -51,7 +53,17 @@ function selectDestination(feature) {
 
 async function start() {
   try {
-    const collection = await fetchLocations(config.locationsUrl);
+    const [collection, loadedSupportedArea] = await Promise.all([
+      fetchLocations(config.locationsUrl),
+      loadSupportedLocationArea(config.campusBoundaryUrl).catch((error) => {
+        console.warn("Supported YCT location area could not load", error);
+        // Location must fail closed when the authoritative campus/context
+        // boundary is unavailable. The map itself can still be browsed.
+        return { contains: () => false };
+      }),
+    ]);
+    const supportedArea = loadedSupportedArea?.contains
+      ? loadedSupportedArea : { contains: () => false };
     const features = collection.features;
 
     if (features.length === 0) {
@@ -118,7 +130,17 @@ async function start() {
       },
       onRecenter: () => mapController?.recenterUserLocation(),
       onHeading: (heading) => mapController?.updateUserHeading(heading),
+      supportedArea,
+      getMapBearing: () => mapController?.getBearing?.() || 0,
     });
+    if (config.headingDiagnosticsAvailable && new URLSearchParams(window.location.search).get("headingDebug") === "1") {
+      window.yctHeadingDiagnostic = () => {
+        const snapshot = userLocationController.getHeadingDiagnostic();
+        console.table(snapshot);
+        return snapshot;
+      };
+      console.info("YCT heading diagnostics enabled. Run yctHeadingDiagnostic() in the console.");
+    }
     setInterfaceState("browsing");
 
     try {

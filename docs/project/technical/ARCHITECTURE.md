@@ -46,7 +46,7 @@ YCT Map is a web-based application consisting of:
 
 **CURRENT implementation:** Django-rendered HTML, mobile-first CSS and native ES modules. MapLibre GL JS `6.10.0` is loaded from a pinned CDN URL. Search remains usable when map initialization fails.
 
-The public locator separates browser acquisition (`geolocation.js`), pure validation/stabilization (`location-filter.js`), location UI state (`user-location.js`) and MapLibre rendering (`map.js`). Ordinary public position is transient; only an explicit live-route request sends the currently accepted coordinate to Django, and that request is not persisted.
+The public locator separates browser acquisition (`geolocation.js`), pure validation/stabilization (`location-filter.js`), location UI state (`user-location.js`) and MapLibre rendering (`map.js`). `supported-area.js` derives one supported YCT location area from the existing campus geometry plus the approximately 400 m context margin. Far-away or unavailable-scope fixes fail closed and never render or move the map. Ordinary public position is transient; only an explicit live-route request sends the currently accepted coordinate to Django, and that request is not persisted.
 
 There is no ordinary-user location-history model, breadcrumb storage or raw-coordinate analytics. Private breadcrumb persistence exists only inside an explicitly started authenticated Path Survey session. Final physical-device survey acceptance remains pending.
 
@@ -226,7 +226,7 @@ The Editor group is provisioned after migrations with only the required location
 
 ## Phase 4 Sprint 003 Mapping Tools
 
-The editor reuses the Sprint 002 MapLibre point-selector controller for representative points and routing nodes. Browser geolocation is a one-shot sample with visible accuracy, rejection above the safe threshold and manual adjustment; saving always assigns `UNVERIFIED`. Combined representative/primary-entrance capture requires explicit confirmation before replacing an existing primary entrance.
+The editor reuses the Sprint 002 MapLibre point-selector controller for representative points and entrances. Place and Entrance forms share `location-capture.js`: a user-triggered five-second `watchPosition` window feeds the established stabilizer, reports elapsed progress, chooses one final accepted fix, enforces the supported YCT area and cleans up on retry, failure, cancellation or page hiding. Coordinates are written only after success, remain adjustable on the map and are never auto-saved. Combined representative/primary-entrance capture still requires explicit confirmation before replacing an existing primary entrance.
 
 Approved contributions enter a separate resolution queue. Multiple resolution actions may reference locations, entrances, nodes or segments; recording an action does not publish, verify or automatically mutate campus data. Routing edits use nullable actor audit fields. Connected nodes cannot be moved directly, segment impact reports remaining endpoint degree and anchor counts, and splitting is an explicit atomic operation that retains the original segment as inactive history.
 
@@ -241,6 +241,10 @@ Raw survey samples must be immutable evidence input and must never silently rewr
 Path Survey Mode stores private editor evidence in `PathSurvey` and ordered `PathSurveySample` records rather than adding breadcrumbs to `WalkableSegment`. Explicit Draft/Active/Paused/Completed/Reviewed/Abandoned transitions govern acquisition; reopening an interrupted Active record does not restart browser geolocation. Brief outages use an IndexedDB buffer and idempotent sequence upload.
 
 Completed samples are immutable and never rewrite graph geometry. `SurveySegmentMatch` stores algorithmic classification separately from reviewer disposition and binds evidence to a segment revision/fingerprint. `SegmentVerificationRecord` preserves explicit grant, revoke and geometry-invalidation history with nullable actors. Verification permissions are separate from ordinary editing; publication and routing availability remain independent.
+
+The pass-aware evaluator derives chronological corridor passes from immutable usable samples. Callback density does not create extra passes: a pass ends only after material time/spatial departure, while one brief dropout may remain part of the same traversal. A strong, independent pass may automatically grant FIELD_VERIFIED only to an UNVERIFIED segment whose geometry predates that evidence. Automatic downgrade is forbidden. Potential missing corridors are derived as survey-relative candidates; the review map does not persist them.
+
+Candidate graph creation is a separate explicit editor action. The preview reports node reuse, new nodes and required transactional segment splits. Applying it recomputes the candidate, locks mutations transactionally, avoids same-node/duplicate endpoint connections and preserves split history. One discovery pass creates UNVERIFIED geometry. At least two separate matching evidence passes may support immediate FIELD_VERIFIED creation; otherwise a later survey must independently confirm it.
 
 ACTIVE and PAUSED survey pages render a read-only MapLibre evidence view. Existing `WalkableSegment` geometry is reference data, the current browser position is a separate point, and the live blue trace is reconstructed from authenticated server-returned usable samples. The map has no mutation controls, rejected readings never enter the line, and map/style failure is isolated from capture, IndexedDB buffering and synchronization.
 
@@ -262,7 +266,7 @@ Search and category filtering continue to own the visible feature set through th
 
 ## Navigation Orientation and User-Controlled Camera
 
-`device-orientation.js` owns permission-gated, absolute browser orientation and pure heading math. It accepts a trustworthy native compass heading or absolute alpha corrected for screen orientation, smooths it with shortest-arc circular math and never changes GPS coordinates. The public location controller keeps `deviceFacingHeading` separate from stabilized GPS movement heading. A fresh device heading wins; after four seconds without a device reading, movement heading is the fallback, otherwise the marker remains a dot.
+`device-orientation.js` owns permission-gated, absolute browser orientation and pure heading math. It uses a native compass heading where available; otherwise it derives compass heading from absolute alpha/beta/gamma with tilt compensation, then corrects for screen orientation. Shortest-arc circular smoothing never changes GPS coordinates. A fresh device-facing heading wins; after four seconds without a device reading, stabilized movement heading is the fallback, otherwise the marker remains a dot. Map bearing changes only rendered relative rotation. Development-only query diagnostics expose raw, normalized, selected and rendered values without adding public UI.
 
 YCT Map keeps geographic camera interaction user-controlled during normal live navigation. Device/movement heading rotates the user marker rather than forcing map bearing. The active route ahead is progressively rendered from trusted route progress. Drag, zoom and rotate gestures therefore remain authoritative; Recenter performs one move to the accepted position at a navigation zoom without changing the user's bearing or enabling a tracking lock. MapLibre's standard compass remains available for a deliberate bearing reset. Orientation is neither sent to Django nor stored, and Path Survey heading remains a separate authenticated evidence workflow.
 

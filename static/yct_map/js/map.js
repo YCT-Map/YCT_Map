@@ -1,4 +1,5 @@
 import { sliceRouteAtDistance } from "./live-route-progress.js?v=checkpoint-flex-nav-1";
+import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=field-mapping-1";
 
 export const DESTINATION_SOURCE_ID = "demo-destinations";
 export const DESTINATION_CLUSTER_LAYER_ID = "destination-clusters";
@@ -38,6 +39,8 @@ const USER_LOCATION_SOURCE_ID = "live-user-location";
 const USER_ACCURACY_SOURCE_ID = "live-user-accuracy";
 const USER_ACCURACY_LAYER_ID = "live-user-accuracy-fill";
 const USER_LOCATION_DOT_LAYER_ID = "live-user-location-dot";
+const USER_LOCATION_SHADOW_LAYER_ID = "live-user-location-arrow-shadow";
+const USER_LOCATION_EDGE_LAYER_ID = "live-user-location-arrow-edge";
 const USER_LOCATION_CHEVRON_LAYER_ID = "live-user-location-chevron";
 const CONTRIBUTION_SOURCE_ID = "pending-contribution-point";
 const CONTRIBUTION_LAYER_ID = "pending-contribution-point-circle";
@@ -69,6 +72,8 @@ export const NAVIGATION_FOREGROUND_LAYER_ORDER = Object.freeze([
   USER_ENDPOINT_CIRCLE_LAYER_ID,
   USER_ENDPOINT_LABEL_LAYER_ID,
   USER_LOCATION_DOT_LAYER_ID,
+  USER_LOCATION_SHADOW_LAYER_ID,
+  USER_LOCATION_EDGE_LAYER_ID,
   USER_LOCATION_CHEVRON_LAYER_ID,
 ]);
 
@@ -90,14 +95,7 @@ function featureCollection(features = []) {
   return { type: "FeatureCollection", features };
 }
 
-export function bufferBoundsMetres(bounds, bufferMetres = 400) {
-  if (!bounds || bounds.length !== 2 || bufferMetres < 0) return null;
-  const [[west, south], [east, north]] = bounds;
-  const latitude = (south + north) / 2;
-  const latitudeDelta = bufferMetres / 111_320;
-  const longitudeDelta = bufferMetres / (111_320 * Math.max(Math.cos(latitude * Math.PI / 180), 0.01));
-  return [[west - longitudeDelta, south - latitudeDelta], [east + longitudeDelta, north + latitudeDelta]];
-}
+export { bufferBoundsMetres };
 
 export function campusCameraConstraints(campusBounds) {
   return { minZoom: 15, maxZoom: 20,
@@ -167,6 +165,25 @@ export function userLocationFeature(position, headingDegrees = null, headingSour
   }
   return { type: "Feature", geometry: { type: "Point",
     coordinates: [position.longitude, position.latitude] }, properties };
+}
+
+export function userLocationArrowLayerDefinitions() {
+  const arrowLayout = { "text-field": "▲", "text-rotate": ["get", "heading"],
+    "text-rotation-alignment": "map", "text-pitch-alignment": "map",
+    "text-allow-overlap": true, "text-ignore-placement": true };
+  return [
+    { id: USER_LOCATION_SHADOW_LAYER_ID, type: "symbol", source: USER_LOCATION_SOURCE_ID,
+      filter: ["has", "heading"], layout: { ...arrowLayout, "text-size": 26 },
+      paint: { "text-color": "rgba(9,38,75,.28)", "text-translate": [0, 2],
+        "text-translate-anchor": "viewport" } },
+    { id: USER_LOCATION_EDGE_LAYER_ID, type: "symbol", source: USER_LOCATION_SOURCE_ID,
+      filter: ["has", "heading"], layout: { ...arrowLayout, "text-size": 25 },
+      paint: { "text-color": "#ffffff" } },
+    { id: USER_LOCATION_CHEVRON_LAYER_ID, type: "symbol", source: USER_LOCATION_SOURCE_ID,
+      filter: ["has", "heading"], layout: { ...arrowLayout, "text-size": 20 },
+      paint: { "text-color": "#1267d6", "text-halo-color": "rgba(111,190,255,.75)",
+        "text-halo-width": 0.8 } },
+  ];
 }
 
 export function destinationSourceDefinition(features = []) {
@@ -413,19 +430,8 @@ async function loadCampusBoundary(url) {
   }
 }
 
-function geometryCoordinates(geometry) {
-  if (geometry.type === "Polygon") return geometry.coordinates.flat(1);
-  return geometry.coordinates.flat(2);
-}
-
 function boundsFor(collection) {
-  const coordinates = collection.features.flatMap((feature) => geometryCoordinates(feature.geometry));
-  const longitudes = coordinates.map(([longitude]) => longitude);
-  const latitudes = coordinates.map(([, latitude]) => latitude);
-  return [
-    [Math.min(...longitudes), Math.min(...latitudes)],
-    [Math.max(...longitudes), Math.max(...latitudes)],
-  ];
+  return boundsForGeoJSON(collection);
 }
 
 function campusPadding() {
@@ -613,11 +619,7 @@ export async function createMap({ container, config, features, onSelect, onReady
     map.addLayer({ id: USER_LOCATION_DOT_LAYER_ID, type: "circle", source: USER_LOCATION_SOURCE_ID,
       filter: ["!", ["has", "heading"]],
       paint: { "circle-radius": 9, "circle-color": "#1677ff", "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
-    map.addLayer({ id: USER_LOCATION_CHEVRON_LAYER_ID, type: "symbol", source: USER_LOCATION_SOURCE_ID,
-      filter: ["has", "heading"],
-      layout: { "text-field": "▲", "text-size": 22, "text-rotate": ["get", "heading"], "text-rotation-alignment": "map",
-        "text-allow-overlap": true, "text-ignore-placement": true },
-      paint: { "text-color": "#1677ff", "text-halo-color": "#fff", "text-halo-width": 2 } });
+    for (const layer of userLocationArrowLayerDefinitions()) map.addLayer(layer);
 
     map.addSource(DESTINATION_SOURCE_ID, destinationSourceDefinition(visibleFeatures));
     map.addSource(SELECTED_DESTINATION_SOURCE_ID, selectedDestinationSourceDefinition());
@@ -826,5 +828,5 @@ export async function createMap({ container, config, features, onSelect, onReady
   return { focus, focusCampus: focusCampusCore, focusCampusCore, focusCampusOverview,
     setVisibleFeatures, showRoute, showUserRoute, updateUserRouteProgress, clearUserRoute, setUserRouteStale,
     showUserLocation, updateUserHeading, recenterUserLocation, clearUserLocation,
-    pickContributionPoint, clearContributionPoint, map };
+    pickContributionPoint, clearContributionPoint, getBearing: () => Number(map.getBearing?.() || 0), map };
 }

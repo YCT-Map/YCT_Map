@@ -1,0 +1,7 @@
+{% extends "editor/base.html" %}
+{% block title %}{{ candidate.id }} path proposal{% endblock %}
+{% block content %}
+<div class="editor-heading"><div><p class="editor-eyebrow">Survey candidate</p><h1>{{ candidate.id }} — Proposed graph change</h1><p>Preview only until you explicitly confirm.</p></div><a href="{% url 'editor:survey-detail' survey.id %}">Back to survey review</a></div>
+<section class="editor-card"><h2>Evidence</h2><p>Approximate length: <strong>{{ candidate.length_metres }} m</strong></p><p>Independent passes: <strong>{{ candidate.pass_count }}</strong></p><p>Resulting verification: <strong>{{ preview.verification_state }}</strong></p><p>{{ candidate.reason }}</p></section>
+<section class="editor-card"><h2>Connection preview</h2><p><strong>Start:</strong> {{ preview.start.action }}{% if preview.start.label %} — {{ preview.start.label }}{% endif %}</p><p><strong>End:</strong> {{ preview.end.action }}{% if preview.end.label %} — {{ preview.end.label }}{% endif %}</p>{% for warning in preview.warnings %}<p class="editor-warning">{{ warning }}</p>{% endfor %}<p>This operation creates only the proposed corridor and required endpoint connections. It never changes the survey status.</p><form method="post">{% csrf_token %}<label><input type="checkbox" name="confirm" value="yes" required> I inspected the candidate and approve these graph changes.</label><button class="editor-primary" type="submit">Create routing geometry</button></form></section>
+{% endblock %}

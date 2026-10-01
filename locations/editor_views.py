@@ -6,9 +6,9 @@ from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 import json
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from .forms import (EntranceForm, FloorForm, InternalPlaceAliasFormSet,
@@ -26,8 +26,9 @@ from routing.models import (EntranceNetworkAnchor, PathSurvey, SourceType, Surve
                             VerificationState, WalkableNode, WalkableSegment)
 from routing.geometry import distance_metres
 from routing.survey_services import (MATCH_DISTANCE_METRES, decide_verification,
-                                     store_samples, transition_survey)
+                                     analyse_survey_dry_run, store_samples, transition_survey)
 from routing.matching import project_onto_segment
+from routing.candidate_services import create_candidate_path, preview_candidate_graph_change
 from django.utils.dateparse import parse_datetime
 from django.db.models import Count, Q
 
@@ -172,7 +173,9 @@ def _place_form(request, location, creating):
         {"form": form, "aliases": aliases, "place": location, "creating": creating, "can_edit": can_edit,
          "routing": routing, "entrances": location.entrances.all() if location.pk else (),
          "floors": location.floors.all() if location.pk else (),
-         "internal_places": location.internal_places.select_related("floor") if location.pk else ()},
+         "internal_places": location.internal_places.select_related("floor") if location.pk else (),
+         "can_grant_place_verification": request.user.has_perm("routing.grant_field_verified"),
+         "can_revoke_place_verification": request.user.has_perm("routing.revoke_field_verified")},
     )
 
 
@@ -186,7 +189,7 @@ def _save_audited(form, request, creating):
     return item
 
 
-def _entrance_editor_context(form, location, entrance):
+def _entrance_editor_context(request, form, location, entrance):
     anchor = None
     anchor_distance = None
     if entrance.pk:
@@ -202,6 +205,8 @@ def _entrance_editor_context(form, location, entrance):
         "entrance": entrance,
         "network_anchor": anchor,
         "network_anchor_distance": anchor_distance,
+        "can_grant_entrance_verification": request.user.has_perm("routing.grant_field_verified"),
+        "can_revoke_entrance_verification": request.user.has_perm("routing.revoke_field_verified"),
     }
 
 
@@ -218,7 +223,7 @@ def entrance_create(request, place_id):
             entrance = _save_audited(form, request, True)
         messages.success(request, "Entrance saved.")
         return redirect("editor:place-detail", place_id=place_id)
-    return render(request, "editor/entrance_form.html", _entrance_editor_context(form, location, entrance))
+    return render(request, "editor/entrance_form.html", _entrance_editor_context(request, form, location, entrance))
 
 
 @require_http_methods(["GET", "POST"])
@@ -231,10 +236,51 @@ def entrance_edit(request, place_id, entrance_id):
         with transaction.atomic():
             if form.cleaned_data["is_primary"]:
                 location.entrances.exclude(pk=entrance.pk).filter(is_primary=True).update(is_primary=False)
-            _save_audited(form, request, False)
+            saved = form.save(commit=False)
+            if any(name in form.changed_data for name in ("latitude", "longitude")):
+                saved.verification_state = Location.VerificationState.UNVERIFIED
+            saved.updated_by = request.user
+            saved.full_clean(); saved.save()
         messages.success(request, "Entrance saved.")
         return redirect("editor:place-detail", place_id=place_id)
-    return render(request, "editor/entrance_form.html", _entrance_editor_context(form, location, entrance))
+    return render(request, "editor/entrance_form.html", _entrance_editor_context(request, form, location, entrance))
+
+
+def _apply_field_verification(request, item, *, label, redirect_name, redirect_args):
+    action = request.POST.get("action")
+    permission = "routing.grant_field_verified" if action == "grant" else "routing.revoke_field_verified"
+    if action not in {"grant", "revoke"}:
+        return HttpResponseForbidden("Choose a valid verification action.")
+    if not request.user.has_perm(permission):
+        raise PermissionDenied
+    reason = request.POST.get("reason", "").strip()
+    if not reason:
+        messages.error(request, "A verification reason is required.")
+        return redirect(redirect_name, *redirect_args)
+    item.verification_state = (Location.VerificationState.FIELD_VERIFIED
+                               if action == "grant" else Location.VerificationState.UNVERIFIED)
+    item.updated_by = request.user
+    item.save(update_fields=("verification_state", "updated_by", "updated_at"))
+    messages.success(request, f"{label} field verification {'granted' if action == 'grant' else 'revoked'}.")
+    return redirect(redirect_name, *redirect_args)
+
+
+@require_POST
+@active_editor("locations.change_location")
+def place_verification(request, place_id):
+    location = get_object_or_404(Location, pk=place_id)
+    return _apply_field_verification(request, location, label="Place",
+                                     redirect_name="editor:place-detail", redirect_args=(location.pk,))
+
+
+@require_POST
+@active_editor("locations.change_entrance")
+def entrance_verification(request, place_id, entrance_id):
+    location = get_object_or_404(Location, pk=place_id)
+    entrance = get_object_or_404(Entrance, pk=entrance_id, location=location)
+    return _apply_field_verification(request, entrance, label="Entrance",
+                                     redirect_name="editor:entrance-edit",
+                                     redirect_args=(location.pk, entrance.pk))
 
 
 @require_GET
@@ -577,7 +623,7 @@ def survey_detail(request, survey_id):
             survey.status = PathSurvey.Status.REVIEWED; survey.reviewed_by = request.user
             survey.reviewed_at = __import__("django.utils.timezone", fromlist=["now"]).now()
             survey.review_note = request.POST.get("review_note", "")[:2000]; survey.save()
-            messages.success(request, "Survey review recorded. No segment was automatically verified.")
+            messages.success(request, "Survey review status recorded. No graph geometry was changed.")
             return redirect("editor:survey-detail", survey_id=survey.pk)
     counts = survey.samples.aggregate(raw=Count("id"),
         accepted=Count("id", filter=Q(classification="ACCEPTED")),
@@ -587,6 +633,17 @@ def survey_detail(request, survey_id):
     trace = [[float(sample.longitude), float(sample.latitude)] for sample in
              survey.samples.exclude(classification="REJECTED").order_by("sequence")]
     matches = list(survey.segment_matches.select_related("segment"))
+    analysis = analyse_survey_dry_run(survey) if survey.status in (
+        PathSurvey.Status.COMPLETED, PathSurvey.Status.REVIEWED) else {"existing": [], "candidates": []}
+    analysis_lookup = {str(item["segment"].pk): item for item in analysis["existing"]}
+    locations = list(Location.objects.filter(
+        representative_longitude__isnull=False, representative_latitude__isnull=False))
+    candidates = []
+    for candidate in analysis["candidates"]:
+        midpoint = candidate["geometry"]["coordinates"][len(candidate["geometry"]["coordinates"]) // 2]
+        nearest = min(locations, key=lambda item: distance_metres(
+            midpoint, (float(item.representative_longitude), float(item.representative_latitude))), default=None)
+        candidates.append({**candidate, "near": nearest.name if nearest else "No mapped landmark nearby"})
     usable_points = [(float(sample.longitude), float(sample.latitude)) for sample in
                      survey.samples.exclude(classification="REJECTED").order_by("sequence")]
     primary_matches, diagnostic_matches = [], []
@@ -602,15 +659,33 @@ def survey_detail(request, survey_id):
         {"type": "Feature", "geometry": segment.geometry,
          "properties": {"id": str(segment.id), "label": segment.label,
              "verification": segment.verification_state,
-             "match_classification": (match_lookup[str(segment.id)].classification
-                                      if str(segment.id) in match_lookup else "UNMATCHED"),
+             "match_classification": (analysis_lookup[str(segment.id)]["classification"]
+                                      if str(segment.id) in analysis_lookup else "UNOBSERVED"),
              "match_disposition": (match_lookup[str(segment.id)].disposition
                                    if str(segment.id) in match_lookup else "NONE"),
-             "coverage_percent": (float(match_lookup[str(segment.id)].coverage_percent)
-                                  if str(segment.id) in match_lookup else 0),
+             "coverage_percent": (analysis_lookup[str(segment.id)]["best"].coverage_percent
+                                  if str(segment.id) in analysis_lookup and
+                                     analysis_lookup[str(segment.id)]["best"] else 0),
+             "review_state": ("verified" if segment.verification_state == VerificationState.FIELD_VERIFIED
+                              else "supported" if (str(segment.id) in analysis_lookup and
+                                  analysis_lookup[str(segment.id)]["classification"] == "STRONG")
+                              else "conflict" if (str(segment.id) in analysis_lookup and
+                                  analysis_lookup[str(segment.id)]["classification"] == "DISCREPANCY")
+                              else "needs-confirmation" if (str(segment.id) in analysis_lookup and
+                                  analysis_lookup[str(segment.id)]["classification"] in {"PARTIAL", "AMBIGUOUS"})
+                              else "unobserved"),
              "diagnostic_only": str(segment.id) in diagnostic_ids}}
         for segment in WalkableSegment.objects.filter(is_active=True)
     ]}
+    confirmation_segments = [{
+        "segment": item["segment"],
+        "classification": item["classification"],
+        "coverage_percent": round(item["best"].coverage_percent, 1),
+        "pass_count": len(item["passes"]),
+    } for item in analysis["existing"]
+        if item["best"] is not None
+        and item["segment"].verification_state != VerificationState.FIELD_VERIFIED
+        and item["classification"] in {"PARTIAL", "AMBIGUOUS", "DISCREPANCY"}]
     classification_counts = {choice: 0 for choice, _ in SurveySegmentMatch.Classification.choices}
     disposition_counts = {choice: 0 for choice, _ in SurveySegmentMatch.Disposition.choices}
     for match in matches:
@@ -625,7 +700,49 @@ def survey_detail(request, survey_id):
     }
     return render(request, "editor/survey_detail.html", {"survey": survey, "can_review": can_review,
         "matches": primary_matches, "diagnostic_matches": diagnostic_matches, "sample_counts": counts,
-        "match_summary": match_summary, "survey_network": network, "survey_trace": trace})
+        "match_summary": match_summary, "survey_network": network, "survey_trace": trace,
+        "survey_candidates": {"type": "FeatureCollection", "features": [
+            {"type": "Feature", "geometry": item["geometry"], "properties": {
+                "id": item["id"], "length_metres": item["length_metres"],
+                "pass_count": item["pass_count"], "status": item["status"], "near": item["near"],
+                "review_url": reverse("editor:survey-candidate", args=(survey.pk, item["id"]))}}
+            for item in candidates]},
+        "candidates": candidates,
+        "confirmation_matches": confirmation_segments,
+        "can_create_candidate": all(request.user.has_perm(permission) for permission in (
+            "routing.add_walkablenode", "routing.add_walkablesegment", "routing.change_walkablesegment")),
+    })
+
+
+@require_http_methods(["GET", "POST"])
+@active_editor("routing.add_walkablesegment")
+def survey_candidate(request, survey_id, candidate_id):
+    survey = get_object_or_404(PathSurvey, pk=survey_id,
+                               status__in=(PathSurvey.Status.COMPLETED, PathSurvey.Status.REVIEWED))
+    if not request.user.has_perm("routing.add_walkablenode") or not request.user.has_perm(
+        "routing.change_walkablesegment"
+    ):
+        raise PermissionDenied
+    analysis = analyse_survey_dry_run(survey)
+    candidate = next((item for item in analysis["candidates"] if item["id"] == candidate_id), None)
+    if candidate is None:
+        raise Http404("This derived survey candidate no longer exists.")
+    preview = preview_candidate_graph_change(candidate)
+    if request.method == "POST":
+        if request.POST.get("confirm") != "yes":
+            messages.error(request, "Explicitly confirm the graph change before applying it.")
+        else:
+            try:
+                segment = create_candidate_path(survey=survey, candidate=candidate, actor=request.user)
+            except ValidationError as error:
+                messages.error(request, "; ".join(error.messages))
+            else:
+                messages.success(request, f"{candidate_id} created as {segment.get_verification_state_display()} geometry.")
+                return redirect("editor:segment-edit", segment_id=segment.pk)
+    return render(request, "editor/survey_candidate.html", {
+        "survey": survey, "candidate": candidate, "preview": preview,
+        "candidate_geojson": {"type": "Feature", "geometry": candidate["geometry"], "properties": {}},
+    })
 
 
 @require_POST

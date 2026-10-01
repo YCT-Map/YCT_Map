@@ -37,7 +37,7 @@
       <p>Pick the point on the map or capture this device's current position. Field capture always remains <strong>UNVERIFIED</strong>.</p>
       <button id="capture-current-location" type="button">Use current location</button>
       <p id="place-location-status" role="status" aria-live="polite">{% if place.has_representative_point %}Saved representative point loaded.{% else %}No point selected.{% endif %}</p>
-      <div id="place-map" class="editor-map-picker" data-state="loading" data-latitude="{{ place.representative_latitude|default:'' }}" data-longitude="{{ place.representative_longitude|default:'' }}" aria-label="Choose representative point on campus map"></div>
+      <div id="place-map" class="editor-map-picker" data-state="loading" data-campus-boundary-url="{% static 'yct_map/data/yabatech-campus-boundary.geojson' %}" data-latitude="{{ place.representative_latitude|default:'' }}" data-longitude="{{ place.representative_longitude|default:'' }}" aria-label="Choose representative point on campus map"></div>
       <div class="editor-field">{{ form.capture_primary_entrance }}<label for="{{ form.capture_primary_entrance.id_for_label }}">{{ form.capture_primary_entrance.label }}</label></div>
       {% if place.pk and entrances %}<div class="editor-field">{{ form.confirm_primary_overwrite }}<label for="{{ form.confirm_primary_overwrite.id_for_label }}">{{ form.confirm_primary_overwrite.label }}</label><small>Required only when replacing an existing active primary entrance point.</small></div>{% endif %}
       <small>Raw coordinates are hidden. You may adjust a captured point on the map before saving.</small>
@@ -62,6 +62,18 @@
     {% endif %}
     {% if can_edit %}<button class="editor-primary" type="submit">Save place</button>{% endif %}
   </form>
+  {% if not creating %}
+    <section class="editor-card editor-verification-card">
+      <p class="editor-eyebrow">Verification</p>
+      <h2>Place: {{ place.get_verification_state_display }}</h2>
+      <p>Publication, checkpoint prominence, routing readiness and field verification are independent.</p>
+      {% if can_grant_place_verification and place.verification_state != 'FIELD_VERIFIED' %}
+        <form method="post" action="{% url 'editor:place-verification' place.id %}">{% csrf_token %}<input type="hidden" name="action" value="grant"><label>Reason<textarea name="reason" required></textarea></label><button class="editor-primary" type="submit">Mark place as field verified</button></form>
+      {% elif can_revoke_place_verification and place.verification_state == 'FIELD_VERIFIED' %}
+        <form method="post" action="{% url 'editor:place-verification' place.id %}">{% csrf_token %}<input type="hidden" name="action" value="revoke"><label>Reason<textarea name="reason" required></textarea></label><button type="submit">Revoke place field verification</button></form>
+      {% endif %}
+    </section>
+  {% endif %}
   {% if not creating and can_edit %}
     <section class="editor-card editor-lifecycle">
       <h2>Lifecycle</h2>
@@ -73,4 +85,4 @@
     </section>
   {% endif %}
 {% endblock %}
-{% block scripts %}<script type="module" src="{% static 'yct_map/js/editor-place-map.js' %}?v=p4s3-owner-correction-1"></script>{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'yct_map/js/editor-place-map.js' %}?v=field-mapping-1"></script>{% endblock %}

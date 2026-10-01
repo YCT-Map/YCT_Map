@@ -209,3 +209,20 @@ test("a location-service failure clears the old route origin instead of retainin
   assert.equal(controller.getState(),"unavailable");
   assert.equal(cleared,1);
 });
+
+test("outside-area live fixes never render or move the map", () => {
+  const harness=locationHarness(); let positionCallback; let shown=0; let cleared=0;
+  const service={isSupported:true,start(onPosition){positionCallback=onPosition;return true;},stop(){},resume(){}};
+  const controller=createUserLocation({element:harness.root,service,
+    supportedArea:{contains:()=>false},
+    documentObject:{hidden:false,addEventListener(){},removeEventListener(){}},
+    onPosition(){shown+=1;},onClear(){cleared+=1;},onRecenter(){}});
+  controller.start();
+  positionCallback(position({longitude:3.45,latitude:6.60}));
+  positionCallback(position({longitude:3.45001,latitude:6.60,timestamp:2_000}));
+  assert.equal(shown,0);
+  assert.equal(controller.getAcceptedPosition(),null);
+  assert.equal(controller.getState(),"outside-area");
+  assert.equal(cleared,1);
+  assert.match(harness.get("#location-message").textContent,/outside the YabaTech mapping area/);
+});

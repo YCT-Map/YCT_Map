@@ -16,11 +16,11 @@ test("heading normalization handles wrap, negatives, portrait and landscape", ()
   assert.equal(normalizeHeading(-10), 350);
   assert.equal(headingFromOrientation({ absolute: true, alpha: 0 }, 0), 0);
   assert.equal(headingFromOrientation({ absolute: true, alpha: 90 }, 0), 270);
-  assert.equal(headingFromOrientation({ absolute: true, alpha: 90 }, 90), 0);
-  assert.equal(headingFromOrientation({ absolute: true, alpha: 90 }, 270), 180);
+  assert.equal(headingFromOrientation({ absolute: true, alpha: 90 }, 90), 180);
+  assert.equal(headingFromOrientation({ absolute: true, alpha: 90 }, 270), 0);
   assert.equal(headingFromOrientation({ absolute: false, alpha: 90 }, 0), null,
     "relative orientation must not be presented as Earth-referenced heading");
-  assert.equal(headingFromOrientation({ webkitCompassHeading: 350 }, 20), 10);
+  assert.equal(headingFromOrientation({ webkitCompassHeading: 350 }, 20), 330);
 });
 
 test("circular smoothing crosses north without averaging toward south", () => {

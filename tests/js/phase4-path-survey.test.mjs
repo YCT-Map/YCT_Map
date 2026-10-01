@@ -79,16 +79,21 @@ test("lifecycle gate coalesces delayed duplicate finish taps", async () => {
 });
 
 test("completed review map uses independent read-only evidence sources", () => {
-  const handlers={}; const sources=[]; const layers=[];
+  const handlers={}; const sources=[]; const layers=[]; const filters=[]; const focused=[];
   class Bounds { extend(){return this;} }
-  class Map { on(name,callback){handlers[name]=callback;} addSource(id,config){sources.push([id,config]);}
-    addLayer(layer){layers.push(layer);} fitBounds(){} resize(){} }
+  class Map { on(name,layerOrCallback,callback){handlers[callback?`${name}:${layerOrCallback}`:name]=callback||layerOrCallback;} addSource(id,config){sources.push([id,config]);}
+    addLayer(layer){layers.push(layer);} fitBounds(){focused.push(true);} resize(){} setFilter(id,filter){filters.push([id,filter]);} }
   const element={dataset:{}}; const statusElement={textContent:""};
-  createReviewMap({maplibregl:{Map,LngLatBounds:Bounds},element,statusElement,
-    network:{type:"FeatureCollection",features:[{type:"Feature",properties:{match_classification:"STRONG"},geometry:{type:"LineString",coordinates:[[3.374,6.518],[3.375,6.518]]}}]},
-    trace:[[3.374,6.518],[3.3745,6.518]]});
+  const selected=[];
+  const controller=createReviewMap({maplibregl:{Map,LngLatBounds:Bounds},element,statusElement,
+    network:{type:"FeatureCollection",features:[{type:"Feature",properties:{match_classification:"STRONG",review_state:"supported"},geometry:{type:"LineString",coordinates:[[3.374,6.518],[3.375,6.518]]}}]},
+    trace:[[3.374,6.518],[3.3745,6.518]],candidates:{type:"FeatureCollection",features:[{type:"Feature",properties:{id:"C1",status:"Needs confirmation"},geometry:{type:"LineString",coordinates:[[3.376,6.519],[3.377,6.519]]}}]},onCandidate:(properties)=>selected.push(properties.id)});
   handlers.load();
-  assert.deepEqual(sources.map(([id])=>id),["survey-review-network","survey-review-trace"]);
-  assert.deepEqual(layers.map((layer)=>layer.id),["survey-review-network-unmatched","survey-review-network-candidates","survey-review-trace"]);
+  assert.deepEqual(sources.map(([id])=>id),["survey-review-network","survey-review-trace","survey-review-candidates"]);
+  assert.deepEqual(layers.map((layer)=>layer.id),["survey-review-network-unmatched","survey-review-network-evidence","survey-review-trace","survey-review-candidate-paths","survey-review-candidate-labels"]);
+  handlers["click:survey-review-candidate-paths"]({features:[{properties:{id:"C1"},geometry:{coordinates:[[3.376,6.519],[3.377,6.519]]}}]});
+  assert.deepEqual(selected,["C1"]); assert.ok(focused.length>=2);
+  controller.setFilter("needs-confirmation");
+  assert.ok(filters.some(([id])=>id==="survey-review-candidate-paths"));
   assert.match(statusElement.textContent,/Read-only evidence overview ready/);
 });

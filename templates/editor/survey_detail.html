@@ -54,7 +54,7 @@
       {% endif %}
     </form>
   {% endif %}
-  <p class="editor-muted">GPS traces never rewrite paths or verify them automatically. Closing or refreshing this page never completes the survey and never restarts location collection. Briefly unsent samples are buffered on this device.</p>
+  <p class="editor-muted">GPS traces never rewrite paths. On completion, conservative independent evidence may verify geometry that already existed; proposed new paths always require explicit review. Closing or refreshing never completes the survey or restarts collection.</p>
 </section>
 
 {% if survey.status == 'ACTIVE' or survey.status == 'PAUSED' %}
@@ -83,14 +83,53 @@
   </div>
   <div class="survey-review-legend" aria-label="Evidence map legend">
     <span><i class="survey-key survey-key--trace"></i>Usable survey trace</span>
-    <span><i class="survey-key survey-key--match"></i>Candidate match</span>
-    <span><i class="survey-key survey-key--discrepancy"></i>Possible discrepancy</span>
-    <span><i class="survey-key survey-key--unmatched"></i>Current graph without a candidate</span>
+    <span><i class="survey-key survey-key--verified"></i>Enough evidence / verified</span>
+    <span><i class="survey-key survey-key--confirmation"></i>Needs another walk</span>
+    <span><i class="survey-key survey-key--candidate"></i>Potential new path</span>
+    <span><i class="survey-key survey-key--discrepancy"></i>Conflicting evidence</span>
+    <span><i class="survey-key survey-key--unmatched"></i>Not sufficiently observed</span>
+  </div>
+  <div class="survey-review-filters" role="group" aria-label="Filter survey review map">
+    <button type="button" class="editor-primary" data-survey-filter="all" aria-pressed="true">Show all evidence</button>
+    <button type="button" data-survey-filter="needs-confirmation" aria-pressed="false">Show only paths needing another walk</button>
   </div>
   <div id="survey-review-map" class="editor-map-picker survey-field-map" data-state="loading" aria-label="Completed path survey evidence map"></div>
   <p id="survey-map-status" role="status">Loading the read-only evidence overview…</p>
+  <article id="survey-candidate-focus" class="survey-candidate-focus" hidden>
+    <h3><span data-candidate-id></span> — Possible unmapped path</h3>
+    <p>Approximate length: <strong data-candidate-length></strong></p>
+    <p>Evidence: <strong data-candidate-passes></strong></p>
+    <p>Status: <strong data-candidate-status></strong></p>
+    <p>Near: <strong data-candidate-near></strong></p>
+    <a data-candidate-review href="#">Preview graph changes</a>
+  </article>
   {{ survey_network|json_script:"survey-network-data" }}
   {{ survey_trace|json_script:"survey-trace-data" }}
+  {{ survey_candidates|json_script:"survey-candidate-data" }}
+</section>
+
+<section class="editor-card" id="confirmation-worklist">
+  <h2>Needs confirmation</h2>
+  <p>This list contains only observed paths that need another walk or a decision. Unobserved routes are not presented as errors.</p>
+  {% for candidate in candidates %}
+    {% if not candidate.confirmed %}
+      <article class="survey-task survey-task--candidate" data-confirmation-task="candidate">
+        <h3>{{ candidate.id }} — Possible unmapped path</h3>
+        <p>Approximately {{ candidate.length_metres }} m · {{ candidate.pass_count }} good pass · near {{ candidate.near }}</p>
+        <p>{{ candidate.reason }}</p>
+        <button type="button" data-focus-candidate="{{ candidate.id }}">Show on map</button>
+        {% if can_create_candidate %}<a href="{% url 'editor:survey-candidate' survey.id candidate.id %}">Preview proposed graph changes</a>{% endif %}
+      </article>
+    {% endif %}
+  {% endfor %}
+  {% for match in confirmation_matches %}
+    <article class="survey-task survey-task--existing" data-confirmation-task="existing">
+      <h3>{{ match.segment.label|default:"Existing path" }}</h3>
+      <p>Approximately {{ match.segment.distance_metres|floatformat:0 }} m · {{ match.coverage_percent }}% observed across {{ match.pass_count }} pass{{ match.pass_count|pluralize:"es" }}.</p>
+      <p>{% if match.classification == 'DISCREPANCY' %}Evidence conflicts with this geometry; inspect it again.{% else %}Another complete, accurate traversal is required.{% endif %}</p>
+    </article>
+  {% endfor %}
+  {% if not candidates and not confirmation_matches %}<p>No observed path currently needs another walk.</p>{% endif %}
 </section>
 
 <section class="editor-card">
@@ -148,4 +187,4 @@
 </section>
 {% endif %}
 {% endblock %}
-{% block scripts %}<script type="module" src="{% static 'yct_map/js/path-survey.js' %}?v=survey-review-ux-1"></script>{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'yct_map/js/path-survey.js' %}?v=field-mapping-1"></script>{% endblock %}

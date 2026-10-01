@@ -1,7 +1,8 @@
-import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=checkpoint-flex-nav-1";
-import { createGeolocationService } from "./geolocation.js?v=checkpoint-flex-nav-1";
+import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=field-mapping-1";
+import { createGeolocationService } from "./geolocation.js?v=field-mapping-1";
 import { createDeviceOrientationService, DEVICE_HEADING_STALE_MS,
-  selectDisplayedHeading } from "./device-orientation.js?v=checkpoint-flex-nav-1";
+  headingDiagnosticSnapshot, screenOrientationDegrees,
+  selectDisplayedHeading } from "./device-orientation.js?v=field-mapping-1";
 
 const COPY = {
   idle: "Location is optional and stays on this device.",
@@ -16,6 +17,7 @@ const COPY = {
   "timed-out": "Location is taking too long. Try again or use a manual start.",
   stopped: "Live location stopped. Manual directions remain available.",
   retained: "Location accuracy decreased. Keeping your previous better position.",
+  "outside-area": "You’re outside the YabaTech mapping area.",
 };
 
 export function createUserLocation({
@@ -30,6 +32,9 @@ export function createUserLocation({
   now = Date.now,
   setDeadline = globalThis.setTimeout,
   clearDeadline = globalThis.clearTimeout,
+  supportedArea = null,
+  getMapBearing = () => 0,
+  screenObject = globalThis.screen,
 } = {}) {
   const locateButton = element.querySelector("#locate-me");
   const recenterButton = element.querySelector("#recenter-me");
@@ -107,6 +112,15 @@ export function createUserLocation({
       render("warming-up");
       return { ...result, displayed: false, stabilization: stabilized.reason };
     }
+    if (supportedArea && !supportedArea.contains(stabilized.sample)) {
+      acceptedPosition = null;
+      lastRawAccepted = null;
+      stabilizer.reset();
+      focusedInitially = false;
+      onClear();
+      render("outside-area");
+      return { ...result, displayed: false, reason: "outside-area" };
+    }
     acceptedPosition = stabilized.sample;
     const shouldFocus = !focusedInitially && stabilized.quality !== "provisional";
     if (shouldFocus) focusedInitially = true;
@@ -119,7 +133,7 @@ export function createUserLocation({
   }
 
   function fail(nextState) {
-    if (["unsupported", "permission-denied", "unavailable", "timed-out"].includes(nextState)) {
+    if (["unsupported", "permission-denied", "unavailable", "timed-out", "outside-area"].includes(nextState)) {
       if (["unsupported", "permission-denied"].includes(nextState)) trackingRequested = false;
       lastRawAccepted = null;
       stabilizer.reset();
@@ -185,6 +199,20 @@ export function createUserLocation({
     start, stop, receive,
     getState: () => state,
     getAcceptedPosition: () => acceptedPosition,
+    getHeadingDiagnostic() {
+      const selected = currentHeading();
+      const orientation = orientationService.getDiagnostic?.() || {};
+      return headingDiagnosticSnapshot({
+        rawOrientation: orientation.rawOrientation || null,
+        deviceHeading,
+        deviceTimestamp: deviceHeadingTimestamp,
+        movementHeading: acceptedPosition?.headingDegrees,
+        selected,
+        screenAngle: screenOrientationDegrees(screenObject),
+        mapBearing: getMapBearing(),
+        now: now(),
+      });
+    },
     destroy() {
       service.stop();
       orientationService.destroy();

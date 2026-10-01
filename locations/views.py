@@ -14,7 +14,7 @@ from routing.destinations import resolve_destination
 MAP_CENTRE = {"longitude": 3.37424, "latitude": 6.51857}
 MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 MAPLIBRE_VERSION = "6.10.0"
-UI_ASSET_VERSION = "checkpoint-flex-nav-1"
+UI_ASSET_VERSION = "field-mapping-1"
 
 
 def _routing_state(destination_key):
@@ -60,6 +60,7 @@ def map_view(request):
             "route_url": "/api/routes/",
             "live_route_url": "/api/routes/from-position/",
             "contribution_url": "/api/contributions/",
+            "heading_diagnostics": settings.DEBUG,
         },
     )
 

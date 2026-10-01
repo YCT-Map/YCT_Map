@@ -14,8 +14,11 @@ urlpatterns = [
     path("places/<uuid:place_id>/", editor_views.place_detail, name="place-detail"),
     path("places/<uuid:place_id>/archive/", editor_views.place_archive, name="place-archive"),
     path("places/<uuid:place_id>/reactivate/", editor_views.place_reactivate, name="place-reactivate"),
+    path("places/<uuid:place_id>/verification/", editor_views.place_verification, name="place-verification"),
     path("places/<uuid:place_id>/entrances/new/", editor_views.entrance_create, name="entrance-create"),
     path("places/<uuid:place_id>/entrances/<uuid:entrance_id>/", editor_views.entrance_edit, name="entrance-edit"),
+    path("places/<uuid:place_id>/entrances/<uuid:entrance_id>/verification/",
+         editor_views.entrance_verification, name="entrance-verification"),
     path("places/<uuid:place_id>/entrances/<uuid:entrance_id>/routing-candidates/",
          editor_views.entrance_connection_candidates, name="entrance-connection-candidates"),
     path("places/<uuid:place_id>/entrances/<uuid:entrance_id>/routing-connection/",
@@ -38,4 +41,6 @@ urlpatterns = [
     path("surveys/<uuid:survey_id>/samples/", editor_views.survey_samples, name="survey-samples"),
     path("surveys/<uuid:survey_id>/timing/", editor_views.survey_timing, name="survey-timing"),
     path("surveys/<uuid:survey_id>/matches/<uuid:match_id>/", editor_views.survey_match_review, name="survey-match-review"),
+    path("surveys/<uuid:survey_id>/candidates/<str:candidate_id>/",
+         editor_views.survey_candidate, name="survey-candidate"),
 ]

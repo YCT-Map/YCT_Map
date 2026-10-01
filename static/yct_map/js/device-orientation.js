@@ -10,11 +10,49 @@ export function screenOrientationDegrees(screenObject = globalThis.screen) {
   return Number.isFinite(angle) ? normalizeHeading(angle) : 0;
 }
 
+export function compassHeadingFromEuler(alpha, beta = 0, gamma = 0) {
+  if (![alpha, beta, gamma].every((value) => typeof value === "number" && Number.isFinite(value))) return null;
+  const radians = (degrees) => degrees * Math.PI / 180;
+  const a = radians(alpha);
+  const b = radians(beta);
+  const g = radians(gamma);
+  const x = -Math.cos(a) * Math.sin(g) - Math.sin(a) * Math.sin(b) * Math.cos(g);
+  const y = -Math.sin(a) * Math.sin(g) + Math.cos(a) * Math.sin(b) * Math.cos(g);
+  // When the screen is essentially flat, the horizontal projection is
+  // degenerate; alpha's Earth-referenced z rotation is the stable answer.
+  if (Math.hypot(x, y) < 1e-7) return normalizeHeading(360 - Number(alpha));
+  return normalizeHeading(Math.atan2(x, y) * 180 / Math.PI);
+}
+
 export function headingFromOrientation(event, screenAngle = 0) {
-  const nativeHeading = Number(event?.webkitCompassHeading);
-  if (Number.isFinite(nativeHeading)) return normalizeHeading(nativeHeading + screenAngle);
-  if (event?.absolute !== true || !Number.isFinite(Number(event?.alpha))) return null;
-  return normalizeHeading(360 - Number(event.alpha) + screenAngle);
+  const nativeHeading = event?.webkitCompassHeading;
+  if (Number.isFinite(nativeHeading)) return normalizeHeading(nativeHeading - screenAngle);
+  if (event?.absolute !== true || !Number.isFinite(event?.alpha)) return null;
+  const beta = Number.isFinite(event?.beta) ? event.beta : 0;
+  const gamma = Number.isFinite(event?.gamma) ? event.gamma : 0;
+  const heading = compassHeadingFromEuler(event.alpha, beta, gamma);
+  return heading === null ? null : normalizeHeading(heading - screenAngle);
+}
+
+export function renderedRelativeHeading(geographicHeading, mapBearing = 0) {
+  const heading = normalizeHeading(geographicHeading);
+  return heading === null ? null : normalizeHeading(heading - (Number(mapBearing) || 0));
+}
+
+export function headingDiagnosticSnapshot({ rawOrientation = null, deviceHeading = null,
+  deviceTimestamp = null, movementHeading = null, selected = null, screenAngle = 0,
+  mapBearing = 0, now = Date.now() } = {}) {
+  return {
+    rawOrientation,
+    normalizedDeviceHeading: normalizeHeading(deviceHeading),
+    screenOrientation: normalizeHeading(screenAngle) ?? 0,
+    movementHeading: normalizeHeading(movementHeading),
+    selectedHeading: normalizeHeading(selected?.headingDegrees),
+    selectedSource: selected?.source || null,
+    headingAgeMs: Number.isFinite(deviceTimestamp) ? Math.max(0, now - deviceTimestamp) : null,
+    mapBearing: normalizeHeading(mapBearing) ?? 0,
+    renderedRelativeRotation: renderedRelativeHeading(selected?.headingDegrees, mapBearing),
+  };
 }
 
 export function shortestHeadingDelta(from, to) {
@@ -71,9 +109,20 @@ export function createDeviceOrientationService({
   let stateCallback = null;
   let listening = false;
   let enabled = false;
+  let lastRawOrientation = null;
 
   function handle(event) {
-    const raw = headingFromOrientation(event, screenOrientationDegrees(screenObject));
+    const screenAngle = screenOrientationDegrees(screenObject);
+    lastRawOrientation = {
+      alpha: Number.isFinite(event?.alpha) ? event.alpha : null,
+      beta: Number.isFinite(event?.beta) ? event.beta : null,
+      gamma: Number.isFinite(event?.gamma) ? event.gamma : null,
+      webkitCompassHeading: Number.isFinite(event?.webkitCompassHeading)
+        ? event.webkitCompassHeading : null,
+      absolute: event?.absolute === true,
+      screenAngle,
+    };
+    const raw = headingFromOrientation(event, screenAngle);
     if (raw === null) return;
     const headingDegrees = smoother.update(raw);
     callback?.({ headingDegrees, timestamp: now(), absolute: true });
@@ -126,5 +175,6 @@ export function createDeviceOrientationService({
 
   return { start, pause, resume, stop, destroy: stop,
     isSupported: Boolean(OrientationEvent && windowObject?.isSecureContext),
-    isListening: () => listening };
+    isListening: () => listening,
+    getDiagnostic: () => ({ rawOrientation: lastRawOrientation, heading: smoother.getHeading() }) };
 }

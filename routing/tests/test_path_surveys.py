@@ -310,7 +310,8 @@ class PathSurveyTests(TestCase):
         survey = PathSurvey.objects.create(owner=self.editor)
         self.client.force_login(self.editor)
         response = self.client.get(reverse("editor:survey-detail", args=(survey.id,)))
-        self.assertContains(response, "never rewrite paths or verify them automatically", status_code=200)
+        self.assertContains(response, "GPS traces never rewrite paths", status_code=200)
+        self.assertContains(response, "conservative independent evidence may verify geometry", status_code=200)
         self.assertNotIn(str(survey.id), self.client.get("/api/locations/").content.decode())
 
     def test_completed_summary_uses_persisted_classifications(self):

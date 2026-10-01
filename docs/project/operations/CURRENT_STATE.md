@@ -9,11 +9,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-09-29 |
+| **Date** | 2026-10-01 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 4 — EDITOR & MAPPING TOOLS |
-| **Pipeline Phase** | CHECKPOINT HIERARCHY + FLEXIBLE LIVE NAVIGATION IMPLEMENTED / OWNER REVIEW REQUIRED; PHASE 4 SPRINT 004 PHYSICAL OWNER ACCEPTANCE PENDING |
-| **Latest Meaningful Commit** | Campus presentation and core camera (`feat: refine campus map presentation and camera`) |
+| **Pipeline Phase** | FIELD MAPPING, HEADING, GPS CAPTURE AND PASS-AWARE PATH VERIFICATION INTEGRATION IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED |
+| **Latest Meaningful Commit** | `13fe1e6` (`fix: improve path survey review workflow`) — approved integration baseline |
 
 ---
 
@@ -28,10 +28,10 @@
 | Tech stack & architecture decisions | RESOLVED THROUGH PHASE 2 (DEC-T01–DEC-T18 accepted) |
 | Campus production dataset | INITIAL OWNER-CONFIRMED DATA: New Building and Sports Complex; all retained records remain UNVERIFIED |
 | Demo/development dataset | Live working DEMO Locations removed; DEMO fixtures retained only for automated tests |
-| Field verification | NOT STARTED |
+| Field verification | EXPLICIT LOCAL WORKFLOW IMPLEMENTED; NO PRODUCTION VERIFICATION STATE CHANGED |
 | Routing dataset | 47 OSM-derived nodes plus 2 manual nodes; 54 OSM-derived segments; 2 active entrance anchors; all UNVERIFIED |
 | Deployment | PRODUCTION CONFIGURATION PREPARED; NO DEPLOYMENT PERFORMED |
-| Test suite | 178 DJANGO + 115 JAVASCRIPT TESTS PASSING |
+| Test suite | 201 DJANGO + 122 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -146,6 +146,16 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ## Active Work
 
+The Field Mapping, Heading, GPS Capture and Evidence-Based Path Verification integration is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED. It starts from the clean, pushed `13fe1e6` survey-review baseline. No baseline work was reconstructed or reverted.
+
+The public live marker is now a compact layered directional arrowhead. Tilt-aware absolute device orientation is corrected for screen orientation, geographic heading remains independent from map bearing, movement heading remains the fallback, and a dot is used when no direction is trustworthy. Development-only `?headingDebug=1` diagnostics expose the pipeline without adding normal-user UI.
+
+Live location and editor current-location capture share a campus-geometry-derived supported area: the existing boundary bounds plus approximately 400 m of gate/context margin. Far-away fixes fail closed and neither render nor move the public map. Place and Entrance editors now share a user-triggered five-second stabilized capture; it updates hidden coordinates only after a successful final fix, remains manually adjustable and never saves automatically.
+
+Existing database-backed Location and Entrance verification fields now have explicit permission-gated grant/revoke actions. Publication, checkpoint status, routing availability and the two verification states remain independent. Coordinate edits demote the affected record to `UNVERIFIED`.
+
+Completed surveys now support pure pass-aware analysis. A conservative strong pass may automatically promote pre-existing UNVERIFIED segment geometry, while never auto-revoking a verified segment. Candidate unmapped paths are derived from immutable evidence, rendered only in editor review, and require an explicit preview and confirmation before transactional graph creation. One candidate pass creates UNVERIFIED geometry; two genuinely separate matching passes may support FIELD_VERIFIED creation. The current whole-campus backup was evaluated only in a disposable SQLite dry run and remained unchanged.
+
 Phase 4 Sprints 001, 002 and 003 are OWNER ACCEPTED / COMPLETE. Sprint 002 now includes multiple entrances, floors and internal places, explicit entrance anchoring, editor-approved arrival-connector geometry, exact physical-entrance route completion and textual indoor handoff without claiming indoor routing.
 
 Phase 4 Sprint 004 is IMPLEMENTATION COMPLETE / TECHNICAL AUDIT COMPLETE / PHYSICAL OWNER ACCEPTANCE PENDING. It adds explicit mobile Path Survey sessions, private accuracy-classified samples with temporary IndexedDB buffering, revision-bound trace matching, separate reviewer disposition, append-only verification history and permission-gated grant/revoke actions. No survey automatically edits the graph or grants `FIELD_VERIFIED`.
@@ -170,13 +180,13 @@ The orientation-only campus outline now becomes thinner and more transparent tow
 
 ## Known Blockers
 
-Physical Samsung/mobile Path Survey acceptance still requires final real-device and real-campus review over an approved HTTPS origin. No segment has been field verified by this software build; the existing OSM-derived graph remains `UNVERIFIED`. Parallel/closely adjacent path matching remains heuristic, browser geolocation cannot guarantee room-level positioning, segment-aware entrance attachment remains future work, and detailed contribution-resolution owner QA remains intentionally deferred.
+Owner review must still verify the arrow against physical N/E/S/W phone headings, the five-second Place/Entrance capture on campus, supported-area rejection, independent Place/Entrance verification controls and the pass/candidate review UI. The dry run identified only three existing segments that satisfy the conservative automatic threshold and eleven one-pass candidate corridors; it performed no writes. Parallel/closely adjacent path attribution remains deliberately conservative, browser geolocation cannot guarantee doorway-level positioning, and detailed contribution-resolution owner QA remains intentionally deferred.
 
 ---
 
 ## Next Approved Task
 
-Owner-test the checkpoint hierarchy and flexible progressive live navigation locally, including the exact Samsung/Edge field checklist supplied with this build. No current Location is a checkpoint until the owner deliberately selects the editor checkbox and applies the pending local migration. Phase 4 Sprint 004 physical-device acceptance remains pending. Detailed ContributionResolution QA is deferred but is not represented as completed.
+Owner-test the local field-mapping integration: physical heading, supported-area behavior, five-second Place/Entrance capture, independent verification actions, completed-survey candidate overlays, the confirmation-only filter and graph-change preview. Do not apply candidate graph changes to production during this review.
 
 ---
 

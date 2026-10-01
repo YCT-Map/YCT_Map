@@ -9,6 +9,8 @@ from .geometry import distance_metres
 from .matching import project_onto_segment
 from .models import (PathSurvey, PathSurveySample, SegmentVerificationRecord,
                      SurveySegmentMatch, VerificationState, WalkableSegment)
+from .survey_analysis import (analyse_existing_segments, discover_candidate_paths,
+                              evidence_points)
 
 GOOD_ACCURACY_METRES = 25
 MAX_MATCH_ACCURACY_METRES = 50
@@ -158,25 +160,49 @@ def _longest_nearby_run(trace, projections):
 def analyse_survey(survey):
     SurveySegmentMatch.objects.filter(survey=survey).delete()
     samples = list(survey.samples.exclude(classification=PathSurveySample.Classification.REJECTED))
-    if len(samples) < 2: return []
-    trace = [(float(x.longitude), float(x.latitude)) for x in samples]
+    if len(samples) < 2:
+        return []
+    points = evidence_points(samples)
+    segments = list(WalkableSegment.objects.filter(is_active=True).select_related("start_node", "end_node"))
     results = []
-    for segment in WalkableSegment.objects.filter(is_active=True).select_related("start_node", "end_node"):
-        projections = [project_onto_segment(point, segment) for point in trace]
-        nearby = [match for match in projections if match.distance_metres <= MATCH_DISTANCE_METRES]
-        if len(nearby) < 2: continue
-        support = _longest_nearby_run(trace, projections)
-        coverage = _coverage(segment, [point for point, _ in support])
-        mean = sum(x.distance_metres for x in nearby) / len(nearby)
-        if mean > 12: classification = SurveySegmentMatch.Classification.DISCREPANCY
-        elif coverage >= 80 and len(nearby) / len(trace) >= .7: classification = SurveySegmentMatch.Classification.STRONG
-        elif coverage >= 20: classification = SurveySegmentMatch.Classification.PARTIAL
-        else: classification = SurveySegmentMatch.Classification.AMBIGUOUS
-        results.append(SurveySegmentMatch.objects.create(survey=survey, segment=segment,
+    for assessment in analyse_existing_segments(points, segments):
+        segment, best = assessment["segment"], assessment["best"]
+        if best is None:
+            continue
+        classification = getattr(SurveySegmentMatch.Classification, assessment["classification"])
+        match = SurveySegmentMatch.objects.create(survey=survey, segment=segment,
             segment_revision=segment.geometry_revision, segment_fingerprint=segment.geometry_fingerprint,
-            classification=classification, coverage_percent=Decimal(str(round(coverage, 2))),
-            mean_distance_metres=Decimal(str(round(mean, 2)))))
+            classification=classification,
+            coverage_percent=Decimal(str(round(best.coverage_percent, 2))),
+            mean_distance_metres=Decimal(str(round(best.mean_offset_metres, 2))))
+        results.append(match)
+        existed_before_evidence = segment.created_at <= points[0].captured_at
+        if (assessment["auto_verify"] and existed_before_evidence
+                and segment.verification_state == VerificationState.UNVERIFIED):
+            segment.verification_state = VerificationState.FIELD_VERIFIED
+            segment.save(update_fields=("verification_state", "updated_at"))
+            SegmentVerificationRecord.objects.create(
+                segment=segment, survey_match=match,
+                action=SegmentVerificationRecord.Action.GRANTED,
+                geometry_revision=segment.geometry_revision,
+                geometry_fingerprint=segment.geometry_fingerprint,
+                actor=None,
+                reason=("Automatic grant: an independent, contiguous high-quality field pass "
+                        "met the conservative existing-geometry thresholds."),
+            )
     return results
+
+
+def analyse_survey_dry_run(survey):
+    """Derive current evidence interpretation without writing any database state."""
+    samples = list(survey.samples.exclude(
+        classification=PathSurveySample.Classification.REJECTED).order_by("sequence"))
+    points = evidence_points(samples)
+    segments = list(WalkableSegment.objects.filter(is_active=True).select_related("start_node", "end_node"))
+    return {
+        "existing": analyse_existing_segments(points, segments) if len(points) >= 2 else [],
+        "candidates": discover_candidate_paths(points, segments) if len(points) >= 2 else [],
+    }
 
 
 @transaction.atomic

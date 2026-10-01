@@ -131,8 +131,14 @@ button, input, select, textarea { font: inherit; }
 .survey-review-legend span { display:inline-flex; align-items:center; gap:.35rem; }
 .survey-key { width:1.65rem; height:.3rem; border-radius:1rem; background:#8b9690; }
 .survey-key--trace { background:#1769e0; }
-.survey-key--match { background:#17663c; }
+.survey-key--match,.survey-key--verified { background:#17663c; }
+.survey-key--confirmation { background:#c47a12; }
+.survey-key--candidate { background:#7656b5; background-image:linear-gradient(90deg,#7656b5 60%,transparent 60%); background-size:.55rem 100%; }
 .survey-key--discrepancy { background:#b43b2d; }
+.survey-review-filters { display:flex; flex-wrap:wrap; gap:.55rem; margin:.8rem 0; }
+.survey-candidate-focus,.survey-task { margin-top:.8rem; padding:.85rem; border:1px solid var(--line); border-left:4px solid #7656b5; border-radius:.7rem; background:#faf8ff; }
+.survey-candidate-focus h3,.survey-task h3 { margin-top:0; }
+.survey-task--existing { border-left-color:#c47a12; background:#fffaf0; }
 .survey-match-heading { display:flex; justify-content:space-between; align-items:start; gap:.75rem; }
 .survey-match-heading h3 { margin-top:0; }
 .survey-review-badge { flex:0 0 auto; padding:.3rem .55rem; border-radius:99px; font-size:.75rem; font-weight:800; }

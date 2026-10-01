@@ -409,12 +409,12 @@ Phase 4 builds the tools the team will use during the real campus population pha
 - Parent building relationships
 - Floor information
 - Map-based location selection (click/tap to set coordinates)
-- Current-location selection where useful
-- Combined current-location capture for a place and its initial primary entrance, with accuracy display and manual correction
+- Shared five-second stabilized current-location selection for Places and Entrances, with manual correction
+- Combined current-location capture for a place and its initial primary entrance, with explicit overwrite confirmation
 - Missing-location representation
 - Irregular building geometry support where needed (polygon points, not assumed rectangular)
 - Walkable path add / edit / delete
-- Editor-only Path Survey Mode foundation: GPS breadcrumb capture, map matching, confidence handling and explicit review; one raw trace must never create `FIELD_VERIFIED` status
+- Editor-only Path Survey Mode: immutable GPS evidence, pass-aware matching, candidate missing-path review and explicit graph preview; one traversal must never verify geometry created from that same traversal
 - Contribution review queue:
   - Approve
   - Edit and approve

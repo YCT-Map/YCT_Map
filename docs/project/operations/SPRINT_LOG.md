@@ -792,3 +792,24 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Removed the application-specific Follow Direction / North Up camera state and controls while retaining device-orientation acquisition, heading priority and map-aligned blue chevron rotation. Map gestures remain free and Recenter performs one bearing-preserving move without enabling a lock; MapLibre's ordinary compass is available.
 - Added pure Haversine-consistent route slicing. Live routes retain full authoritative geometry for tracking, off-route, ETA and arrival while showing a subdued completed section and strong remaining section from trusted progress only. Manual routes remain complete; reroute success resets the visual split and failure preserves the prior route.
 - Added checkpoint/editor/API, route-slicing, trustworthy-progress, camera and regression coverage. Verification passes with 178 Django tests and 115 JavaScript tests plus clean system, migration-drift, syntax, compilation and whitespace gates. Physical Samsung/Edge and checkpoint visual acceptance remain pending.
+
+---
+
+## Field Mapping, Heading, GPS Capture & Evidence-Based Path Verification Integration
+
+**Status:** IMPLEMENTED LOCALLY — OWNER REVIEW REQUIRED
+
+**Date:** 2026-10-01
+
+**Baseline:** `13fe1e6 fix: improve path survey review workflow`
+
+- Preserved the clean approved survey-review baseline; no previous UX fix was reconstructed, reset or reverted.
+- Replaced the ambiguous chevron presentation with a compact layered, map-aligned triangular arrowhead. Added tilt-aware absolute orientation, screen correction, device/movement/stale priority and development-only heading diagnostics while keeping camera control independent.
+- Derived one supported YCT location area from the existing campus boundary plus the established approximately 400 m context. Public and editor current-location flows reject far-away fixes without plotting or moving the map.
+- Added a shared user-triggered five-second stabilized capture for Place and Entrance points. It cleans up watchers, writes coordinates only after success, remains manually adjustable and never auto-saves.
+- Reused the existing database-backed Place and Entrance verification states. Explicit grant/revoke actions use existing verification permissions and remain independent from publication, checkpoint prominence, routing readiness and each other.
+- Added pure chronological pass detection, conservative one-way automatic verification for pre-existing segments, non-destructive candidate missing-path discovery, a certainty-colored review map and a confirmation-only worklist.
+- Added an explicit candidate graph preview/apply path using existing node reuse and transactional split services. One pass creates UNVERIFIED geometry; two separate matching passes may support FIELD_VERIFIED creation. No candidate is applied automatically.
+- Re-ran survey `5fd2290e-e81b-45f2-a421-3ca770d1c901` from the validated external backup in a disposable SQLite database. The final dry run found 3 strong existing segments, 41 observed-but-uncertain segments, 10 unobserved segments, 0 high-confidence discrepancies and 11 single-pass candidate corridors. Before/after survey, match, graph and verification counts were identical; status remained COMPLETED.
+- Full verification passes with 201 Django and 122 JavaScript tests. System, migration-drift, Python compilation, JavaScript syntax and whitespace gates are clean.
+- No migration, Neon/production write, graph mutation, production verification grant, survey status change, commit, push or deployment is included.

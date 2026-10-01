@@ -28,7 +28,9 @@
       {% if form.latitude.errors or form.longitude.errors %}<p>Choose an entrance point on the map before saving.</p>{% endif %}
     </div>
     <div class="editor-map-heading"><strong>Entrance point</strong><span>Required</span></div>
+    <button id="capture-entrance-location" type="button">Use current location</button>
     <div id="entrance-map" class="editor-map-picker" data-state="loading"
+         data-campus-boundary-url="{% static 'yct_map/data/yabatech-campus-boundary.geojson' %}"
          data-latitude="{{ entrance.latitude|default:'' }}" data-longitude="{{ entrance.longitude|default:'' }}"
          aria-label="Choose entrance point and inspect its walkable-network connection"></div>
     <p id="entrance-map-status" role="status" aria-live="polite">Loading entrance map…</p>
@@ -36,6 +38,19 @@
   </section>
   <button class="editor-primary" type="submit">Save entrance</button>
 </form>
+
+{% if entrance.pk %}
+<section class="editor-card editor-verification-card">
+  <p class="editor-eyebrow">Verification</p>
+  <h2>Entrance: {{ entrance.get_verification_state_display }}</h2>
+  <p>This status is independent from the parent place, publication and routing connection.</p>
+  {% if can_grant_entrance_verification and entrance.verification_state != 'FIELD_VERIFIED' %}
+    <form method="post" action="{% url 'editor:entrance-verification' place.id entrance.id %}">{% csrf_token %}<input type="hidden" name="action" value="grant"><label>Reason<textarea name="reason" required></textarea></label><button class="editor-primary" type="submit">Mark entrance as field verified</button></form>
+  {% elif can_revoke_entrance_verification and entrance.verification_state == 'FIELD_VERIFIED' %}
+    <form method="post" action="{% url 'editor:entrance-verification' place.id entrance.id %}">{% csrf_token %}<input type="hidden" name="action" value="revoke"><label>Reason<textarea name="reason" required></textarea></label><button type="submit">Revoke entrance field verification</button></form>
+  {% endif %}
+</section>
+{% endif %}
 
 <section id="entrance-routing-connection" class="editor-card entrance-routing-card"
   {% if entrance.pk %}
@@ -117,4 +132,4 @@
   {% endif %}
 </section>
 {% endblock %}
-{% block scripts %}<script type="module" src="{% static 'yct_map/js/editor-entrance-map.js' %}?v=p4s2-arrival-connector-1"></script>{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'yct_map/js/editor-entrance-map.js' %}?v=field-mapping-1"></script>{% endblock %}
