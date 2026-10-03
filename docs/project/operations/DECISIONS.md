@@ -407,6 +407,21 @@ Status:      ACCEPTED
 Decision:    The primary local development routing network is imported from a reviewed OSM/Overpass snapshot into YCT Map-owned WalkableNode and WalkableSegment records with preserved provenance and UNVERIFIED status. The original synthetic topology is retained only for deterministic tests.
 Context:     The synthetic five-segment graph proved graph construction and A* correctly but produced geographically unrealistic routes during product review.
 Reason:      A geographically plausible development graph permits meaningful UX review without claiming field verification or coupling route execution to rendered base-map tiles.
-Consequences: Imported geometry remains editable, is never automatically FIELD_VERIFIED, and is not written back to OSM. Route quality still depends on later entrance review, access review and physical survey. Algorithm tests continue to use the small synthetic fixture for deterministic edge cases.
+Consequences: Imported geometry remains editable, is never treated as FIELD_VERIFIED merely because it came from OSM, and is not written back to OSM. Route quality still depends on later entrance review, access review and physical survey. Algorithm tests continue to use the small synthetic fixture for deterministic edge cases. DEC-T19 later defines the only conservative evidence-based automatic promotion path.
 Alternatives considered: Keep synthetic geometry as the primary visual dataset (rejected as unsuitable for continued review), route directly against rendered tiles (rejected because tiles are presentation rather than owned graph data), mark imported OSM data FIELD_VERIFIED (rejected because no field survey occurred).
+```
+
+---
+
+## DEC-T19
+
+```
+ID:          DEC-T19
+Date:        2026-10-02
+Status:      ACCEPTED
+Decision:    Finalized Path Survey evidence is evaluated as independent chronological passes across COMPLETED and REVIEWED surveys. On an explicit future survey-completion action, the conservative evaluator may promote an active WalkableSegment from UNVERIFIED to FIELD_VERIFIED only when at least two independent, contiguous, high-quality passes satisfy strict accuracy, offset, coverage, direction and ambiguity rules. Promotion is one-way; later conflicting evidence is flagged for human review and never automatically revokes FIELD_VERIFIED.
+Context:     Treating every survey in isolation prevented repeated trustworthy field walks from resolving Needs Confirmation, while callback density or a single discovery trace must never manufacture confidence.
+Reason:      Cumulative pass-level evidence reflects repeated physical observation without concatenating unrelated samples, trusting a single traversal, or weakening editor control over new graph geometry.
+Consequences: Rejected samples and unfinished/abandoned surveys do not contribute. Human REJECTED or DISCREPANCY_CONFIRMED dispositions constrain automatic evaluation. Candidate geometry still requires explicit authorized confirmation and transactional creation; one discovery pass creates UNVERIFIED geometry, and separate strict evidence is required for verification. Locations and Entrances remain explicitly verified by authorized people, and no GET, deployment, startup or background process changes verification state.
+Alternatives considered: Require manual path verification despite sufficient repeated evidence (rejected — leaves confirmation work stale), concatenate all historical samples into one trace (rejected — invents a traversal), allow automatic revocation (rejected — destructive and unsafe), apply the rule to Places or Entrances (rejected — outside the approved evidence model).
 ```

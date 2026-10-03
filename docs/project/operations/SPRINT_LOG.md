@@ -813,3 +813,47 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Re-ran survey `5fd2290e-e81b-45f2-a421-3ca770d1c901` from the validated external backup in a disposable SQLite database. The final dry run found 3 strong existing segments, 41 observed-but-uncertain segments, 10 unobserved segments, 0 high-confidence discrepancies and 11 single-pass candidate corridors. Before/after survey, match, graph and verification counts were identical; status remained COMPLETED.
 - Full verification passes with 201 Django and 122 JavaScript tests. System, migration-drift, Python compilation, JavaScript syntax and whitespace gates are clean.
 - No migration, Neon/production write, graph mutation, production verification grant, survey status change, commit, push or deployment is included.
+
+---
+
+## Final Project Closeout Sweep
+
+**Status:** IMPLEMENTED LOCALLY — OWNER REVIEW REQUIRED
+
+**Date:** 2026-10-02
+
+**Baseline:** `9ce9a78 feat: integrate field mapping and survey verification`
+
+- Corrected the live-arrow screen-orientation regression. The device-frame compass result now adds screen orientation once; the intrinsic three-layer `▲` remains north-up at zero, and MapLibre alone handles map-relative rotation. Added sustained device-versus-movement opposition diagnostics for development use.
+- Reproduced the production Entrance failure precisely: a UUID-backed unsaved Entrance already had a primary key, so an invalid create response was incorrectly rendered as an existing object and exposed action URLs that could only return 404. Explicit create/edit context now prevents phantom links; canonical form actions and stable named GET redirects preserve POST/Redirect/GET behavior, while invalid forms remain bound for correction.
+- Added safe stale-CSRF recovery so rejected editor actions point to an existing GET page and public contribution failures return to the public map rather than an editor action/login path.
+- Applied one consistent editor visual language to Place, Entrance, Path, Survey Review and candidate pages: grouped cards, compact textual status chips, responsive action rows, deferred reason inputs, visible focus, touch-sized controls and human-readable primary labels.
+- Tightened verification-action visibility to the user's actual edit plus grant/revoke permissions. Place and Entrance verification remain independent and POST-only.
+- Improved the survey summary, candidate/confirmation worklist and existing-segment cards without changing evidence classification, graph mutation or verification semantics. Confirmed candidates no longer leave a false confirmation task.
+- Added HTTP integration coverage proving candidate GET/unconfirmed POST are read-only, permission and CSRF gates remain enforced, each request recomputes current analysis and explicit confirmed creation redirects to a valid segment editor.
+- Added a manual-shortcut routing regression proving A* naturally selects an active connected shorter segment, ignores disconnected geometry, derives distance/ETA from selected geometry and returns to the connected detour when the shortcut is inactive.
+- Unified changed CSS, entry scripts and ES-module imports under `final-closeout-1` to prevent stale Samsung/Edge assets. WhiteNoise manifest behavior is unchanged.
+- Verification passes with 216 Django and 126 JavaScript tests. Focused orientation/editor/survey/routing tests, Django system check, migration drift, Python compilation, JavaScript syntax and Git whitespace checks are part of the final gate.
+- No migration, application-data mutation, Neon/Render action, graph mutation, verification change, survey status change, commit, push or deployment is included. Per-match review-only decisions still lack reviewer actor/timestamp fields; correcting that separate audit limitation requires an owner-approved migration.
+
+---
+
+## Final Web Closeout, Survey Intelligence & Location Quality Sweep
+
+**Status:** IMPLEMENTED LOCALLY — OWNER REVIEW REQUIRED
+
+**Date:** 2026-10-03
+
+**Baseline:** `9ce9a78 feat: integrate field mapping and survey verification`, with the preceding valid Ultra closeout work preserved
+
+- Added additive routing migration `0010_surveysegmentmatch_review_audit`: nullable reviewer and review-time metadata for each `SurveySegmentMatch`, with no data backfill. New review-only changes persist disposition, reason, latest actor and latest time atomically; legacy rows remain honestly unaudited.
+- Reworked finalized survey analysis around independent chronological passes across `COMPLETED` and `REVIEWED` surveys. Rejected evidence and unfinished/abandoned surveys do not contribute, callback density does not create passes, and traces are never concatenated into a fictitious walk.
+- Added conservative cumulative one-way path promotion. At least two high-quality passes must provide contiguous cumulative coverage, strict offset/accuracy/direction metrics and no ambiguity or human-review block. Later conflict creates a review item and never auto-revokes `FIELD_VERIFIED`.
+- Kept candidate discovery separate from graph mutation: explicit permission-gated POST, current-analysis recomputation, evidence-bound confirmation token, transactional locks/splits and duplicate protection. A discovery pass cannot self-verify new geometry, pre-creation-only support remains in Needs Confirmation, and accuracy-plausible parallel corridors stay separate.
+- Made Survey Review counts scope-specific, removed verified/sufficient/unobserved paths from Needs Confirmation, surfaced verified conflicts separately and made nearest-landmark copy distance-aware.
+- Replaced fixed public/editor position settling with a bounded robust estimator: capped accuracy influence, recency weighting, outlier filtering, uncertainty-aware stationary/slow/walking hysteresis, conservative impossible-jump rejection and age-limited better-fix retention. Initial Locate Me and Place/Entrance capture use an adaptive six-to-ten-second window; established live tracking remains continuous.
+- Preserved raw Path Survey evidence, visible unsnapped user position, supported-YCT bounds, heading source priority, routing weights, progressive navigation, and manual map adjustment/no-auto-save behavior.
+- Completed least-privilege PRG and stale-CSRF recovery across existing editor mutations. Recovery links now target stable GET pages the current user may access rather than forbidden dashboards or stale action URLs.
+- Applied migration `0010` only to the local SQLite database after an external temporary backup. All 11 existing match rows retained null reviewer/time metadata. Dry runs across the three finalized surveys present in this SQLite copy left survey status, segment state, match count and verification history unchanged; the previously referenced historical survey UUID is not present in this copy.
+- Final verification passes with **237 Django tests** and **133 JavaScript tests**, plus system check, migration drift, Python compilation, JavaScript syntax, Git whitespace and HTTP smoke gates. Static assets use one `final-web-closeout-1` version token, including shared editor selector imports.
+- No Neon write, production migration, production graph/verification/survey change, Render action, native/mobile project, commit, push or deployment is included.

@@ -1,8 +1,10 @@
-import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=field-mapping-1";
-import { createGeolocationService } from "./geolocation.js?v=field-mapping-1";
+import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=final-web-closeout-1";
+import { createGeolocationService } from "./geolocation.js?v=final-web-closeout-1";
 import { createDeviceOrientationService, DEVICE_HEADING_STALE_MS,
-  headingDiagnosticSnapshot, screenOrientationDegrees,
-  selectDisplayedHeading } from "./device-orientation.js?v=field-mapping-1";
+  createHeadingOppositionDiagnostic, headingDiagnosticSnapshot, screenOrientationDegrees,
+  selectDisplayedHeading } from "./device-orientation.js?v=final-web-closeout-1";
+
+export const INITIAL_LOCATION_ACQUISITION_MAX_MS = 10_000;
 
 const COPY = {
   idle: "Location is optional and stays on this device.",
@@ -16,7 +18,7 @@ const COPY = {
   unavailable: "Your location is temporarily unavailable. Try again or use a manual start.",
   "timed-out": "Location is taking too long. Try again or use a manual start.",
   stopped: "Live location stopped. Manual directions remain available.",
-  retained: "Location accuracy decreased. Keeping your previous better position.",
+  retained: "Location quality reduced · retaining the last reliable position.",
   "outside-area": "You’re outside the YabaTech mapping area.",
 };
 
@@ -45,12 +47,14 @@ export function createUserLocation({
   let state = service.isSupported ? "idle" : "unsupported";
   let acceptedPosition = null;
   let lastRawAccepted = null;
-  const stabilizer = createLocationStabilizer();
+  const stabilizer = createLocationStabilizer({ warmupMinimumSpanMs: 3_000 });
   let trackingRequested = false;
   let focusedInitially = false;
   let deviceHeading = null;
   let deviceHeadingTimestamp = null;
   let deviceHeadingExpiry = null;
+  let acquisitionDeadline = null;
+  const headingOpposition = createHeadingOppositionDiagnostic();
 
   function currentHeading() {
     return selectDisplayedHeading({ deviceHeading, deviceTimestamp: deviceHeadingTimestamp,
@@ -92,11 +96,51 @@ export function createUserLocation({
     accuracy.hidden = !acceptedPosition;
     if (acceptedPosition) {
       const confidence = acceptedPosition.locationConfidence;
-      const quality = confidence === "unstable" ? "Position unstable" : confidence === "approximate"
-        ? "Approximate location" : `Location quality: ${locationQualityLabel(acceptedPosition.accuracyMetres)}`;
-      accuracy.textContent = `${quality} · estimated device uncertainty ~${Math.round(acceptedPosition.deviceAccuracyMetres ?? acceptedPosition.accuracyMetres)} m`;
+      const quality = `Location quality: ${locationQualityLabel(acceptedPosition.accuracyMetres)}`;
+      const confidenceCopy = confidence === "unstable" ? " · position unstable" : "";
+      accuracy.textContent = `${quality}${confidenceCopy} · estimated uncertainty ~${Math.round(acceptedPosition.deviceAccuracyMetres ?? acceptedPosition.accuracyMetres)} m`;
     }
     publishHeading();
+  }
+
+  function clearAcquisitionDeadline() {
+    if (acquisitionDeadline !== null) clearDeadline(acquisitionDeadline);
+    acquisitionDeadline = null;
+  }
+
+  function publishStabilized(stabilized) {
+    if (!stabilized?.ready || !stabilized.sample) return false;
+    if (supportedArea && !supportedArea.contains(stabilized.sample)) {
+      clearAcquisitionDeadline();
+      acceptedPosition = null;
+      lastRawAccepted = null;
+      stabilizer.reset();
+      focusedInitially = false;
+      onClear();
+      render("outside-area");
+      return false;
+    }
+    if (stabilized.reason === "keep-better-position") {
+      acceptedPosition = stabilized.sample;
+      render("retained");
+      return false;
+    }
+    clearAcquisitionDeadline();
+    acceptedPosition = stabilized.sample;
+    headingOpposition.update({
+      deviceHeading,
+      movementHeading: acceptedPosition.headingDegrees,
+      speedMetresPerSecond: acceptedPosition.speedMetresPerSecond,
+    });
+    const shouldFocus = !focusedInitially && stabilized.quality !== "provisional";
+    if (shouldFocus) focusedInitially = true;
+    const displayed = currentHeading();
+    onPosition({ ...acceptedPosition, displayedHeadingDegrees: displayed.headingDegrees,
+      displayedHeadingSource: displayed.source },
+    { focus: shouldFocus, quality: stabilized.quality, stabilized: !stabilized.moved,
+      motionState: stabilized.motionState });
+    render(stabilized.quality === "reasonable" ? "active" : "low-accuracy");
+    return true;
   }
 
   function receive(rawPosition) {
@@ -112,31 +156,25 @@ export function createUserLocation({
       render("warming-up");
       return { ...result, displayed: false, stabilization: stabilized.reason };
     }
-    if (supportedArea && !supportedArea.contains(stabilized.sample)) {
-      acceptedPosition = null;
-      lastRawAccepted = null;
-      stabilizer.reset();
-      focusedInitially = false;
-      onClear();
-      render("outside-area");
-      return { ...result, displayed: false, reason: "outside-area" };
-    }
-    acceptedPosition = stabilized.sample;
-    const shouldFocus = !focusedInitially && stabilized.quality !== "provisional";
-    if (shouldFocus) focusedInitially = true;
-    const displayed = currentHeading();
-    onPosition({ ...acceptedPosition, displayedHeadingDegrees: displayed.headingDegrees,
-      displayedHeadingSource: displayed.source },
-    { focus: shouldFocus, quality: stabilized.quality, stabilized: !stabilized.moved });
-    render(stabilized.quality === "reasonable" ? "active" : "low-accuracy");
-    return { ...result, displayed: true, stabilization: stabilized.reason, sample: acceptedPosition };
+    const displayed = publishStabilized(stabilized);
+    return { ...result, displayed, stabilization: stabilized.reason,
+      sample: displayed ? acceptedPosition : stabilized.sample };
+  }
+
+  function finishInitialAcquisition() {
+    acquisitionDeadline = null;
+    if (acceptedPosition || !trackingRequested) return;
+    const stabilized = stabilizer.finalize();
+    if (!publishStabilized(stabilized) && state !== "outside-area") render("timed-out");
   }
 
   function fail(nextState) {
     if (["unsupported", "permission-denied", "unavailable", "timed-out", "outside-area"].includes(nextState)) {
+      clearAcquisitionDeadline();
       if (["unsupported", "permission-denied"].includes(nextState)) trackingRequested = false;
       lastRawAccepted = null;
       stabilizer.reset();
+      headingOpposition.reset();
       focusedInitially = false;
       if (acceptedPosition) {
         acceptedPosition = null;
@@ -156,6 +194,8 @@ export function createUserLocation({
     // may display their orientation prompt. Failure never blocks GPS startup.
     void orientationService.start(receiveOrientation, () => publishHeading());
     render("requesting-permission");
+    clearAcquisitionDeadline();
+    acquisitionDeadline = setDeadline(finishInitialAcquisition, INITIAL_LOCATION_ACQUISITION_MAX_MS);
     return service.start(
       (position) => { if (!acceptedPosition) render("locating"); receive(position); },
       fail,
@@ -167,6 +207,7 @@ export function createUserLocation({
     service.stop();
     orientationService.stop();
     if (deviceHeadingExpiry !== null) clearDeadline(deviceHeadingExpiry);
+    clearAcquisitionDeadline();
     deviceHeadingExpiry = null;
     deviceHeading = null;
     deviceHeadingTimestamp = null;
@@ -174,6 +215,7 @@ export function createUserLocation({
     lastRawAccepted = null;
     focusedInitially = false;
     stabilizer.reset();
+    headingOpposition.reset();
     onClear();
     render("stopped");
   }
@@ -202,21 +244,25 @@ export function createUserLocation({
     getHeadingDiagnostic() {
       const selected = currentHeading();
       const orientation = orientationService.getDiagnostic?.() || {};
-      return headingDiagnosticSnapshot({
-        rawOrientation: orientation.rawOrientation || null,
-        deviceHeading,
-        deviceTimestamp: deviceHeadingTimestamp,
-        movementHeading: acceptedPosition?.headingDegrees,
-        selected,
-        screenAngle: screenOrientationDegrees(screenObject),
-        mapBearing: getMapBearing(),
-        now: now(),
-      });
+      return {
+        ...headingDiagnosticSnapshot({
+          rawOrientation: orientation.rawOrientation || null,
+          deviceHeading,
+          deviceTimestamp: deviceHeadingTimestamp,
+          movementHeading: acceptedPosition?.headingDegrees,
+          selected,
+          screenAngle: screenOrientationDegrees(screenObject),
+          mapBearing: getMapBearing(),
+          now: now(),
+        }),
+        ...headingOpposition.getState(),
+      };
     },
     destroy() {
       service.stop();
       orientationService.destroy();
       if (deviceHeadingExpiry !== null) clearDeadline(deviceHeadingExpiry);
+      clearAcquisitionDeadline();
       documentObject?.removeEventListener?.("visibilitychange", visibilityChanged);
     },
   };

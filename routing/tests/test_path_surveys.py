@@ -15,7 +15,7 @@ from routing.editor_forms import WalkableNodeForm
 from routing.models import (PathSurvey, PathSurveySample, SegmentVerificationRecord,
                             SurveySegmentMatch, VerificationState, WalkableNode, WalkableSegment)
 from routing.survey_services import (_coverage, _longest_nearby_run,
-                                     decide_verification, store_samples,
+                                     decide_verification, record_match_review, store_samples,
                                      transition_survey)
 
 
@@ -212,6 +212,24 @@ class PathSurveyTests(TestCase):
         match.refresh_from_db()
         self.assertEqual(match.disposition, SurveySegmentMatch.Disposition.PENDING)
 
+    def test_review_controls_match_the_reviewers_actual_verification_permissions(self):
+        survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.COMPLETED)
+        SurveySegmentMatch.objects.create(
+            survey=survey, segment=self.segment, segment_revision=1,
+            segment_fingerprint=self.segment.geometry_fingerprint,
+            classification=SurveySegmentMatch.Classification.DISCREPANCY,
+            coverage_percent=20, mean_distance_metres=14,
+        )
+        review_only = get_user_model().objects.create_user("review-only", password="test-password-42")
+        review_only.user_permissions.add(*Permission.objects.filter(codename__in=(
+            "conduct_path_survey", "review_path_survey",
+        )))
+        self.client.force_login(review_only)
+        response = self.client.get(reverse("editor:survey-detail", args=(survey.id,)))
+        self.assertContains(response, "Record review only")
+        self.assertNotContains(response, "Grant FIELD_VERIFIED")
+        self.assertNotContains(response, "Revoke verification")
+
     def test_record_review_only_persists_reason_and_has_visible_feedback(self):
         survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.COMPLETED)
         match = SurveySegmentMatch.objects.create(survey=survey, segment=self.segment,
@@ -227,9 +245,98 @@ class PathSurveyTests(TestCase):
         match.refresh_from_db()
         self.assertEqual(match.disposition, SurveySegmentMatch.Disposition.USEFUL_PARTIAL)
         self.assertEqual(match.reviewer_note, "Useful evidence; another pass is still required.")
+        self.assertEqual(match.reviewed_by, self.reviewer)
+        self.assertIsNotNone(match.reviewed_at)
         self.assertContains(response, "Review recorded")
         self.assertContains(response, "Useful evidence; another pass is still required.")
+        self.assertContains(response, "Reviewed by reviewer")
         self.assertEqual(response.context["match_summary"]["reviewed"], 1)
+
+    def test_review_only_account_redirects_to_a_permitted_stable_survey_page(self):
+        survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.COMPLETED)
+        match = SurveySegmentMatch.objects.create(
+            survey=survey, segment=self.segment, segment_revision=1,
+            segment_fingerprint=self.segment.geometry_fingerprint,
+            classification=SurveySegmentMatch.Classification.PARTIAL,
+            coverage_percent=35, mean_distance_metres=2,
+        )
+        review_only = get_user_model().objects.create_user("audit-review-only", password="test-password-42")
+        review_only.user_permissions.add(Permission.objects.get(codename="review_path_survey"))
+        self.client.force_login(review_only)
+        self.assertEqual(self.client.get(reverse("editor:survey-list")).status_code, 200)
+        detail_url = reverse("editor:survey-detail", args=(survey.pk,))
+        self.assertEqual(self.client.get(detail_url).status_code, 200)
+        response = self.client.post(reverse("editor:survey-match-review", args=(survey.pk, match.pk)), {
+            "action": "review", "disposition": SurveySegmentMatch.Disposition.USEFUL_PARTIAL,
+            "reason": "Independent review completed.",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], detail_url)
+        self.assertEqual(self.client.get(response.headers["Location"]).status_code, 200)
+
+    def test_unauthorized_and_get_review_requests_cannot_mutate_match(self):
+        survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.COMPLETED)
+        match = SurveySegmentMatch.objects.create(
+            survey=survey, segment=self.segment, segment_revision=1,
+            segment_fingerprint=self.segment.geometry_fingerprint,
+            classification=SurveySegmentMatch.Classification.PARTIAL,
+            coverage_percent=35, mean_distance_metres=2,
+        )
+        url = reverse("editor:survey-match-review", args=(survey.pk, match.pk))
+        unauthorized = get_user_model().objects.create_user("review-outsider", password="test-password-42")
+        self.client.force_login(unauthorized)
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.assertEqual(self.client.post(url, {
+            "action": "review", "disposition": SurveySegmentMatch.Disposition.USEFUL_PARTIAL,
+            "reason": "Must not be stored.",
+        }).status_code, 403)
+        match.refresh_from_db()
+        self.assertEqual(match.disposition, SurveySegmentMatch.Disposition.PENDING)
+        self.assertIsNone(match.reviewed_by)
+        self.assertIsNone(match.reviewed_at)
+
+    def test_changed_review_replaces_actor_time_and_keeps_graph_unchanged(self):
+        survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.COMPLETED)
+        match = SurveySegmentMatch.objects.create(
+            survey=survey, segment=self.segment, segment_revision=1,
+            segment_fingerprint=self.segment.geometry_fingerprint,
+            classification=SurveySegmentMatch.Classification.PARTIAL,
+            coverage_percent=35, mean_distance_metres=2,
+        )
+        before = (WalkableNode.objects.count(), WalkableSegment.objects.count(),
+                  self.segment.verification_state)
+        record_match_review(match, disposition=SurveySegmentMatch.Disposition.USEFUL_PARTIAL,
+                            actor=self.reviewer, reason="First interpretation")
+        match.refresh_from_db()
+        first_reviewed_at = match.reviewed_at
+        second = get_user_model().objects.create_user("second-reviewer", password="test-password-42")
+        second.user_permissions.add(Permission.objects.get(codename="review_path_survey"))
+        record_match_review(match, disposition=SurveySegmentMatch.Disposition.REJECTED,
+                            actor=second, reason="Later evidence review")
+        match.refresh_from_db(); self.segment.refresh_from_db()
+        self.assertEqual(match.reviewed_by, second)
+        self.assertGreaterEqual(match.reviewed_at, first_reviewed_at)
+        self.assertEqual((match.disposition, match.reviewer_note),
+                         (SurveySegmentMatch.Disposition.REJECTED, "Later evidence review"))
+        self.assertEqual((WalkableNode.objects.count(), WalkableSegment.objects.count(),
+                          self.segment.verification_state), before)
+
+    def test_legacy_review_without_audit_metadata_is_labelled_honestly(self):
+        survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.COMPLETED)
+        match = SurveySegmentMatch.objects.create(
+            survey=survey, segment=self.segment, segment_revision=1,
+            segment_fingerprint=self.segment.geometry_fingerprint,
+            classification=SurveySegmentMatch.Classification.PARTIAL,
+            coverage_percent=35, mean_distance_metres=2,
+            disposition=SurveySegmentMatch.Disposition.USEFUL_PARTIAL,
+            reviewer_note="Historical decision",
+        )
+        self.assertIsNone(match.reviewed_by)
+        self.assertIsNone(match.reviewed_at)
+        self.client.force_login(self.reviewer)
+        response = self.client.get(reverse("editor:survey-detail", args=(survey.pk,)))
+        self.assertContains(response, "Historical review")
+        self.assertContains(response, "reviewer not recorded")
 
     def test_record_review_only_requires_reason_and_known_disposition(self):
         survey = PathSurvey.objects.create(owner=self.editor, status=PathSurvey.Status.COMPLETED)
@@ -271,7 +378,10 @@ class PathSurveyTests(TestCase):
         with self.assertRaises(PermissionDenied): decide_verification(match, grant=True, actor=self.editor, reason="override")
         with self.assertRaises(ValidationError): decide_verification(match, grant=True, actor=self.reviewer, reason="Looks sound")
         decide_verification(match, grant=True, actor=self.reviewer, reason="Explicit override: field evidence is sufficient")
-        self.segment.refresh_from_db(); self.assertEqual(self.segment.verification_state, VerificationState.FIELD_VERIFIED)
+        self.segment.refresh_from_db(); match.refresh_from_db()
+        self.assertEqual(self.segment.verification_state, VerificationState.FIELD_VERIFIED)
+        self.assertEqual(match.reviewed_by, self.reviewer)
+        self.assertIsNotNone(match.reviewed_at)
         self.assertEqual(SegmentVerificationRecord.objects.get().action, SegmentVerificationRecord.Action.GRANTED)
 
     def test_material_mutation_increments_revision_demotes_and_preserves_history(self):

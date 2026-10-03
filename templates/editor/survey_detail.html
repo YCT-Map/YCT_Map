@@ -71,15 +71,17 @@
 {% if survey.status == 'COMPLETED' or survey.status == 'REVIEWED' %}
 <section class="editor-card">
   <h2>Whole-survey evidence overview</h2>
-  <p>This read-only map compares the usable chronological trace with the current graph and persisted candidate analysis. It never edits a path or grants verification.</p>
+  <p>This read-only map compares the usable chronological trace with the current graph and current evidence analysis. It never edits a path or grants verification.</p>
   <div class="survey-review-summary" aria-label="Survey evidence summary">
-    <span><strong>{{ sample_counts.raw }}</strong> raw</span>
-    <span><strong>{{ sample_counts.accepted }}</strong> accepted</span>
-    <span><strong>{{ sample_counts.weak }}</strong> weak</span>
+    <span><strong>{{ survey.get_status_display }}</strong> status</span>
+    <span><strong>{{ survey.active_capture_display }}</strong> active capture</span>
+    <span><strong>{{ sample_counts.usable }}</strong> usable</span>
     <span><strong>{{ sample_counts.rejected }}</strong> rejected</span>
-    <span><strong>{{ match_summary.total }}</strong> candidate matches</span>
-    <span><strong>{{ match_summary.reviewed }}</strong> reviewed</span>
-    <span><strong>{{ match_summary.pending }}</strong> pending</span>
+    <span><strong>{{ evidence_summary.sufficient }}</strong> evidence-sufficient across finalized surveys</span>
+    <span><strong>{{ evidence_summary.field_verified_campus }}</strong> active FIELD_VERIFIED campus paths</span>
+    <span><strong>{{ evidence_summary.needs_confirmation }}</strong> need confirmation</span>
+    <span><strong>{{ evidence_summary.candidates }}</strong> possible new paths</span>
+    <span><strong>{{ evidence_summary.conflicts }}</strong> conflicts</span>
   </div>
   <div class="survey-review-legend" aria-label="Evidence map legend">
     <span><i class="survey-key survey-key--trace"></i>Usable survey trace</span>
@@ -100,7 +102,7 @@
     <p>Approximate length: <strong data-candidate-length></strong></p>
     <p>Evidence: <strong data-candidate-passes></strong></p>
     <p>Status: <strong data-candidate-status></strong></p>
-    <p>Near: <strong data-candidate-near></strong></p>
+    <p>Nearby context: <strong data-candidate-near></strong></p>
     <a data-candidate-review href="#">Preview graph changes</a>
   </article>
   {{ survey_network|json_script:"survey-network-data" }}
@@ -111,16 +113,14 @@
 <section class="editor-card" id="confirmation-worklist">
   <h2>Needs confirmation</h2>
   <p>This list contains only observed paths that need another walk or a decision. Unobserved routes are not presented as errors.</p>
-  {% for candidate in candidates %}
-    {% if not candidate.confirmed %}
+  {% for candidate in confirmation_candidates %}
       <article class="survey-task survey-task--candidate" data-confirmation-task="candidate">
         <h3>{{ candidate.id }} — Possible unmapped path</h3>
-        <p>Approximately {{ candidate.length_metres }} m · {{ candidate.pass_count }} good pass · near {{ candidate.near }}</p>
+        <p>Approximately {{ candidate.length_metres }} m · {{ candidate.pass_count }} independent pass{{ candidate.pass_count|pluralize:"es" }}{% if candidate.landmark %} · {{ candidate.landmark }}{% endif %}</p>
         <p>{{ candidate.reason }}</p>
         <button type="button" data-focus-candidate="{{ candidate.id }}">Show on map</button>
         {% if can_create_candidate %}<a href="{% url 'editor:survey-candidate' survey.id candidate.id %}">Preview proposed graph changes</a>{% endif %}
       </article>
-    {% endif %}
   {% endfor %}
   {% for match in confirmation_matches %}
     <article class="survey-task survey-task--existing" data-confirmation-task="existing">
@@ -129,8 +129,21 @@
       <p>{% if match.classification == 'DISCREPANCY' %}Evidence conflicts with this geometry; inspect it again.{% else %}Another complete, accurate traversal is required.{% endif %}</p>
     </article>
   {% endfor %}
-  {% if not candidates and not confirmation_matches %}<p>No observed path currently needs another walk.</p>{% endif %}
+  {% if not confirmation_candidates and not confirmation_matches %}<p>No observed path currently needs another walk.</p>{% endif %}
 </section>
+
+{% if review_segments %}
+<section class="editor-card" id="verified-path-review">
+  <h2>Verified paths needing review</h2>
+  <p>Later evidence conflicts with these paths. Their FIELD_VERIFIED state has not been revoked automatically.</p>
+  {% for item in review_segments %}
+    <article class="survey-task survey-task--existing">
+      <h3>{{ item.segment.label|default:"Existing path" }}</h3>
+      <p>{{ item.pass_count }} finalized pass{{ item.pass_count|pluralize:"es" }} considered · explicit human review required.</p>
+    </article>
+  {% endfor %}
+</section>
+{% endif %}
 
 <section class="editor-card">
   <h2>Survey review</h2>
@@ -147,16 +160,24 @@
         <h3>{{ match.segment.label|default:"Unnamed path segment" }}</h3>
         {% if match.disposition == 'PENDING' %}<span class="survey-review-badge survey-review-badge--pending">Pending review</span>{% else %}<span class="survey-review-badge survey-review-badge--recorded">Review recorded</span>{% endif %}
       </div>
-      <p>{{ match.get_classification_display }} · {{ match.coverage_percent }}% coverage · mean distance {{ match.mean_distance_metres }} m · revision {{ match.segment_revision }}</p>
+      <p><strong>Coverage:</strong> {{ match.coverage_percent }}% · <strong>Evidence:</strong> {{ match.get_classification_display }}</p>
       <p><strong>Reviewer disposition:</strong> {{ match.get_disposition_display }}</p>
       {% if match.reviewer_note %}<p class="survey-review-note"><strong>Reviewer note:</strong> {{ match.reviewer_note }}</p>{% endif %}
+      {% if match.disposition != 'PENDING' %}
+        {% if match.reviewed_by and match.reviewed_at %}
+          <p class="editor-muted">Reviewed by {{ match.reviewed_by.get_username }} Â· {{ match.reviewed_at|date:"j M Y, H:i" }}</p>
+        {% else %}
+          <p class="editor-muted">Historical review Â· reviewer not recorded</p>
+        {% endif %}
+      {% endif %}
+      <details class="survey-technical-details"><summary>Show technical evidence</summary><p>Mean offset {{ match.mean_distance_metres }} m · geometry revision {{ match.segment_revision }} · fingerprint {{ match.segment_fingerprint }}</p></details>
       {% if can_review %}
         <form method="post" action="{% url 'editor:survey-match-review' survey.id match.id %}">
           {% csrf_token %}
           <label>Decision reason <textarea name="reason" required>{{ match.reviewer_note }}</textarea></label>
           <div class="survey-actions">
-            <button name="action" value="grant" class="editor-primary">Grant FIELD_VERIFIED</button>
-            <button name="action" value="revoke">Revoke verification</button>
+            {% if can_grant_verification and match.segment.verification_state != 'FIELD_VERIFIED' %}<button name="action" value="grant" class="editor-primary">Grant FIELD_VERIFIED</button>{% endif %}
+            {% if can_revoke_verification and match.segment.verification_state == 'FIELD_VERIFIED' %}<button name="action" value="revoke" class="editor-danger">Revoke verification</button>{% endif %}
             <button name="action" value="review">Record review only</button>
             <select name="disposition" aria-label="Review disposition">
               <option value="USEFUL_PARTIAL"{% if match.disposition == 'USEFUL_PARTIAL' %} selected{% endif %}>Useful partial</option>
@@ -174,7 +195,16 @@
     <details class="survey-diagnostics">
       <summary>{{ diagnostic_matches|length }} low-support candidate{{ diagnostic_matches|length|pluralize }} retained for diagnostics</summary>
       <p>These candidates remain stored but are de-emphasised because they have effectively no traversal coverage or only minimal nearby evidence.</p>
-      {% for match in diagnostic_matches %}<p><strong>{{ match.segment.label|default:"Unnamed path segment" }}</strong> · {{ match.get_classification_display }} · {{ match.coverage_percent }}% coverage · mean distance {{ match.mean_distance_metres }} m · {{ match.get_disposition_display }}{% if match.reviewer_note %} · {{ match.reviewer_note }}{% endif %}</p>{% endfor %}
+      {% for match in diagnostic_matches %}
+        <p><strong>{{ match.segment.label|default:"Unnamed path segment" }}</strong> · {{ match.get_classification_display }} · {{ match.coverage_percent }}% coverage · mean distance {{ match.mean_distance_metres }} m · {{ match.get_disposition_display }}{% if match.reviewer_note %} · {{ match.reviewer_note }}{% endif %}</p>
+        {% if match.disposition != "PENDING" %}
+          {% if match.reviewed_by and match.reviewed_at %}
+            <p class="editor-muted">Reviewed by {{ match.reviewed_by.get_username }} · {{ match.reviewed_at|date:"j M Y, H:i" }}</p>
+          {% else %}
+            <p class="editor-muted">Historical review · reviewer not recorded</p>
+          {% endif %}
+        {% endif %}
+      {% endfor %}
     </details>
   {% endif %}
   {% if can_review and survey.status == 'COMPLETED' %}
@@ -187,4 +217,4 @@
 </section>
 {% endif %}
 {% endblock %}
-{% block scripts %}<script type="module" src="{% static 'yct_map/js/path-survey.js' %}?v=field-mapping-1"></script>{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'yct_map/js/path-survey.js' %}?v=final-web-closeout-1"></script>{% endblock %}

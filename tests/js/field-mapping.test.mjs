@@ -21,8 +21,8 @@ test("tilt-aware orientation maps physical north east south and west to geograph
   assert.ok(Math.abs(compassHeadingFromEuler(270, 45, 0) - 90) < 1e-8);
   assert.ok(Math.abs(compassHeadingFromEuler(180, 45, 0) - 180) < 1e-8);
   assert.ok(Math.abs(compassHeadingFromEuler(90, 45, 0) - 270) < 1e-8);
-  assert.equal(headingFromOrientation({ absolute: true, alpha: 0, beta: 45, gamma: 0 }, 90), 270);
-  assert.equal(headingFromOrientation({ webkitCompassHeading: 90 }, 90), 0);
+  assert.equal(headingFromOrientation({ absolute: true, alpha: 0, beta: 45, gamma: 0 }, 90), 90);
+  assert.equal(headingFromOrientation({ webkitCompassHeading: 90 }, 90), 180);
   assert.equal(headingFromOrientation({ absolute: true, alpha: null, beta: null, gamma: null }), null,
     "missing sensor values must not fabricate north");
 });
@@ -62,8 +62,8 @@ function position({ longitude = 3.374, latitude = 6.518, accuracy = 6, timestamp
 function captureHarness({ area = createSupportedLocationArea(campus, 400) } = {}) {
   let watchSuccess;
   let watchFailure;
-  let finish;
   let ticker;
+  const timers = new Map();
   let current = 0;
   let nextWatch = 0;
   const cleared = [];
@@ -76,7 +76,8 @@ function captureHarness({ area = createSupportedLocationArea(campus, 400) } = {}
   };
   const capture = createFiveSecondLocationCapture({
     geolocation, supportedArea: area, now: () => current,
-    setTimer(callback) { finish = callback; return 1; }, clearTimer() {},
+    setTimer(callback, delay) { timers.set(delay, callback); return delay; },
+    clearTimer(id) { timers.delete(id); },
     setTicker(callback) { ticker = callback; return 2; }, clearTicker() {},
     onProgress: (value) => progress.push(value),
     onSuccess: (value) => successes.push(value),
@@ -84,11 +85,13 @@ function captureHarness({ area = createSupportedLocationArea(campus, 400) } = {}
   });
   return { capture, progress, successes, failures, cleared,
     emit: (value) => watchSuccess(value), fail: (value) => watchFailure(value),
-    advance(value) { current = value; ticker?.(); }, finish: () => finish(),
+    advance(value) { current = value; ticker?.(); },
+    runTimer(delay) { current = delay; timers.get(delay)?.(); },
+    finish: () => { current = 10_000; timers.get(10_000)?.(); },
   };
 }
 
-test("five-second capture waits for stabilized evidence and reports elapsed progress", () => {
+test("adaptive capture waits for stabilized evidence and reports elapsed progress", () => {
   const harness = captureHarness();
   harness.capture.start();
   harness.emit(position({ accuracy: 120 }));
@@ -99,7 +102,27 @@ test("five-second capture waits for stabilized evidence and reports elapsed prog
   harness.advance(4900);
   harness.finish();
   assert.equal(harness.successes.length, 1);
-  assert.deepEqual(harness.progress, [0, 50, 98, 100]);
+  assert.deepEqual(harness.progress, [0, 25, 49, 100]);
+});
+
+test("adaptive capture completes at six seconds when good fixes converge", () => {
+  const harness = captureHarness();
+  harness.capture.start();
+  harness.emit(position({ timestamp: 1_000, longitude: 3.37400, accuracy: 7 }));
+  harness.emit(position({ timestamp: 2_000, longitude: 3.37401, accuracy: 6 }));
+  harness.emit(position({ timestamp: 3_000, longitude: 3.374015, accuracy: 6 }));
+  assert.equal(harness.successes.length, 0);
+  harness.runTimer(6_000);
+  assert.equal(harness.successes.length, 1);
+  assert.equal(harness.progress.at(-1), 100);
+});
+
+test("adaptive capture has a strict ten-second outcome when fixes never converge", () => {
+  const harness = captureHarness();
+  harness.capture.start();
+  harness.finish();
+  assert.equal(harness.successes.length, 0);
+  assert.equal(harness.failures[0].reason, "unreliable");
 });
 
 test("capture rejects outside-area results and leaves coordinates untouched", () => {

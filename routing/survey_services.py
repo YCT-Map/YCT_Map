@@ -9,7 +9,9 @@ from .geometry import distance_metres
 from .matching import project_onto_segment
 from .models import (PathSurvey, PathSurveySample, SegmentVerificationRecord,
                      SurveySegmentMatch, VerificationState, WalkableSegment)
-from .survey_analysis import (analyse_existing_segments, discover_candidate_paths,
+from .survey_analysis import (analyse_cumulative_existing_segment,
+                              analyse_existing_segments,
+                              discover_cumulative_candidate_paths,
                               evidence_points)
 
 GOOD_ACCURACY_METRES = 25
@@ -29,6 +31,63 @@ TRANSITIONS = {
     PathSurvey.Status.PAUSED: {PathSurvey.Status.ACTIVE, PathSurvey.Status.COMPLETED, PathSurvey.Status.ABANDONED},
     PathSurvey.Status.COMPLETED: {PathSurvey.Status.REVIEWED},
 }
+FINALIZED_SURVEY_STATUSES = (PathSurvey.Status.COMPLETED, PathSurvey.Status.REVIEWED)
+
+
+def _cumulative_assessments(point_sets, segments):
+    """Apply durable human evidence decisions to cumulative segment analysis."""
+    constraints = {}
+    reviewed_matches = SurveySegmentMatch.objects.filter(
+        survey__status__in=FINALIZED_SURVEY_STATUSES,
+        disposition__in=(
+            SurveySegmentMatch.Disposition.REJECTED,
+            SurveySegmentMatch.Disposition.DISCREPANCY_CONFIRMED,
+        ),
+    ).select_related("segment")
+    for match in reviewed_matches:
+        if (match.segment_revision != match.segment.geometry_revision or
+                match.segment_fingerprint != match.segment.geometry_fingerprint):
+            continue
+        state = constraints.setdefault(match.segment_id, {"excluded_surveys": set(), "conflict": False})
+        state["excluded_surveys"].add(match.survey_id)
+        if match.disposition == SurveySegmentMatch.Disposition.DISCREPANCY_CONFIRMED:
+            state["conflict"] = True
+
+    results = []
+    for segment in segments:
+        state = constraints.get(segment.pk, {"excluded_surveys": set(), "conflict": False})
+        eligible_sets = tuple(
+            points for points in point_sets
+            if points and points[0].survey_id not in state["excluded_surveys"]
+        )
+        assessment = analyse_cumulative_existing_segment(eligible_sets, segment, segments)
+        supporting = assessment.get("supporting_passes", ())
+        if assessment.get("auto_verify") and supporting:
+            earliest = min(item.points[0].captured_at for item in supporting)
+            existed_before_evidence = segment.created_at <= earliest
+            has_post_creation_confirmation = any(
+                item.points[0].captured_at >= segment.created_at for item in supporting
+            )
+            if not (existed_before_evidence or has_post_creation_confirmation):
+                assessment = {
+                    **assessment,
+                    "auto_verify": False,
+                    "evidence_sufficient": False,
+                    "needs_confirmation": True,
+                    "temporal_confirmation_required": True,
+                }
+        if state["conflict"]:
+            assessment = {
+                **assessment,
+                "classification": "DISCREPANCY",
+                "auto_verify": False,
+                "evidence_sufficient": False,
+                "needs_confirmation": segment.verification_state != VerificationState.FIELD_VERIFIED,
+                "needs_review": True,
+                "review_blocked": True,
+            }
+        results.append(assessment)
+    return results
 
 
 @transaction.atomic
@@ -158,14 +217,18 @@ def _longest_nearby_run(trace, projections):
 
 @transaction.atomic
 def analyse_survey(survey):
+    """Persist this survey's matches, then evaluate cumulative finalized evidence."""
     SurveySegmentMatch.objects.filter(survey=survey).delete()
-    samples = list(survey.samples.exclude(classification=PathSurveySample.Classification.REJECTED))
+    samples = list(survey.samples.exclude(
+        classification=PathSurveySample.Classification.REJECTED,
+    ).order_by("captured_at", "sequence"))
     if len(samples) < 2:
         return []
     points = evidence_points(samples)
     segments = list(WalkableSegment.objects.filter(is_active=True).select_related("start_node", "end_node"))
     results = []
-    for assessment in analyse_existing_segments(points, segments):
+    current_assessments = analyse_existing_segments(points, segments)
+    for assessment in current_assessments:
         segment, best = assessment["segment"], assessment["best"]
         if best is None:
             continue
@@ -176,33 +239,103 @@ def analyse_survey(survey):
             coverage_percent=Decimal(str(round(best.coverage_percent, 2))),
             mean_distance_metres=Decimal(str(round(best.mean_offset_metres, 2))))
         results.append(match)
-        existed_before_evidence = segment.created_at <= points[0].captured_at
-        if (assessment["auto_verify"] and existed_before_evidence
-                and segment.verification_state == VerificationState.UNVERIFIED):
-            segment.verification_state = VerificationState.FIELD_VERIFIED
-            segment.save(update_fields=("verification_state", "updated_at"))
-            SegmentVerificationRecord.objects.create(
-                segment=segment, survey_match=match,
-                action=SegmentVerificationRecord.Action.GRANTED,
-                geometry_revision=segment.geometry_revision,
-                geometry_fingerprint=segment.geometry_fingerprint,
-                actor=None,
-                reason=("Automatic grant: an independent, contiguous high-quality field pass "
-                        "met the conservative existing-geometry thresholds."),
-            )
+
+    # Only paths observed by the survey that just completed are candidates for
+    # mutation. Historical finalized surveys are read as corroborating evidence;
+    # merely deploying or opening a review page cannot trigger this block.
+    affected_ids = {
+        assessment["segment"].pk for assessment in current_assessments
+        if assessment["best"] is not None
+    }
+    point_sets = finalized_evidence_point_sets()
+    cumulative = _cumulative_assessments(point_sets, segments)
+    matches_by_segment = {match.segment_id: match for match in results}
+    for assessment in cumulative:
+        segment = assessment["segment"]
+        if segment.pk not in affected_ids or not assessment["auto_verify"]:
+            continue
+        if segment.verification_state != VerificationState.UNVERIFIED:
+            continue
+        supporting = assessment["supporting_passes"]
+        earliest = min(item.points[0].captured_at for item in supporting)
+        existed_before_evidence = segment.created_at <= earliest
+        has_confirmation_after_creation = any(
+            item.points[0].captured_at >= segment.created_at for item in supporting
+        )
+        if not (existed_before_evidence or has_confirmation_after_creation):
+            continue
+        segment.verification_state = VerificationState.FIELD_VERIFIED
+        segment.save(update_fields=("verification_state", "updated_at"))
+        SegmentVerificationRecord.objects.create(
+            segment=segment,
+            survey_match=matches_by_segment.get(segment.pk),
+            action=SegmentVerificationRecord.Action.GRANTED,
+            geometry_revision=segment.geometry_revision,
+            geometry_fingerprint=segment.geometry_fingerprint,
+            actor=None,
+            reason=(
+                "Automatic grant: cumulative finalized field evidence supplied "
+                f"{len(supporting)} independent, contiguous, high-quality passes "
+                "without a competing-path conflict."
+            ),
+        )
     return results
 
 
+def finalized_evidence_point_sets():
+    """Load usable evidence once and retain each survey as an independent trace."""
+    samples = PathSurveySample.objects.filter(
+        survey__status__in=FINALIZED_SURVEY_STATUSES,
+    ).exclude(
+        classification=PathSurveySample.Classification.REJECTED,
+    ).order_by("survey_id", "captured_at", "sequence")
+    grouped = {}
+    for sample in samples:
+        grouped.setdefault(sample.survey_id, []).append(sample)
+    return tuple(
+        tuple(evidence_points(group))
+        for group in grouped.values()
+        if len(group) >= 2
+    )
+
+
 def analyse_survey_dry_run(survey):
-    """Derive current evidence interpretation without writing any database state."""
-    samples = list(survey.samples.exclude(
-        classification=PathSurveySample.Classification.REJECTED).order_by("sequence"))
-    points = evidence_points(samples)
+    """Derive campus-wide finalized evidence without writing database state."""
+    if survey.status not in FINALIZED_SURVEY_STATUSES:
+        return {"existing": [], "candidates": []}
+    point_sets = finalized_evidence_point_sets()
     segments = list(WalkableSegment.objects.filter(is_active=True).select_related("start_node", "end_node"))
     return {
-        "existing": analyse_existing_segments(points, segments) if len(points) >= 2 else [],
-        "candidates": discover_candidate_paths(points, segments) if len(points) >= 2 else [],
+        "existing": _cumulative_assessments(point_sets, segments),
+        "candidates": discover_cumulative_candidate_paths(point_sets, segments),
     }
+
+
+@transaction.atomic
+def record_match_review(match, *, disposition, actor, reason):
+    """Persist one reviewer-only evidence decision without touching the graph."""
+    if not actor.has_perm("routing.review_path_survey"):
+        raise PermissionDenied
+    reason = reason.strip()
+    if not reason:
+        raise ValidationError("A review reason is required.")
+    allowed = {
+        SurveySegmentMatch.Disposition.USEFUL_PARTIAL,
+        SurveySegmentMatch.Disposition.REJECTED,
+        SurveySegmentMatch.Disposition.DISCREPANCY_CONFIRMED,
+    }
+    if disposition not in allowed:
+        raise ValidationError("Choose a valid review disposition.")
+    match = SurveySegmentMatch.objects.select_for_update().get(pk=match.pk)
+    match.disposition = disposition
+    match.reviewer_note = reason
+    match.reviewed_by = actor
+    match.reviewed_at = timezone.now()
+    match.full_clean()
+    match.save(update_fields=(
+        "disposition", "reviewer_note", "reviewed_by", "reviewed_at",
+    ))
+    return match
 
 
 @transaction.atomic
@@ -219,7 +352,12 @@ def decide_verification(match, *, grant, actor, reason):
     segment.verification_state = VerificationState.FIELD_VERIFIED if grant else VerificationState.UNVERIFIED
     segment.save(update_fields=("verification_state", "updated_at"))
     match.disposition = SurveySegmentMatch.Disposition.ACCEPTED if grant else SurveySegmentMatch.Disposition.REJECTED
-    match.reviewer_note = reason; match.save(update_fields=("disposition", "reviewer_note"))
+    match.reviewer_note = reason.strip()
+    match.reviewed_by = actor
+    match.reviewed_at = timezone.now()
+    match.save(update_fields=(
+        "disposition", "reviewer_note", "reviewed_by", "reviewed_at",
+    ))
     SegmentVerificationRecord.objects.create(segment=segment, survey_match=match,
         action=SegmentVerificationRecord.Action.GRANTED if grant else SegmentVerificationRecord.Action.REVOKED,
         geometry_revision=segment.geometry_revision, geometry_fingerprint=segment.geometry_fingerprint,

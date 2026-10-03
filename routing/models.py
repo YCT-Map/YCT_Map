@@ -217,6 +217,14 @@ class SurveySegmentMatch(models.Model):
     mean_distance_metres = models.DecimalField(max_digits=7, decimal_places=2)
     disposition = models.CharField(max_length=24, choices=Disposition.choices, default=Disposition.PENDING)
     reviewer_note = models.TextField(blank=True, max_length=2000)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_survey_segment_matches",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=("survey", "segment", "segment_revision"),

@@ -8,6 +8,15 @@ export const ACCURACY = Object.freeze({
   headingMinimumSpeedMps: 0.8,
 });
 
+export const STABILIZATION = Object.freeze({
+  windowSize: 7,
+  warmupReasonableFixes: 3,
+  warmupMinimumSpanMs: 1_500,
+  retainedFixMaximumAgeMs: 10_000,
+  movementEvidenceRequired: 2,
+  stationaryEvidenceRequired: 3,
+});
+
 function finite(value) {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -64,13 +73,14 @@ export function assessSample(rawPosition, previousAccepted = null) {
 
   if (previousAccepted) {
     const elapsedSeconds = (sample.timestamp - previousAccepted.timestamp) / 1000;
-    const apparentSpeed = elapsedSeconds > 0 ? distanceMetres(previousAccepted, sample) / elapsedSeconds : Infinity;
+    const displacement = distanceMetres(previousAccepted, sample);
+    const uncertaintyAllowance = (previousAccepted.accuracyMetres + sample.accuracyMetres) * 0.5;
+    const credibleDisplacement = Math.max(0, displacement - uncertaintyAllowance);
+    const apparentSpeed = elapsedSeconds > 0 ? credibleDisplacement / elapsedSeconds : Infinity;
     const accuracyImproved = sample.accuracyMetres < previousAccepted.accuracyMetres * 0.75;
-    if (apparentSpeed > ACCURACY.maximumPlausibleSpeedMps && !accuracyImproved) {
+    const clearlySeparated = displacement > Math.max(35, uncertaintyAllowance * 1.5);
+    if (apparentSpeed > ACCURACY.maximumPlausibleSpeedMps && clearlySeparated && !accuracyImproved) {
       return { accepted: false, reason: "implausible-jump", sample, quality, apparentSpeed };
-    }
-    if (quality === "provisional" && previousAccepted.accuracyMetres <= ACCURACY.lowMetres) {
-      return { accepted: false, reason: "keep-better-position", sample, quality };
     }
   }
 
@@ -84,25 +94,44 @@ export function locationQualityLabel(accuracyMetres) {
   return "Poor";
 }
 
-export function createLocationStabilizer({ warmupReasonableFixes = 2 } = {}) {
+export function createLocationStabilizer({
+  warmupReasonableFixes = STABILIZATION.warmupReasonableFixes,
+  warmupMinimumSpanMs = STABILIZATION.warmupMinimumSpanMs,
+  retainedFixMaximumAgeMs = STABILIZATION.retainedFixMaximumAgeMs,
+} = {}) {
   let recent = [];
   let stable = null;
+  let lastReliableTimestamp = null;
+  let motionState = "stationary";
+  let movementEvidence = 0;
+  let stationaryEvidence = 0;
 
   function robustEstimate(items) {
-    const longitudeMedian = [...items].sort((a, b) => a.longitude - b.longitude)[Math.floor(items.length / 2)].longitude;
-    const latitudeMedian = [...items].sort((a, b) => a.latitude - b.latitude)[Math.floor(items.length / 2)].latitude;
+    const ordered = [...items].sort((a, b) => a.timestamp - b.timestamp);
+    const longitudeMedian = [...ordered].sort((a, b) => a.longitude - b.longitude)[Math.floor(ordered.length / 2)].longitude;
+    const latitudeMedian = [...ordered].sort((a, b) => a.latitude - b.latitude)[Math.floor(ordered.length / 2)].latitude;
     const medianPoint = { longitude: longitudeMedian, latitude: latitudeMedian };
-    const medianAccuracy = [...items].sort((a, b) => a.accuracyMetres - b.accuracyMetres)[Math.floor(items.length / 2)].accuracyMetres;
-    const plausible = items.filter((item) => distanceMetres(medianPoint, item) <= Math.max(15, medianAccuracy * 1.5));
-    const candidates = plausible.length >= 2 ? plausible : items;
-    const totalWeight = candidates.reduce((sum, item) => sum + 1 / Math.max(3, item.accuracyMetres) ** 2, 0);
-    const longitude = candidates.reduce((sum, item) => sum + item.longitude / Math.max(3, item.accuracyMetres) ** 2, 0) / totalWeight;
-    const latitude = candidates.reduce((sum, item) => sum + item.latitude / Math.max(3, item.accuracyMetres) ** 2, 0) / totalWeight;
+    const medianAccuracy = [...ordered].sort((a, b) => a.accuracyMetres - b.accuracyMetres)[Math.floor(ordered.length / 2)].accuracyMetres;
+    const plausible = ordered.filter((item) => distanceMetres(medianPoint, item) <= Math.max(12, medianAccuracy * 1.75));
+    const candidates = plausible.length >= 2 ? plausible : ordered;
+    const newestTimestamp = candidates.at(-1).timestamp;
+    const weightFor = (item) => {
+      // Accuracy is a radius estimate, not Gaussian variance. Capping the
+      // accuracy term prevents one optimistic 2 m claim from owning the fix.
+      const cappedAccuracy = Math.max(5, Math.min(30, item.accuracyMetres));
+      const ageRatio = Math.min(1, Math.max(0, (newestTimestamp - item.timestamp) / 12_000));
+      const recency = 1 - ageRatio * 0.35;
+      return recency / cappedAccuracy;
+    };
+    const totalWeight = candidates.reduce((sum, item) => sum + weightFor(item), 0);
+    const longitude = candidates.reduce((sum, item) => sum + item.longitude * weightFor(item), 0) / totalWeight;
+    const latitude = candidates.reduce((sum, item) => sum + item.latitude * weightFor(item), 0) / totalWeight;
     const centre = { longitude, latitude };
     const spread = Math.max(...candidates.map((item) => distanceMetres(centre, item)), 0);
-    const reported = candidates.reduce((sum, item) => sum + item.accuracyMetres, 0) / candidates.length;
+    const reported = candidates.reduce((sum, item) => sum + item.accuracyMetres * weightFor(item), 0) / totalWeight;
     return { ...candidates.at(-1), longitude, latitude, accuracyMetres: Math.max(reported, spread),
-      observedSpreadMetres: spread, deviceAccuracyMetres: candidates.at(-1).accuracyMetres };
+      observedSpreadMetres: spread, deviceAccuracyMetres: candidates.at(-1).accuracyMetres,
+      estimateSourceCount: candidates.length };
   }
 
   function confidenceFor(estimate) {
@@ -111,56 +140,124 @@ export function createLocationStabilizer({ warmupReasonableFixes = 2 } = {}) {
     return "approximate";
   }
 
+  function resultFor(reason, sample, { moved = false, ready = true } = {}) {
+    return { ready, reason, sample,
+      quality: sample ? accuracyState(sample.accuracyMetres) : null,
+      confidence: sample?.locationConfidence ?? null,
+      moved,
+      motionState };
+  }
+
+  function initialise(items, reason) {
+    const estimate = robustEstimate(items);
+    motionState = "stationary";
+    stable = { ...estimate, timestamp: items.at(-1).timestamp, headingDegrees: null,
+      motionState, locationConfidence: confidenceFor(estimate) };
+    if (stable.deviceAccuracyMetres <= ACCURACY.lowMetres) lastReliableTimestamp = stable.timestamp;
+    return resultFor(reason, stable, { moved: true });
+  }
+
+  function isConverged() {
+    if (recent.length < Math.min(3, warmupReasonableFixes)) return false;
+    const tail = recent.slice(-Math.max(3, warmupReasonableFixes));
+    const estimate = robustEstimate(tail);
+    const convergenceRadius = Math.max(6, Math.min(15, estimate.deviceAccuracyMetres * 0.8));
+    return estimate.observedSpreadMetres <= convergenceRadius && confidenceFor(estimate) !== "unstable";
+  }
+
   function update(sample, quality) {
+    const previousRaw = recent.at(-1) || null;
     recent.push(sample);
-    recent = recent.slice(-5);
+    recent = recent.slice(-STABILIZATION.windowSize);
     if (!stable) {
       const reasonable = recent.filter((item) => accuracyState(item.accuracyMetres) === "reasonable");
-      if (reasonable.length < warmupReasonableFixes && recent.length < 3) {
-        return { ready: false, reason: "warming-up", sample: null, quality };
+      const span = recent.length > 1 ? recent.at(-1).timestamp - recent[0].timestamp : 0;
+      if ((reasonable.length < warmupReasonableFixes || span < warmupMinimumSpanMs) && recent.length < 5) {
+        return { ready: false, reason: "warming-up", sample: null, quality, motionState };
       }
       const candidates = reasonable.length >= warmupReasonableFixes ? reasonable : recent;
-      const estimate = robustEstimate(candidates);
-      stable = { ...estimate, timestamp: sample.timestamp, headingDegrees: null,
-        locationConfidence: confidenceFor(estimate) };
-      return { ready: true, reason: "warmup-complete", sample: stable,
-        quality: accuracyState(stable.accuracyMetres), confidence: stable.locationConfidence, moved: true };
+      return initialise(candidates, "warmup-complete");
     }
 
     const materiallyWorse = sample.accuracyMetres >= stable.accuracyMetres * 1.75 &&
       sample.accuracyMetres - stable.accuracyMetres >= 10;
-    if (materiallyWorse) {
+    const reliableAge = lastReliableTimestamp === null ? Infinity : sample.timestamp - lastReliableTimestamp;
+    const retentionLimit = motionState === "stationary"
+      ? retainedFixMaximumAgeMs : retainedFixMaximumAgeMs * 0.6;
+    if (materiallyWorse && reliableAge <= retentionLimit) {
       recent.pop();
-      return { ready: true, reason: "keep-better-position", sample: stable,
-        quality: accuracyState(stable.accuracyMetres), confidence: stable.locationConfidence, moved: false };
+      return { ...resultFor("keep-better-position", stable), retainedAgeMs: reliableAge };
     }
 
     const estimate = robustEstimate(recent);
     const displacement = distanceMetres(stable, estimate);
-    const elapsedSeconds = Math.max(0, (sample.timestamp - stable.timestamp) / 1000);
-    const stationaryRadius = Math.max(3, Math.min(10,
-      Math.max(stable.accuracyMetres, estimate.accuracyMetres) * 0.6));
-    const latestPair = recent.slice(-2);
-    const sustainedShift = latestPair.length === 2 &&
-      latestPair.every((item) => distanceMetres(stable, item) > stationaryRadius) &&
-      distanceMetres(latestPair[0], latestPair[1]) <= Math.max(12,
-        Math.max(...latestPair.map((item) => item.accuracyMetres)) * 1.5);
-    const credibleMovement = displacement > stationaryRadius ||
-      sustainedShift || (sample.speedMetresPerSecond >= ACCURACY.headingMinimumSpeedMps && displacement > 2);
-    if (!credibleMovement && elapsedSeconds <= 10) {
+    const elapsedSeconds = Math.max(0.001, (sample.timestamp - stable.timestamp) / 1000);
+    const rawStep = previousRaw ? distanceMetres(previousRaw, sample) : displacement;
+    const rawElapsed = previousRaw ? Math.max(0.001, (sample.timestamp - previousRaw.timestamp) / 1000) : elapsedSeconds;
+    const uncertaintyRadius = Math.max(2.5, Math.min(12,
+      Math.max(stable.deviceAccuracyMetres ?? stable.accuracyMetres, sample.accuracyMetres) * 0.55));
+    const recentShift = recent.slice(-3);
+    const sustainedShift = recentShift.length === 3 &&
+      recentShift.every((item) => distanceMetres(stable, item) > uncertaintyRadius * 0.75) &&
+      distanceMetres(recentShift[0], recentShift.at(-1)) > uncertaintyRadius;
+    const coherentPair = recent.length >= 2 && recent.slice(-2).every(
+      (item) => distanceMetres(stable, item) > uncertaintyRadius,
+    ) && rawStep <= Math.max(12, sample.accuracyMetres * 1.5);
+    const reportedMotion = sample.speedMetresPerSecond !== null &&
+      sample.speedMetresPerSecond >= ACCURACY.headingMinimumSpeedMps;
+    const credibleMovement = (displacement > uncertaintyRadius &&
+      (rawStep > uncertaintyRadius * 0.65 || sustainedShift)) ||
+      rawStep > uncertaintyRadius * 1.1 || coherentPair ||
+      (reportedMotion && (rawStep > 2 || sustainedShift));
+
+    if (credibleMovement) {
+      movementEvidence += 1;
+      stationaryEvidence = 0;
+      if (movementEvidence >= STABILIZATION.movementEvidenceRequired) {
+        const credibleSpeed = sample.speedMetresPerSecond ?? rawStep / rawElapsed;
+        motionState = credibleSpeed >= ACCURACY.headingMinimumSpeedMps ? "walking" : "slow-walk";
+      }
+    } else {
+      movementEvidence = 0;
+      stationaryEvidence += 1;
+      if (stationaryEvidence >= STABILIZATION.stationaryEvidenceRequired) motionState = "stationary";
+    }
+
+    if (motionState === "stationary") {
       stable = { ...stable, timestamp: sample.timestamp,
         accuracyMetres: estimate.accuracyMetres, deviceAccuracyMetres: sample.accuracyMetres,
         observedSpreadMetres: estimate.observedSpreadMetres, locationConfidence: confidenceFor(estimate),
-        headingDegrees: null };
-      return { ready: true, reason: "stationary", sample: stable,
-        quality: accuracyState(stable.accuracyMetres), confidence: stable.locationConfidence, moved: false };
+        headingDegrees: null, speedMetresPerSecond: null, motionState };
+      if (sample.accuracyMetres <= ACCURACY.lowMetres) lastReliableTimestamp = sample.timestamp;
+      return resultFor(credibleMovement ? "checking-movement" : "stationary", stable);
     }
 
-    stable = { ...estimate, headingDegrees: sample.headingDegrees,
-      locationConfidence: confidenceFor(estimate) };
-    return { ready: true, reason: "movement", sample: stable,
-      quality: accuracyState(stable.accuracyMetres), confidence: stable.locationConfidence, moved: true };
+    stable = { ...estimate, headingDegrees: credibleMovement ? sample.headingDegrees : null,
+      motionState, locationConfidence: confidenceFor(estimate) };
+    if (sample.accuracyMetres <= ACCURACY.lowMetres) lastReliableTimestamp = sample.timestamp;
+    return resultFor("movement", stable, { moved: true });
   }
 
-  return { update, reset() { recent = []; stable = null; }, getStable: () => stable };
+  function finalize() {
+    if (stable) return resultFor("acquisition-timeout", stable, { moved: true });
+    if (!recent.length) return { ready: false, reason: "no-fix", sample: null, motionState };
+    return initialise(recent, "acquisition-timeout");
+  }
+
+  return {
+    update,
+    finalize,
+    isConverged,
+    reset() {
+      recent = [];
+      stable = null;
+      lastReliableTimestamp = null;
+      motionState = "stationary";
+      movementEvidence = 0;
+      stationaryEvidence = 0;
+    },
+    getStable: () => stable,
+    getDiagnostics: () => ({ acceptedFixes: recent.length, motionState,
+      converged: isConverged(), lastReliableTimestamp }),
+  };
 }

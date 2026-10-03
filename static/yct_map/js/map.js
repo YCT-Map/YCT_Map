@@ -1,5 +1,5 @@
-import { sliceRouteAtDistance } from "./live-route-progress.js?v=checkpoint-flex-nav-1";
-import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=field-mapping-1";
+import { sliceRouteAtDistance } from "./live-route-progress.js?v=final-web-closeout-1";
+import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=final-web-closeout-1";
 
 export const DESTINATION_SOURCE_ID = "demo-destinations";
 export const DESTINATION_CLUSTER_LAYER_ID = "destination-clusters";
@@ -165,6 +165,14 @@ export function userLocationFeature(position, headingDegrees = null, headingSour
   }
   return { type: "Feature", geometry: { type: "Point",
     coordinates: [position.longitude, position.latitude] }, properties };
+}
+
+// The arrow artwork uses an intrinsic up-pointing triangle. This helper makes
+// that visual contract deterministic for tests and diagnostics: MapLibre's
+// clockwise text rotation maps geographic headings to screen tip direction.
+export function userLocationArrowTipVector(headingDegrees) {
+  const radians = (((Number(headingDegrees) % 360) + 360) % 360) * Math.PI / 180;
+  return [Math.sin(radians), -Math.cos(radians)];
 }
 
 export function userLocationArrowLayerDefinitions() {

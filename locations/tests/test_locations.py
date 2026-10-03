@@ -212,7 +212,7 @@ class LocationEndpointTests(TestCase):
 class MapPageTests(TestCase):
     def test_map_page_contains_approved_map_configuration(self):
         response = self.client.get(reverse("locations:map"))
-        asset_version = "field-mapping-1"
+        asset_version = "final-web-closeout-1"
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "https://tiles.openfreemap.org/styles/liberty")
@@ -248,7 +248,7 @@ class MapPageTests(TestCase):
     def test_current_modules_use_the_same_cache_version(self):
         app_path = settings.BASE_DIR / "static/yct_map/js/app.js"
         app_source = app_path.read_text(encoding="utf-8")
-        asset_version = "field-mapping-1"
+        asset_version = "final-web-closeout-1"
 
         for module in (
             "api.js",
@@ -269,6 +269,26 @@ class MapPageTests(TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn(f"location-filter.js?v={asset_version}", user_location_source)
         self.assertIn(f"geolocation.js?v={asset_version}", user_location_source)
+        self.assertIn(f"device-orientation.js?v={asset_version}", user_location_source)
+
+        for relative_path in (
+            "templates/editor/base.html",
+            "templates/editor/place_form.html",
+            "templates/editor/entrance_form.html",
+            "templates/editor/path_list.html",
+            "templates/editor/node_form.html",
+            "templates/editor/segment_form.html",
+            "templates/editor/segment_split.html",
+            "templates/editor/survey_detail.html",
+            "static/yct_map/js/editor-place-map.js",
+            "static/yct_map/js/editor-entrance-map.js",
+            "static/yct_map/js/location-capture.js",
+            "static/yct_map/js/map.js",
+            "static/yct_map/js/off-route.js",
+            "static/yct_map/js/user-navigation.js",
+        ):
+            source = (settings.BASE_DIR / relative_path).read_text(encoding="utf-8")
+            self.assertNotRegex(source, rf"\?v=(?!{asset_version})[A-Za-z0-9._-]+", relative_path)
 
     def test_map_has_no_global_badge_while_record_verification_remains_public(self):
         location = Location.objects.create(

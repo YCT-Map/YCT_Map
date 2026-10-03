@@ -26,12 +26,15 @@ export function compassHeadingFromEuler(alpha, beta = 0, gamma = 0) {
 
 export function headingFromOrientation(event, screenAngle = 0) {
   const nativeHeading = event?.webkitCompassHeading;
-  if (Number.isFinite(nativeHeading)) return normalizeHeading(nativeHeading - screenAngle);
+  // ScreenOrientation.angle describes the viewport rotation relative to the
+  // device's natural orientation. Add it once to convert the device-frame
+  // compass result to the geographic heading expected by MapLibre.
+  if (Number.isFinite(nativeHeading)) return normalizeHeading(nativeHeading + screenAngle);
   if (event?.absolute !== true || !Number.isFinite(event?.alpha)) return null;
   const beta = Number.isFinite(event?.beta) ? event.beta : 0;
   const gamma = Number.isFinite(event?.gamma) ? event.gamma : 0;
   const heading = compassHeadingFromEuler(event.alpha, beta, gamma);
-  return heading === null ? null : normalizeHeading(heading - screenAngle);
+  return heading === null ? null : normalizeHeading(heading + screenAngle);
 }
 
 export function renderedRelativeHeading(geographicHeading, mapBearing = 0) {
@@ -57,6 +60,42 @@ export function headingDiagnosticSnapshot({ rawOrientation = null, deviceHeading
 
 export function shortestHeadingDelta(from, to) {
   return ((to - from + 540) % 360) - 180;
+}
+
+export function headingDifferenceDegrees(first, second) {
+  const from = normalizeHeading(first);
+  const to = normalizeHeading(second);
+  return from === null || to === null ? null : Math.abs(shortestHeadingDelta(from, to));
+}
+
+export function createHeadingOppositionDiagnostic({
+  minimumSpeedMps = 0.8,
+  oppositionDegrees = 150,
+  requiredFixes = 3,
+} = {}) {
+  let consecutiveOpposedFixes = 0;
+  let angularDifferenceDegrees = null;
+
+  function update({ deviceHeading, movementHeading, speedMetresPerSecond } = {}) {
+    const trustworthyMovement = Number.isFinite(speedMetresPerSecond)
+      && speedMetresPerSecond >= minimumSpeedMps;
+    angularDifferenceDegrees = trustworthyMovement
+      ? headingDifferenceDegrees(deviceHeading, movementHeading) : null;
+    consecutiveOpposedFixes = angularDifferenceDegrees !== null
+      && angularDifferenceDegrees >= oppositionDegrees
+      ? consecutiveOpposedFixes + 1 : 0;
+    return getState();
+  }
+
+  function getState() {
+    return {
+      angularDeviceMovementDifference: angularDifferenceDegrees,
+      consecutiveOpposedFixes,
+      possibleSystematicInversion: consecutiveOpposedFixes >= requiredFixes,
+    };
+  }
+
+  return { update, getState, reset() { consecutiveOpposedFixes = 0; angularDifferenceDegrees = null; } };
 }
 
 export function createCircularHeadingSmoother({ response = 0.42, jumpDegrees = 120 } = {}) {

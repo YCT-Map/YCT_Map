@@ -46,7 +46,7 @@ YCT Map is a web-based application consisting of:
 
 **CURRENT implementation:** Django-rendered HTML, mobile-first CSS and native ES modules. MapLibre GL JS `6.10.0` is loaded from a pinned CDN URL. Search remains usable when map initialization fails.
 
-The public locator separates browser acquisition (`geolocation.js`), pure validation/stabilization (`location-filter.js`), location UI state (`user-location.js`) and MapLibre rendering (`map.js`). `supported-area.js` derives one supported YCT location area from the existing campus geometry plus the approximately 400 m context margin. Far-away or unavailable-scope fixes fail closed and never render or move the map. Ordinary public position is transient; only an explicit live-route request sends the currently accepted coordinate to Django, and that request is not persisted.
+The public locator separates browser acquisition (`geolocation.js`), pure validation/stabilization (`location-filter.js`), location UI state (`user-location.js`) and MapLibre rendering (`map.js`). Initial acquisition gathers several fixes for at least a short convergence window and no more than ten seconds; live updates remain continuous afterward. The rolling estimator rejects implausible outliers, caps accuracy influence, slightly favours recent evidence, applies uncertainty-aware stationary/slow-walk/walking hysteresis and retains a materially better fix only for a bounded age. The visible marker remains the best honest estimate and is never snapped to the route. `supported-area.js` derives one supported YCT location area from the existing campus geometry plus the approximately 400 m context margin. Far-away or unavailable-scope fixes fail closed and never render or move the map. Ordinary public position is transient; only an explicit live-route request sends the currently accepted coordinate to Django, and that request is not persisted.
 
 There is no ordinary-user location-history model, breadcrumb storage or raw-coordinate analytics. Private breadcrumb persistence exists only inside an explicitly started authenticated Path Survey session. Final physical-device survey acceptance remains pending.
 
@@ -67,7 +67,7 @@ There is no ordinary-user location-history model, breadcrumb storage or raw-coor
 
 ## Database
 
-**Status: CURRENT — LOCAL PHASE 4**
+**Status: CURRENT — LOCAL SQLITE + PRODUCTION POSTGRESQL**
 
 **APPROVED direction:**
 - Persistent storage for campus locations, walkable paths, public contributions, editor accounts
@@ -76,7 +76,7 @@ There is no ordinary-user location-history model, breadcrumb storage or raw-coor
 
 **APPROVED decision (DEC-T03):** Managed PostgreSQL (Neon preferred; Supabase compatible alternative).
 
-**CURRENT implementation:** SQLite stores local places, categories, aliases, entrances, floors, internal places, contributions/resolutions, routing nodes/segments/anchors, arrival connectors and private survey/verification evidence. Portable Django ORM fields and JSON geometry preserve a PostgreSQL-compatible migration path. No production database infrastructure exists.
+**CURRENT implementation:** SQLite stores the local development copy; the owner-managed deployed application uses Neon PostgreSQL. Places, categories, aliases, entrances, floors, internal places, contributions/resolutions, routing nodes/segments/anchors, arrival connectors and private survey/verification evidence use portable Django ORM fields and JSON geometry. The final closeout sweep performs no production read or write.
 
 ---
 
@@ -133,7 +133,7 @@ The primary development graph is imported from a reviewed OSM/Overpass snapshot 
 
 ## Storage
 
-**Status: NOT STARTED**
+**Status: CURRENT — OWNER-MANAGED RENDER + NEON**
 
 No file storage requirements identified for V1 (no location photographs in V1).
 
@@ -144,6 +144,8 @@ No file storage requirements identified for V1 (no location photographs in V1).
 **Status: NOT STARTED**
 
 **APPROVED decision (DEC-T07, DEC-T08):** Web application deployed on Render, database hosted on Neon, initial platform subdomain with custom DNS support.
+
+The production environment exists and is owner-managed. Local implementation work is not considered deployed until separately authorized, pushed and released; this closeout sweep changes neither Render configuration nor Neon data.
 
 ---
 
@@ -226,7 +228,7 @@ The Editor group is provisioned after migrations with only the required location
 
 ## Phase 4 Sprint 003 Mapping Tools
 
-The editor reuses the Sprint 002 MapLibre point-selector controller for representative points and entrances. Place and Entrance forms share `location-capture.js`: a user-triggered five-second `watchPosition` window feeds the established stabilizer, reports elapsed progress, chooses one final accepted fix, enforces the supported YCT area and cleans up on retry, failure, cancellation or page hiding. Coordinates are written only after success, remain adjustable on the map and are never auto-saved. Combined representative/primary-entrance capture still requires explicit confirmation before replacing an existing primary entrance.
+The editor reuses the Sprint 002 MapLibre point-selector controller for representative points and entrances. Place and Entrance forms share `location-capture.js`: a user-triggered adaptive `watchPosition` window uses the same robust estimator, may finish after six seconds when readings have converged, and always stops by ten seconds. It reports simple progress, chooses one final accepted fix, enforces the supported YCT area and cleans up on retry, failure, cancellation or page hiding. Coordinates are written only after success, remain adjustable on the map and are never auto-saved. Combined representative/primary-entrance capture still requires explicit confirmation before replacing an existing primary entrance.
 
 Approved contributions enter a separate resolution queue. Multiple resolution actions may reference locations, entrances, nodes or segments; recording an action does not publish, verify or automatically mutate campus data. Routing edits use nullable actor audit fields. Connected nodes cannot be moved directly, segment impact reports remaining endpoint degree and anchor counts, and splitting is an explicit atomic operation that retains the original segment as inactive history.
 
@@ -240,11 +242,11 @@ Raw survey samples must be immutable evidence input and must never silently rewr
 
 Path Survey Mode stores private editor evidence in `PathSurvey` and ordered `PathSurveySample` records rather than adding breadcrumbs to `WalkableSegment`. Explicit Draft/Active/Paused/Completed/Reviewed/Abandoned transitions govern acquisition; reopening an interrupted Active record does not restart browser geolocation. Brief outages use an IndexedDB buffer and idempotent sequence upload.
 
-Completed samples are immutable and never rewrite graph geometry. `SurveySegmentMatch` stores algorithmic classification separately from reviewer disposition and binds evidence to a segment revision/fingerprint. `SegmentVerificationRecord` preserves explicit grant, revoke and geometry-invalidation history with nullable actors. Verification permissions are separate from ordinary editing; publication and routing availability remain independent.
+Completed samples are immutable and never rewrite graph geometry. `SurveySegmentMatch` stores algorithmic classification separately from reviewer disposition and binds evidence to a segment revision/fingerprint. Nullable reviewer/time audit fields preserve the latest explicit evidence-review action; new disposition writes update the decision, reason, actor and time atomically, while legacy null metadata remains honest. `SegmentVerificationRecord` preserves explicit grant, automatic evidence-based grant, revoke and geometry-invalidation history with nullable actors. Verification permissions are separate from ordinary editing; publication and routing availability remain independent.
 
-The pass-aware evaluator derives chronological corridor passes from immutable usable samples. Callback density does not create extra passes: a pass ends only after material time/spatial departure, while one brief dropout may remain part of the same traversal. A strong, independent pass may automatically grant FIELD_VERIFIED only to an UNVERIFIED segment whose geometry predates that evidence. Automatic downgrade is forbidden. Potential missing corridors are derived as survey-relative candidates; the review map does not persist them.
+The pass-aware evaluator derives chronological corridor passes from usable samples in finalized `COMPLETED` and `REVIEWED` surveys. Callback density does not create extra passes: a pass ends only after material time/spatial departure, while one brief dropout may remain part of the same traversal. Cumulative evaluation preserves those survey/pass boundaries and requires at least two independent high-quality passes whose intervals provide meaningful contiguous coverage, with strict accuracy, offset, direction and competing-path checks. Only an explicit future survey-completion transition evaluates affected active `UNVERIFIED` segments for one-way automatic promotion. Deployment, startup and every GET remain read-only; later conflict is surfaced for review without automatic downgrade.
 
-Candidate graph creation is a separate explicit editor action. The preview reports node reuse, new nodes and required transactional segment splits. Applying it recomputes the candidate, locks mutations transactionally, avoids same-node/duplicate endpoint connections and preserves split history. One discovery pass creates UNVERIFIED geometry. At least two separate matching evidence passes may support immediate FIELD_VERIFIED creation; otherwise a later survey must independently confirm it.
+Candidate graph creation is a separate explicit editor POST action. The preview reports node reuse, new nodes and required transactional segment splits. Applying it recomputes the current candidate, verifies a token bound to geometry, pass identity/quality and the resulting verification readiness, locks graph mutations transactionally, avoids same-node/duplicate endpoint connections and preserves split history. One discovery pass creates `UNVERIFIED` geometry. At least two separate strict matching passes may support `FIELD_VERIFIED` creation after explicit approval; otherwise a qualifying pass beginning after creation is required. Accuracy-plausible nearby parallel corridors remain separate/ambiguous rather than being merged or promoted.
 
 ACTIVE and PAUSED survey pages render a read-only MapLibre evidence view. Existing `WalkableSegment` geometry is reference data, the current browser position is a separate point, and the live blue trace is reconstructed from authenticated server-returned usable samples. The map has no mutation controls, rejected readings never enter the line, and map/style failure is isolated from capture, IndexedDB buffering and synchronization.
 
@@ -266,9 +268,13 @@ Search and category filtering continue to own the visible feature set through th
 
 ## Navigation Orientation and User-Controlled Camera
 
-`device-orientation.js` owns permission-gated, absolute browser orientation and pure heading math. It uses a native compass heading where available; otherwise it derives compass heading from absolute alpha/beta/gamma with tilt compensation, then corrects for screen orientation. Shortest-arc circular smoothing never changes GPS coordinates. A fresh device-facing heading wins; after four seconds without a device reading, stabilized movement heading is the fallback, otherwise the marker remains a dot. Map bearing changes only rendered relative rotation. Development-only query diagnostics expose raw, normalized, selected and rendered values without adding public UI.
+`device-orientation.js` owns permission-gated, absolute browser orientation and pure heading math. It uses a native compass heading where available; otherwise it derives compass heading from absolute alpha/beta/gamma with tilt compensation. Geographic heading uses the cardinal contract 0° north, 90° east, 180° south and 270° west, with screen orientation added exactly once during device-frame conversion. The intrinsic `▲` marker points north/up at zero. MapLibre's map-aligned symbol rotation accounts for map bearing, so application code does not subtract bearing or add an unexplained 180° correction. Shortest-arc smoothing never changes GPS coordinates. A fresh device-facing heading wins; after four seconds without a device reading, stabilized movement heading is the fallback, otherwise the marker remains a dot. Development diagnostics expose raw, normalized, selected, rendered and sustained-opposition values without adding public UI.
 
 YCT Map keeps geographic camera interaction user-controlled during normal live navigation. Device/movement heading rotates the user marker rather than forcing map bearing. The active route ahead is progressively rendered from trusted route progress. Drag, zoom and rotate gestures therefore remain authoritative; Recenter performs one move to the accepted position at a navigation zoom without changing the user's bearing or enabling a tracking lock. MapLibre's standard compass remains available for a deliberate bearing reset. Orientation is neither sent to Django nor stored, and Path Survey heading remains a separate authenticated evidence workflow.
+
+## Editor Mutation and Recovery Contract
+
+UUID-backed model instances may receive a primary key before they are stored, so templates never use `instance.pk` alone to decide whether a create form represents a persisted object. Editor views pass an explicit create/edit state. Successful Place, Entrance, verification and routing-connection mutations use CSRF-protected POST requests followed by redirects built with named `reverse()` routes to stable GET pages. Invalid forms remain bound HTTP 200 responses at a canonical form action and do not expose edit/action URLs for unsaved objects. A rejected stale-CSRF POST returns HTTP 403 with a recovery link to a stable GET page rather than the rejected action URL.
 
 ## Campus-First Map Presentation
 

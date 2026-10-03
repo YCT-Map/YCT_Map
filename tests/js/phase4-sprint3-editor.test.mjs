@@ -17,7 +17,7 @@ test("checkpoint checkbox is paired directly with its editor label", () => {
   assert.match(css, /\.editor-checkbox-field\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\)/s);
 });
 
-test("place field capture reuses the shared five-second campus-scoped controller", () => {
+test("place field capture reuses the shared adaptive campus-scoped controller", () => {
   assert.match(placeScript, /bindLocationCapture/);
   assert.match(placeScript, /loadSupportedLocationArea/);
   assert.doesNotMatch(placeScript, /getCurrentPosition/);

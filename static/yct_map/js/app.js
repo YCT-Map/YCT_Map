@@ -1,13 +1,13 @@
-import { fetchLocations } from "./api.js?v=field-mapping-1";
-import { createContributions } from "./contributions.js?v=field-mapping-1";
-import { createDestinationPanel } from "./destination-panel.js?v=field-mapping-1";
-import { createMap } from "./map.js?v=field-mapping-1";
-import { createSearch } from "./search.js?v=field-mapping-1";
-import { createRouteInspector } from "./route-inspector.js?v=field-mapping-1";
-import { createUserLocation } from "./user-location.js?v=field-mapping-1";
-import { createUserNavigation } from "./user-navigation.js?v=field-mapping-1";
-import { createDisclosureMenu } from "./disclosure-menu.js?v=field-mapping-1";
-import { loadSupportedLocationArea } from "./supported-area.js?v=field-mapping-1";
+import { fetchLocations } from "./api.js?v=final-web-closeout-1";
+import { createContributions } from "./contributions.js?v=final-web-closeout-1";
+import { createDestinationPanel } from "./destination-panel.js?v=final-web-closeout-1";
+import { createMap } from "./map.js?v=final-web-closeout-1";
+import { createSearch } from "./search.js?v=final-web-closeout-1";
+import { createRouteInspector } from "./route-inspector.js?v=final-web-closeout-1";
+import { createUserLocation } from "./user-location.js?v=final-web-closeout-1";
+import { createUserNavigation } from "./user-navigation.js?v=final-web-closeout-1";
+import { createDisclosureMenu } from "./disclosure-menu.js?v=final-web-closeout-1";
+import { loadSupportedLocationArea } from "./supported-area.js?v=final-web-closeout-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");

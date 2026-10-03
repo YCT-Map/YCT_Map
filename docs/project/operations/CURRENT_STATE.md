@@ -9,11 +9,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-10-01 |
+| **Date** | 2026-10-03 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 4 — EDITOR & MAPPING TOOLS |
-| **Pipeline Phase** | FIELD MAPPING, HEADING, GPS CAPTURE AND PASS-AWARE PATH VERIFICATION INTEGRATION IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED |
-| **Latest Meaningful Commit** | `13fe1e6` (`fix: improve path survey review workflow`) — approved integration baseline |
+| **Pipeline Phase** | FINAL WEB CLOSEOUT, SURVEY INTELLIGENCE & LOCATION QUALITY SWEEP — IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED |
+| **Latest Meaningful Commit** | `9ce9a78` (`feat: integrate field mapping and survey verification`) — clean closeout baseline |
 
 ---
 
@@ -30,8 +30,8 @@
 | Demo/development dataset | Live working DEMO Locations removed; DEMO fixtures retained only for automated tests |
 | Field verification | EXPLICIT LOCAL WORKFLOW IMPLEMENTED; NO PRODUCTION VERIFICATION STATE CHANGED |
 | Routing dataset | 47 OSM-derived nodes plus 2 manual nodes; 54 OSM-derived segments; 2 active entrance anchors; all UNVERIFIED |
-| Deployment | PRODUCTION CONFIGURATION PREPARED; NO DEPLOYMENT PERFORMED |
-| Test suite | 201 DJANGO + 122 JAVASCRIPT TESTS PASSING |
+| Deployment | RENDER + NEON PRODUCTION EXISTS; THIS LOCAL CLOSEOUT HAS NOT BEEN DEPLOYED |
+| Test suite | 237 DJANGO + 133 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -146,19 +146,23 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ## Active Work
 
-The Field Mapping, Heading, GPS Capture and Evidence-Based Path Verification integration is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED. It starts from the clean, pushed `13fe1e6` survey-review baseline. No baseline work was reconstructed or reverted.
+The Final Web Closeout, Survey Intelligence & Location Quality Sweep is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED on top of commit `9ce9a78`. It preserves the preceding uncommitted closeout work, closes the per-match reviewer audit gap, evaluates independent evidence across finalized surveys and improves browser-location stability and Place/Entrance capture. Changed assets use the coherent `final-web-closeout-1` token. No commit, push or deployment is included.
 
-The public live marker is now a compact layered directional arrowhead. Tilt-aware absolute device orientation is corrected for screen orientation, geographic heading remains independent from map bearing, movement heading remains the fallback, and a dot is used when no direction is trustworthy. Development-only `?headingDebug=1` diagnostics expose the pipeline without adding normal-user UI.
+The arrow bug was a screen-orientation sign regression: the orientation pipeline subtracted the screen angle even though the established device-to-geographic transform requires it once in the positive direction. The layered `▲` artwork already points north at zero and remains MapLibre map-aligned, so no 180-degree artwork correction or manual map-bearing compensation was added. Development-only `?headingDebug=1` now also reports sustained device-versus-movement opposition.
 
-Live location and editor current-location capture share a campus-geometry-derived supported area: the existing boundary bounds plus approximately 400 m of gate/context margin. Far-away fixes fail closed and neither render nor move the public map. Place and Entrance editors now share a user-triggered five-second stabilized capture; it updates hidden coordinates only after a successful final fix, remains manually adjustable and never saves automatically.
+The production editor failure was traced to UUID-backed unsaved Entrances. An invalid create submission already had an in-memory primary key, and the template used that value as proof of persistence, exposing edit/verification/routing URLs for a row that did not exist. Views now pass an explicit create/edit state; successful mutations redirect to stable named GET pages, invalid forms remain bound to their canonical create URL, and stale-CSRF recovery never links back to a POST-only or missing-object URL.
+
+Live location and editor current-location capture share a campus-geometry-derived supported area: the existing boundary bounds plus approximately 400 m of gate/context margin. Far-away fixes fail closed and neither render nor move the public map. Initial Locate Me and Place/Entrance capture now collect several fixes through an adaptive six-to-ten-second window and a bounded robust estimator; live walking remains continuously responsive afterward. Accuracy influence is capped, recent evidence is slightly preferred, stationary/slow/walking state uses hysteresis, implausible jumps are rejected and a better fix is retained only briefly. Editor capture remains manually adjustable and never saves automatically.
 
 Existing database-backed Location and Entrance verification fields now have explicit permission-gated grant/revoke actions. Publication, checkpoint status, routing availability and the two verification states remain independent. Coordinate edits demote the affected record to `UNVERIFIED`.
 
-Completed surveys now support pure pass-aware analysis. A conservative strong pass may automatically promote pre-existing UNVERIFIED segment geometry, while never auto-revoking a verified segment. Candidate unmapped paths are derived from immutable evidence, rendered only in editor review, and require an explicit preview and confirmation before transactional graph creation. One candidate pass creates UNVERIFIED geometry; two genuinely separate matching passes may support FIELD_VERIFIED creation. The current whole-campus backup was evaluated only in a disposable SQLite dry run and remained unchanged.
+Finalized `COMPLETED` and `REVIEWED` surveys now contribute cumulative pass-level evidence without concatenating traces. A future explicit survey completion may promote an affected active `UNVERIFIED` segment only after at least two independent high-quality passes provide meaningful contiguous coverage without ambiguity or human-review conflict. The evaluator never auto-revokes; later conflict stays verified but appears for review. Needs Confirmation excludes unobserved, already verified and evidence-sufficient paths, but retains new geometry whose support predates creation until a later qualifying pass exists. Candidate geometry still requires an authorized explicit POST, current-evidence recomputation, an evidence-bound confirmation token and transactional graph creation; accuracy-plausible parallel corridors remain separate and discovery alone cannot self-verify geometry.
+
+`SurveySegmentMatch` now has nullable reviewer/time audit fields through additive routing migration `0010`. Every new review-only change writes disposition, reason, latest reviewer and latest timestamp atomically. Legacy rows retain honest null metadata and render as historical review with reviewer not recorded.
 
 Phase 4 Sprints 001, 002 and 003 are OWNER ACCEPTED / COMPLETE. Sprint 002 now includes multiple entrances, floors and internal places, explicit entrance anchoring, editor-approved arrival-connector geometry, exact physical-entrance route completion and textual indoor handoff without claiming indoor routing.
 
-Phase 4 Sprint 004 is IMPLEMENTATION COMPLETE / TECHNICAL AUDIT COMPLETE / PHYSICAL OWNER ACCEPTANCE PENDING. It adds explicit mobile Path Survey sessions, private accuracy-classified samples with temporary IndexedDB buffering, revision-bound trace matching, separate reviewer disposition, append-only verification history and permission-gated grant/revoke actions. No survey automatically edits the graph or grants `FIELD_VERIFIED`.
+Phase 4 Sprint 004 is IMPLEMENTATION COMPLETE / TECHNICAL AUDIT COMPLETE / PHYSICAL OWNER ACCEPTANCE PENDING. It adds explicit mobile Path Survey sessions, private accuracy-classified samples with temporary IndexedDB buffering, revision-bound trace matching, separate reviewer disposition, append-only verification history and permission-gated grant/revoke actions. Surveys never edit graph geometry automatically. The approved closeout exception allows only one-way segment verification from strict cumulative evidence during an explicit future completion action.
 
 The public-map Destination Density & Semantic Zoom upgrade is OWNER REVIEWED / COMMITTED and remains the clustering foundation. The local checkpoint hierarchy supersedes its ordinary-point presentation while preserving cluster expansion, filtering and the separate selected-destination foreground source.
 
@@ -166,7 +170,7 @@ The Field-Test Stabilization sprint is OWNER REVIEWED / COMMITTED. The public ro
 
 The Flexible Live Navigation correction supersedes the unaccepted camera-follow presentation. Browser/device-supported absolute phone orientation still has presentation priority over movement heading, with circular smoothing and a four-second freshness limit, but heading rotates only the blue user marker. The map remains user-controlled; Recenter is a one-shot bearing-preserving action and MapLibre's standard compass provides optional reset.
 
-The Checkpoint Map Hierarchy is IMPLEMENTED / OWNER REVIEW REQUIRED. `Location.is_checkpoint` is a new default-false, editor-controlled flag exposed explicitly in outdoor GeoJSON. Checkpoints receive a permanent YCT-green landmark and earlier label; ordinary destinations retain clustering, close labels, invisible 30 px interaction targets and the selected overlay without permanent dots. No existing Location was automatically changed and the local migration has not been applied.
+The Checkpoint Map Hierarchy is part of the committed baseline. `Location.is_checkpoint` is a default-false, editor-controlled flag exposed explicitly in outdoor GeoJSON. Checkpoints receive a permanent YCT-green landmark and earlier label; ordinary destinations retain clustering, close labels, invisible 30 px interaction targets and the selected overlay without permanent dots. The migration did not automatically mark any existing Location as a checkpoint.
 
 Live route presentation now keeps the full route authoritative for progress, off-route, ETA and arrival logic while rendering trusted progress as a subtle completed line plus a strong remaining-route line. Uncertain evidence freezes the last trustworthy visual state; successful rerouting resets presentation to the replacement route and failure retains the previous route. Manual routes stay complete and the user marker is not snapped.
 
@@ -180,16 +184,16 @@ The orientation-only campus outline now becomes thinner and more transparent tow
 
 ## Known Blockers
 
-Owner review must still verify the arrow against physical N/E/S/W phone headings, the five-second Place/Entrance capture on campus, supported-area rejection, independent Place/Entrance verification controls and the pass/candidate review UI. The dry run identified only three existing segments that satisfy the conservative automatic threshold and eleven one-pass candidate corridors; it performed no writes. Parallel/closely adjacent path attribution remains deliberately conservative, browser geolocation cannot guarantee doorway-level positioning, and detailed contribution-resolution owner QA remains intentionally deferred.
+Owner review must still verify physical N/E/S/W phone headings, adaptive location settling while stationary/walking, Place/Entrance capture and the cumulative Needs Confirmation flow on campus. The OSM-derived graph remains `UNVERIFIED` unless sufficient evidence or an authorized manual decision changes an individual segment; browser geolocation cannot guarantee doorway-level positioning; parallel/closely adjacent path attribution remains deliberately conservative; and detailed contribution-resolution owner QA remains deferred.
 
 ---
 
 ## Next Approved Task
 
-Owner-test the local field-mapping integration: physical heading, supported-area behavior, five-second Place/Entrance capture, independent verification actions, completed-survey candidate overlays, the confirmation-only filter and graph-change preview. Do not apply candidate graph changes to production during this review.
+Owner-test the local web closeout build on Samsung/Edge: location settling and movement responsiveness, physical cardinal heading, Place/Entrance adaptive capture plus manual adjustment, stable editor refresh/back navigation, reviewer/time persistence and one new survey over a Needs Confirmation path. Do not apply candidate graph or verification changes to production during this review.
 
 ---
 
 ## Deployment Status
 
-NOT STARTED. No production deployment exists. Cloudflare Quick Tunnel support is development-only.
+An operational Render/Neon deployment exists at the owner-managed production service. The `final-web-closeout-1` working tree is local only: no deployment, Neon write or Render configuration change was performed. Cloudflare Quick Tunnel support remains development-only.

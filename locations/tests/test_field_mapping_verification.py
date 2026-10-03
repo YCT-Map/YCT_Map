@@ -98,3 +98,13 @@ class PlaceEntranceVerificationTests(TestCase):
         self.assertContains(entrance, 'id="capture-entrance-location"')
         self.assertContains(entrance, "Mark entrance as field verified")
         self.assertContains(entrance, "data-campus-boundary-url")
+
+    def test_place_verification_action_is_hidden_without_change_permission(self):
+        grant_only = get_user_model().objects.create_user("grant-only", password="test-password-42")
+        grant_only.user_permissions.add(*Permission.objects.filter(codename__in=(
+            "view_location", "grant_field_verified",
+        )))
+        self.client.force_login(grant_only)
+        response = self.client.get(reverse("editor:place-detail", args=(self.place.pk,)))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Mark place as field verified")

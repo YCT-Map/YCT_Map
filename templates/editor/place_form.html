@@ -3,7 +3,7 @@
 {% block head %}<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.10.0/dist/maplibre-gl.css">{% endblock %}
 {% block content %}
   <div class="editor-heading"><div><p class="editor-eyebrow">Outdoor place</p><h1>{% if creating %}Add place{% else %}{{ place.name }}{% endif %}</h1><p>Representative points describe map position. Routing continues to use the separate network anchor.</p></div><a href="{% url 'editor:place-list' %}">Back to places</a></div>
-  <form method="post" class="editor-form editor-place-form" novalidate>
+  <form method="post" action="{% if creating %}{% url 'editor:place-create' %}{% else %}{% url 'editor:place-detail' place.id %}{% endif %}" class="editor-form editor-place-form" novalidate>
     {% csrf_token %}
     {% if form.non_field_errors or aliases.non_form_errors %}<div class="editor-error" role="alert">{{ form.non_field_errors }}{{ aliases.non_form_errors }}</div>{% endif %}
     <section class="editor-card">
@@ -38,39 +38,38 @@
       <button id="capture-current-location" type="button">Use current location</button>
       <p id="place-location-status" role="status" aria-live="polite">{% if place.has_representative_point %}Saved representative point loaded.{% else %}No point selected.{% endif %}</p>
       <div id="place-map" class="editor-map-picker" data-state="loading" data-campus-boundary-url="{% static 'yct_map/data/yabatech-campus-boundary.geojson' %}" data-latitude="{{ place.representative_latitude|default:'' }}" data-longitude="{{ place.representative_longitude|default:'' }}" aria-label="Choose representative point on campus map"></div>
-      <div class="editor-field">{{ form.capture_primary_entrance }}<label for="{{ form.capture_primary_entrance.id_for_label }}">{{ form.capture_primary_entrance.label }}</label></div>
-      {% if place.pk and entrances %}<div class="editor-field">{{ form.confirm_primary_overwrite }}<label for="{{ form.confirm_primary_overwrite.id_for_label }}">{{ form.confirm_primary_overwrite.label }}</label><small>Required only when replacing an existing active primary entrance point.</small></div>{% endif %}
+      <div class="editor-field editor-checkbox-field">{{ form.capture_primary_entrance }}<label for="{{ form.capture_primary_entrance.id_for_label }}">{{ form.capture_primary_entrance.label }}</label></div>
+      {% if place.pk and entrances %}<div class="editor-field editor-checkbox-field">{{ form.confirm_primary_overwrite }}<label for="{{ form.confirm_primary_overwrite.id_for_label }}">{{ form.confirm_primary_overwrite.label }}</label><small>Required only when replacing an existing active primary entrance point.</small></div>{% endif %}
       <small>Raw coordinates are hidden. You may adjust a captured point on the map before saving.</small>
     </section>
+    {% if can_edit %}<div class="editor-form-actions"><button class="editor-primary" type="submit">Save place</button><a href="{% url 'editor:place-list' %}">Cancel</a></div>{% endif %}
+  </form>
     {% if not creating %}
     <section class="editor-card">
-      <div class="editor-section-heading"><div><h2>Entrances</h2><p>Entrances are arrival points; the representative point remains separate.</p></div>{% if can_edit %}<a href="{% url 'editor:entrance-create' place.id %}">Add entrance</a>{% endif %}</div>
-      {% for entrance in entrances %}<p><a href="{% url 'editor:entrance-edit' place.id entrance.id %}">{{ entrance.name }}</a> · {{ entrance.get_entrance_type_display }}{% if entrance.is_primary %} · Primary{% endif %}{% if not entrance.is_active %} · Inactive{% endif %}{% if entrance.network_anchor and entrance.network_anchor.is_active %} · Network anchor ready{% else %} · No active network anchor{% endif %}</p>{% empty %}<p>No entrances recorded.</p>{% endfor %}
+      <div class="editor-section-heading"><div><h2>Entrances</h2><p>Entrances are arrival points; the representative point remains separate.</p></div>{% if perms.locations.add_entrance %}<a href="{% url 'editor:entrance-create' place.id %}">Add entrance</a>{% endif %}</div>
+      {% for entrance in entrances %}<p>{% if perms.locations.change_entrance %}<a href="{% url 'editor:entrance-edit' place.id entrance.id %}">{{ entrance.name }}</a>{% else %}{{ entrance.name }}{% endif %} · {{ entrance.get_entrance_type_display }}{% if entrance.is_primary %} · Primary{% endif %}{% if not entrance.is_active %} · Inactive{% endif %}{% if entrance.network_anchor and entrance.network_anchor.is_active %} · Network anchor ready{% else %} · No active network anchor{% endif %}</p>{% empty %}<p>No entrances recorded.</p>{% endfor %}
     </section>
     <section class="editor-card">
       <div class="editor-section-heading"><div><h2>Routing readiness</h2><p>Publication and verification do not imply that Directions is available.</p></div></div>
       {% if routing and routing.routing_available %}<p><strong>Directions available</strong>{% if routing.entrance %} via {{ routing.entrance.name }}{% endif %}.</p>{% else %}<p class="editor-warning"><strong>Directions unavailable.</strong> {% if routing %}{{ routing.unavailable_reason }}{% elif place.publication_status == 'PUBLISHED' %}This published place is not currently resolvable to the walkable network.{% else %}Publish the place to evaluate public routing.{% endif %}</p>{% endif %}
     </section>
     <section class="editor-card">
-      <div class="editor-section-heading"><div><h2>Floors</h2></div>{% if can_edit %}<a href="{% url 'editor:floor-create' place.id %}">Add floor</a>{% endif %}</div>
-      {% for floor in floors %}<p><a href="{% url 'editor:floor-edit' place.id floor.id %}">{{ floor.label }}</a> (level {{ floor.level }}){% if not floor.is_active %} · Inactive{% endif %}</p>{% empty %}<p>No floors recorded.</p>{% endfor %}
+      <div class="editor-section-heading"><div><h2>Floors</h2></div>{% if perms.locations.add_floor %}<a href="{% url 'editor:floor-create' place.id %}">Add floor</a>{% endif %}</div>
+      {% for floor in floors %}<p>{% if perms.locations.change_floor %}<a href="{% url 'editor:floor-edit' place.id floor.id %}">{{ floor.label }}</a>{% else %}{{ floor.label }}{% endif %} (level {{ floor.level }}){% if not floor.is_active %} · Inactive{% endif %}</p>{% empty %}<p>No floors recorded.</p>{% endfor %}
     </section>
     <section class="editor-card">
-      <div class="editor-section-heading"><div><h2>Places inside</h2></div>{% if can_edit %}<a href="{% url 'editor:internal-create' place.id %}">Add internal place</a>{% endif %}</div>
-      {% for item in internal_places %}<p><a href="{% url 'editor:internal-edit' place.id item.id %}">{{ item.name }}</a>{% if item.floor %} · {{ item.floor.label }}{% endif %} · {{ item.get_publication_status_display }}</p>{% empty %}<p>No internal places recorded.</p>{% endfor %}
+      <div class="editor-section-heading"><div><h2>Places inside</h2></div>{% if perms.locations.add_internalplace %}<a href="{% url 'editor:internal-create' place.id %}">Add internal place</a>{% endif %}</div>
+      {% for item in internal_places %}<p>{% if perms.locations.change_internalplace %}<a href="{% url 'editor:internal-edit' place.id item.id %}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}{% if item.floor %} · {{ item.floor.label }}{% endif %} · {{ item.get_publication_status_display }}</p>{% empty %}<p>No internal places recorded.</p>{% endfor %}
     </section>
     {% endif %}
-    {% if can_edit %}<button class="editor-primary" type="submit">Save place</button>{% endif %}
-  </form>
   {% if not creating %}
     <section class="editor-card editor-verification-card">
-      <p class="editor-eyebrow">Verification</p>
-      <h2>Place: {{ place.get_verification_state_display }}</h2>
-      <p>Publication, checkpoint prominence, routing readiness and field verification are independent.</p>
+      <div class="editor-verification-heading"><div><p class="editor-eyebrow">Place verification</p><h2>Field evidence status</h2></div><span class="editor-status-chip editor-status-chip--{{ place.verification_state|lower }}">{% if place.verification_state == 'FIELD_VERIFIED' %}✓{% else %}●{% endif %} {{ place.get_verification_state_display }}</span></div>
+      <p>{% if place.verification_state == 'FIELD_VERIFIED' %}This place point has been field confirmed.{% else %}This place point has not yet been field confirmed.{% endif %} Entrance verification remains separate.</p>
       {% if can_grant_place_verification and place.verification_state != 'FIELD_VERIFIED' %}
-        <form method="post" action="{% url 'editor:place-verification' place.id %}">{% csrf_token %}<input type="hidden" name="action" value="grant"><label>Reason<textarea name="reason" required></textarea></label><button class="editor-primary" type="submit">Mark place as field verified</button></form>
+        <details class="editor-verification-action"><summary>Mark place as field verified</summary><form method="post" action="{% url 'editor:place-verification' place.id %}" class="editor-inline-confirmation">{% csrf_token %}<input type="hidden" name="action" value="grant"><label>Verification reason<textarea name="reason" required></textarea></label><div class="editor-form-actions"><button class="editor-primary" type="submit">Confirm verification</button></div></form></details>
       {% elif can_revoke_place_verification and place.verification_state == 'FIELD_VERIFIED' %}
-        <form method="post" action="{% url 'editor:place-verification' place.id %}">{% csrf_token %}<input type="hidden" name="action" value="revoke"><label>Reason<textarea name="reason" required></textarea></label><button type="submit">Revoke place field verification</button></form>
+        <details class="editor-verification-action editor-verification-action--danger"><summary>Revoke place field verification</summary><form method="post" action="{% url 'editor:place-verification' place.id %}" class="editor-inline-confirmation">{% csrf_token %}<input type="hidden" name="action" value="revoke"><label>Revocation reason<textarea name="reason" required></textarea></label><div class="editor-form-actions"><button class="editor-danger" type="submit">Confirm revocation</button></div></form></details>
       {% endif %}
     </section>
   {% endif %}
@@ -85,4 +84,4 @@
     </section>
   {% endif %}
 {% endblock %}
-{% block scripts %}<script type="module" src="{% static 'yct_map/js/editor-place-map.js' %}?v=field-mapping-1"></script>{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'yct_map/js/editor-place-map.js' %}?v=final-web-closeout-1"></script>{% endblock %}

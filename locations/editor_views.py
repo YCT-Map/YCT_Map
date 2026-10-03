@@ -26,11 +26,16 @@ from routing.models import (EntranceNetworkAnchor, PathSurvey, SourceType, Surve
                             VerificationState, WalkableNode, WalkableSegment)
 from routing.geometry import distance_metres
 from routing.survey_services import (MATCH_DISTANCE_METRES, decide_verification,
-                                     analyse_survey_dry_run, store_samples, transition_survey)
+                                     analyse_survey_dry_run, record_match_review,
+                                     store_samples, transition_survey)
 from routing.matching import project_onto_segment
 from routing.candidate_services import create_candidate_path, preview_candidate_graph_change
 from django.utils.dateparse import parse_datetime
 from django.db.models import Count, Q
+
+
+NEARBY_CANDIDATE_LANDMARK_METRES = 120
+CANDIDATE_LANDMARK_CONTEXT_METRES = 400
 
 
 class EditorLoginView(LoginView):
@@ -54,6 +59,33 @@ def active_editor(permission):
         return wrapped
 
     return decorator
+
+
+def active_editor_any(*permissions):
+    """Require an active account with at least one explicitly listed permission."""
+    def decorator(view):
+        @login_required(login_url="editor:login")
+        @wraps(view)
+        def wrapped(request, *args, **kwargs):
+            if not request.user.is_active:
+                return HttpResponseForbidden("This editor account is inactive.")
+            if not any(request.user.has_perm(permission) for permission in permissions):
+                raise PermissionDenied
+            return view(request, *args, **kwargs)
+        return wrapped
+    return decorator
+
+
+def _redirect_to_place_or(request, target_place_id, fallback_name, **fallback_kwargs):
+    if request.user.has_perm("locations.view_location") or request.user.has_perm("locations.change_location"):
+        return redirect("editor:place-detail", place_id=target_place_id)
+    return redirect(f"editor:{fallback_name}", **fallback_kwargs)
+
+
+def _redirect_to_paths_or(request, fallback_name, **fallback_kwargs):
+    if request.user.has_perm("routing.view_walkablesegment"):
+        return redirect("editor:path-list")
+    return redirect(f"editor:{fallback_name}", **fallback_kwargs)
 
 
 @require_GET
@@ -91,7 +123,7 @@ def place_create(request):
 
 
 @require_http_methods(["GET", "POST"])
-@active_editor("locations.view_location")
+@active_editor_any("locations.view_location", "locations.change_location")
 def place_detail(request, place_id):
     location = get_object_or_404(Location, pk=place_id)
     if request.method == "POST" and not _can_edit(request):
@@ -145,7 +177,7 @@ def _place_form(request, location, creating):
                         primary.full_clean()
                         primary.save()
             messages.success(request, "Place saved.")
-            return redirect("editor:place-detail", place_id=saved.pk)
+            return _redirect_to_place_or(request, saved.pk, "place-create")
     else:
         form = LocationForm(instance=location)
         aliases = LocationAliasFormSet(instance=location, prefix="aliases")
@@ -174,8 +206,8 @@ def _place_form(request, location, creating):
          "routing": routing, "entrances": location.entrances.all() if location.pk else (),
          "floors": location.floors.all() if location.pk else (),
          "internal_places": location.internal_places.select_related("floor") if location.pk else (),
-         "can_grant_place_verification": request.user.has_perm("routing.grant_field_verified"),
-         "can_revoke_place_verification": request.user.has_perm("routing.revoke_field_verified")},
+         "can_grant_place_verification": can_edit and request.user.has_perm("routing.grant_field_verified"),
+         "can_revoke_place_verification": can_edit and request.user.has_perm("routing.revoke_field_verified")},
     )
 
 
@@ -189,10 +221,10 @@ def _save_audited(form, request, creating):
     return item
 
 
-def _entrance_editor_context(request, form, location, entrance):
+def _entrance_editor_context(request, form, location, entrance, *, creating):
     anchor = None
     anchor_distance = None
-    if entrance.pk:
+    if not creating:
         anchor = EntranceNetworkAnchor.objects.filter(entrance=entrance).select_related("node").first()
         if anchor and anchor.is_active:
             anchor_distance = anchor.connector_distance_metres if anchor.connector_geometry else distance_metres(
@@ -203,6 +235,7 @@ def _entrance_editor_context(request, form, location, entrance):
         "form": form,
         "place": location,
         "entrance": entrance,
+        "creating": creating,
         "network_anchor": anchor,
         "network_anchor_distance": anchor_distance,
         "can_grant_entrance_verification": request.user.has_perm("routing.grant_field_verified"),
@@ -222,8 +255,10 @@ def entrance_create(request, place_id):
                 location.entrances.filter(is_primary=True).update(is_primary=False)
             entrance = _save_audited(form, request, True)
         messages.success(request, "Entrance saved.")
-        return redirect("editor:place-detail", place_id=place_id)
-    return render(request, "editor/entrance_form.html", _entrance_editor_context(request, form, location, entrance))
+        return _redirect_to_place_or(request, place_id, "entrance-create", place_id=place_id)
+    return render(request, "editor/entrance_form.html", _entrance_editor_context(
+        request, form, location, entrance, creating=True,
+    ))
 
 
 @require_http_methods(["GET", "POST"])
@@ -242,8 +277,12 @@ def entrance_edit(request, place_id, entrance_id):
             saved.updated_by = request.user
             saved.full_clean(); saved.save()
         messages.success(request, "Entrance saved.")
-        return redirect("editor:place-detail", place_id=place_id)
-    return render(request, "editor/entrance_form.html", _entrance_editor_context(request, form, location, entrance))
+        return _redirect_to_place_or(
+            request, place_id, "entrance-edit", place_id=place_id, entrance_id=entrance.pk,
+        )
+    return render(request, "editor/entrance_form.html", _entrance_editor_context(
+        request, form, location, entrance, creating=False,
+    ))
 
 
 def _apply_field_verification(request, item, *, label, redirect_name, redirect_args):
@@ -369,7 +408,7 @@ def floor_create(request, place_id):
     if request.method == "POST" and form.is_valid():
         _save_audited(form, request, True)
         messages.success(request, "Floor saved.")
-        return redirect("editor:place-detail", place_id=place_id)
+        return _redirect_to_place_or(request, place_id, "floor-create", place_id=place_id)
     return render(request, "editor/simple_form.html", {"form": form, "place": location, "heading": "Add floor"})
 
 
@@ -382,7 +421,9 @@ def floor_edit(request, place_id, floor_id):
     if request.method == "POST" and form.is_valid():
         _save_audited(form, request, False)
         messages.success(request, "Floor saved.")
-        return redirect("editor:place-detail", place_id=place_id)
+        return _redirect_to_place_or(
+            request, place_id, "floor-edit", place_id=place_id, floor_id=floor.pk,
+        )
     return render(request, "editor/simple_form.html", {"form": form, "place": location, "heading": "Edit floor"})
 
 
@@ -401,7 +442,7 @@ def internal_create(request, place_id):
         messages.success(request, "Internal place saved. Add another or return to the building.")
         if "add_another" in request.POST:
             return redirect(f"{request.path}?floor={item.floor_id or ''}")
-        return redirect("editor:place-detail", place_id=place_id)
+        return _redirect_to_place_or(request, place_id, "internal-create", place_id=place_id)
     if request.method == "GET" and request.GET.get("floor"):
         form.fields["floor"].initial = request.GET["floor"]
     return render(request, "editor/internal_form.html", {"form": form, "aliases": aliases, "place": location})
@@ -419,7 +460,9 @@ def internal_edit(request, place_id, internal_id):
             _save_audited(form, request, False)
             aliases.save()
         messages.success(request, "Internal place saved.")
-        return redirect("editor:place-detail", place_id=place_id)
+        return _redirect_to_place_or(
+            request, place_id, "internal-edit", place_id=place_id, internal_id=item.pk,
+        )
     return render(request, "editor/internal_form.html", {"form": form, "aliases": aliases, "place": location, "item": item})
 
 
@@ -522,8 +565,11 @@ def node_create(request):
     form = WalkableNodeForm(request.POST or None, instance=item)
     if request.method == "POST" and form.is_valid():
         item = form.save(commit=False); item.created_by = item.updated_by = request.user; item.full_clean(); item.save()
-        messages.success(request, "UNVERIFIED routing node created."); return redirect("editor:path-list")
-    return render(request, "editor/node_form.html", {"form": form, "node": item, "locked": False})
+        messages.success(request, "UNVERIFIED routing node created.")
+        return _redirect_to_paths_or(request, "node-create")
+    return render(request, "editor/node_form.html", {
+        "form": form, "node": item, "locked": False, "creating": True,
+    })
 
 
 @require_http_methods(["GET", "POST"])
@@ -534,8 +580,11 @@ def node_edit(request, node_id):
     form = WalkableNodeForm(request.POST or None, instance=item, locked=locked)
     if request.method == "POST" and form.is_valid():
         item = form.save(commit=False); item.updated_by = request.user; item.full_clean(); item.save()
-        messages.success(request, "Routing node saved."); return redirect("editor:path-list")
-    return render(request, "editor/node_form.html", {"form": form, "node": item, "locked": locked})
+        messages.success(request, "Routing node saved.")
+        return _redirect_to_paths_or(request, "node-edit", node_id=item.pk)
+    return render(request, "editor/node_form.html", {
+        "form": form, "node": item, "locked": locked, "creating": False,
+    })
 
 
 @require_http_methods(["GET", "POST"])
@@ -545,9 +594,12 @@ def segment_create(request):
     form = WalkableSegmentForm(request.POST or None, instance=item)
     if request.method == "POST" and form.is_valid():
         item = form.save(commit=False); save_segment(segment=item, cleaned_data=form.cleaned_data, actor=request.user)
-        messages.success(request, "UNVERIFIED path segment created."); return redirect("editor:path-list")
+        messages.success(request, "UNVERIFIED path segment created.")
+        return _redirect_to_paths_or(request, "segment-create")
     nodes = list(WalkableNode.objects.filter(is_active=True).values("id", "longitude", "latitude", "label"))
-    return render(request, "editor/segment_form.html", {"form": form, "segment": item, "impact": (), "nodes_json": nodes})
+    return render(request, "editor/segment_form.html", {
+        "form": form, "segment": item, "impact": (), "nodes_json": nodes, "creating": True,
+    })
 
 
 @require_http_methods(["GET", "POST"])
@@ -558,9 +610,12 @@ def segment_edit(request, segment_id):
     form = WalkableSegmentForm(request.POST or None, instance=item)
     if request.method == "POST" and form.is_valid():
         item = form.save(commit=False); save_segment(segment=item, cleaned_data=form.cleaned_data, actor=request.user)
-        messages.success(request, "Path segment saved."); return redirect("editor:path-list")
+        messages.success(request, "Path segment saved.")
+        return _redirect_to_paths_or(request, "segment-edit", segment_id=item.pk)
     nodes = list(WalkableNode.objects.filter(is_active=True).values("id", "longitude", "latitude", "label"))
-    return render(request, "editor/segment_form.html", {"form": form, "segment": item, "impact": impact, "nodes_json": nodes})
+    return render(request, "editor/segment_form.html", {
+        "form": form, "segment": item, "impact": impact, "nodes_json": nodes, "creating": False,
+    })
 
 
 @require_http_methods(["GET", "POST"])
@@ -575,12 +630,12 @@ def segment_split(request, segment_id):
             form.add_error(None, error)
         else:
             messages.success(request, "Segment split transaction completed; the original remains inactive for history.")
-            return redirect("editor:path-list")
+            return _redirect_to_paths_or(request, "segment-edit", segment_id=item.pk)
     return render(request, "editor/segment_split.html", {"form": form, "segment": item})
 
 
 @require_GET
-@active_editor("routing.conduct_path_survey")
+@active_editor_any("routing.conduct_path_survey", "routing.review_path_survey")
 def survey_list(request):
     surveys = PathSurvey.objects.select_related("owner", "reviewed_by")
     if not request.user.has_perm("routing.review_path_survey"):
@@ -596,7 +651,7 @@ def survey_create(request):
 
 
 @require_http_methods(["GET", "POST"])
-@active_editor("routing.conduct_path_survey")
+@active_editor_any("routing.conduct_path_survey", "routing.review_path_survey")
 def survey_detail(request, survey_id):
     survey = get_object_or_404(PathSurvey.objects.select_related("owner", "reviewed_by"), pk=survey_id)
     can_review = request.user.has_perm("routing.review_path_survey")
@@ -632,7 +687,7 @@ def survey_detail(request, survey_id):
         rejected=Count("id", filter=Q(classification="REJECTED")))
     trace = [[float(sample.longitude), float(sample.latitude)] for sample in
              survey.samples.exclude(classification="REJECTED").order_by("sequence")]
-    matches = list(survey.segment_matches.select_related("segment"))
+    matches = list(survey.segment_matches.select_related("segment", "reviewed_by"))
     analysis = analyse_survey_dry_run(survey) if survey.status in (
         PathSurvey.Status.COMPLETED, PathSurvey.Status.REVIEWED) else {"existing": [], "candidates": []}
     analysis_lookup = {str(item["segment"].pk): item for item in analysis["existing"]}
@@ -641,9 +696,19 @@ def survey_detail(request, survey_id):
     candidates = []
     for candidate in analysis["candidates"]:
         midpoint = candidate["geometry"]["coordinates"][len(candidate["geometry"]["coordinates"]) // 2]
-        nearest = min(locations, key=lambda item: distance_metres(
-            midpoint, (float(item.representative_longitude), float(item.representative_latitude))), default=None)
-        candidates.append({**candidate, "near": nearest.name if nearest else "No mapped landmark nearby"})
+        nearest = min(((distance_metres(
+            midpoint,
+            (float(item.representative_longitude), float(item.representative_latitude)),
+        ), item) for item in locations), key=lambda pair: pair[0], default=None)
+        landmark = None
+        if nearest and nearest[0] <= CANDIDATE_LANDMARK_CONTEXT_METRES:
+            prefix = "Near" if nearest[0] <= NEARBY_CANDIDATE_LANDMARK_METRES else "Closest mapped place:"
+            landmark = f"{prefix} {nearest[1].name} ({nearest[0]:.0f} m)"
+        candidates.append({
+            **candidate,
+            "landmark": landmark,
+            "near": landmark or "No nearby mapped place",
+        })
     usable_points = [(float(sample.longitude), float(sample.latitude)) for sample in
                      survey.samples.exclude(classification="REJECTED").order_by("sequence")]
     primary_matches, diagnostic_matches = [], []
@@ -666,7 +731,9 @@ def survey_detail(request, survey_id):
              "coverage_percent": (analysis_lookup[str(segment.id)]["best"].coverage_percent
                                   if str(segment.id) in analysis_lookup and
                                      analysis_lookup[str(segment.id)]["best"] else 0),
-             "review_state": ("verified" if segment.verification_state == VerificationState.FIELD_VERIFIED
+             "review_state": ("conflict" if (str(segment.id) in analysis_lookup and
+                                  analysis_lookup[str(segment.id)].get("needs_review"))
+                              else "verified" if segment.verification_state == VerificationState.FIELD_VERIFIED
                               else "supported" if (str(segment.id) in analysis_lookup and
                                   analysis_lookup[str(segment.id)]["classification"] == "STRONG")
                               else "conflict" if (str(segment.id) in analysis_lookup and
@@ -680,12 +747,22 @@ def survey_detail(request, survey_id):
     confirmation_segments = [{
         "segment": item["segment"],
         "classification": item["classification"],
-        "coverage_percent": round(item["best"].coverage_percent, 1),
+        "coverage_percent": round(item.get("cumulative_coverage_percent", item["best"].coverage_percent), 1),
         "pass_count": len(item["passes"]),
     } for item in analysis["existing"]
         if item["best"] is not None
         and item["segment"].verification_state != VerificationState.FIELD_VERIFIED
-        and item["classification"] in {"PARTIAL", "AMBIGUOUS", "DISCREPANCY"}]
+        and item.get("needs_confirmation", item["classification"] in {
+            "PARTIAL", "AMBIGUOUS", "DISCREPANCY",
+        })]
+    confirmation_candidates = [item for item in candidates if not item["confirmed"]]
+    review_segments = [{
+        "segment": item["segment"],
+        "classification": item["classification"],
+        "pass_count": len(item["passes"]),
+    } for item in analysis["existing"]
+        if item["segment"].verification_state == VerificationState.FIELD_VERIFIED
+        and item.get("needs_review")]
     classification_counts = {choice: 0 for choice, _ in SurveySegmentMatch.Classification.choices}
     disposition_counts = {choice: 0 for choice, _ in SurveySegmentMatch.Disposition.choices}
     for match in matches:
@@ -699,6 +776,8 @@ def survey_detail(request, survey_id):
         "pending": disposition_counts[SurveySegmentMatch.Disposition.PENDING],
     }
     return render(request, "editor/survey_detail.html", {"survey": survey, "can_review": can_review,
+        "can_grant_verification": can_review and request.user.has_perm("routing.grant_field_verified"),
+        "can_revoke_verification": can_review and request.user.has_perm("routing.revoke_field_verified"),
         "matches": primary_matches, "diagnostic_matches": diagnostic_matches, "sample_counts": counts,
         "match_summary": match_summary, "survey_network": network, "survey_trace": trace,
         "survey_candidates": {"type": "FeatureCollection", "features": [
@@ -708,7 +787,20 @@ def survey_detail(request, survey_id):
                 "review_url": reverse("editor:survey-candidate", args=(survey.pk, item["id"]))}}
             for item in candidates]},
         "candidates": candidates,
+        "confirmation_candidates": confirmation_candidates,
         "confirmation_matches": confirmation_segments,
+        "review_segments": review_segments,
+        "evidence_summary": {
+            "field_verified_campus": WalkableSegment.objects.filter(
+                is_active=True,
+                verification_state=VerificationState.FIELD_VERIFIED,
+            ).count(),
+            "sufficient": sum(item.get("evidence_sufficient", item["classification"] == "STRONG")
+                              for item in analysis["existing"]),
+            "needs_confirmation": len(confirmation_candidates) + len(confirmation_segments),
+            "candidates": len(confirmation_candidates),
+            "conflicts": sum(item["classification"] == "DISCREPANCY" for item in analysis["existing"]),
+        },
         "can_create_candidate": all(request.user.has_perm(permission) for permission in (
             "routing.add_walkablenode", "routing.add_walkablesegment", "routing.change_walkablesegment")),
     })
@@ -719,9 +811,9 @@ def survey_detail(request, survey_id):
 def survey_candidate(request, survey_id, candidate_id):
     survey = get_object_or_404(PathSurvey, pk=survey_id,
                                status__in=(PathSurvey.Status.COMPLETED, PathSurvey.Status.REVIEWED))
-    if not request.user.has_perm("routing.add_walkablenode") or not request.user.has_perm(
-        "routing.change_walkablesegment"
-    ):
+    if (not request.user.has_perm("routing.review_path_survey") or
+            not request.user.has_perm("routing.add_walkablenode") or
+            not request.user.has_perm("routing.change_walkablesegment")):
         raise PermissionDenied
     analysis = analyse_survey_dry_run(survey)
     candidate = next((item for item in analysis["candidates"] if item["id"] == candidate_id), None)
@@ -731,6 +823,11 @@ def survey_candidate(request, survey_id, candidate_id):
     if request.method == "POST":
         if request.POST.get("confirm") != "yes":
             messages.error(request, "Explicitly confirm the graph change before applying it.")
+        elif request.POST.get("candidate_fingerprint") != preview["candidate_fingerprint"]:
+            messages.error(
+                request,
+                "This candidate changed since preview. Review the current geometry before confirming again.",
+            )
         else:
             try:
                 segment = create_candidate_path(survey=survey, candidate=candidate, actor=request.user)
@@ -791,17 +888,12 @@ def survey_match_review(request, survey_id, match_id):
         if action in ("grant", "revoke"):
             decide_verification(match, grant=action == "grant", actor=request.user, reason=reason)
         elif action == "review":
-            if not reason.strip():
-                raise ValidationError("A review reason is required.")
-            disposition = request.POST.get("disposition")
-            allowed = {SurveySegmentMatch.Disposition.USEFUL_PARTIAL,
-                       SurveySegmentMatch.Disposition.REJECTED,
-                       SurveySegmentMatch.Disposition.DISCREPANCY_CONFIRMED}
-            if disposition not in allowed:
-                raise ValidationError("Choose a valid review disposition.")
-            match.disposition = disposition
-            match.reviewer_note = reason.strip()
-            match.full_clean(); match.save(update_fields=("disposition", "reviewer_note"))
+            record_match_review(
+                match,
+                disposition=request.POST.get("disposition"),
+                actor=request.user,
+                reason=reason,
+            )
         else:
             raise ValidationError("Choose a valid evidence action.")
     except ValidationError as error:

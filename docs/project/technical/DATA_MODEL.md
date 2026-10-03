@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PHASE 4 SPRINT 004 — PHYSICAL OWNER ACCEPTANCE PENDING
-Implementation:    PATH SURVEY EVIDENCE + REVISION-BOUND SEGMENT VERIFICATION TECHNICALLY COMPLETE
+Current phase:     FINAL WEB CLOSEOUT — OWNER REVIEW REQUIRED
+Implementation:    CUMULATIVE PATH EVIDENCE + REVIEW AUDIT TECHNICALLY COMPLETE
 ```
 
 This document describes the expected data model based on approved product decisions.
@@ -17,7 +17,9 @@ This document describes the expected data model based on approved product decisi
 
 `active_capture_seconds` is a prospective monotonic accumulator updated only while an editor has explicitly started the browser GPS watcher. `active_capture_tracking_started` distinguishes newly measured surveys from pre-correction history. Wall-clock session duration remains a separate derived `started_at` to `completed_at` value; paused or interrupted time is never labelled active capture.
 
-`SurveySegmentMatch` binds an algorithm conclusion (`STRONG`, `PARTIAL`, `AMBIGUOUS`, `DISCREPANCY`) to one segment revision and fingerprint. Reviewer disposition is separate. A survey with no meaningful candidate has no artificial match row. `SegmentVerificationRecord` is append-only history for explicit grants, revocations and invalidation after material mutation.
+`SurveySegmentMatch` binds an algorithm conclusion (`STRONG`, `PARTIAL`, `AMBIGUOUS`, `DISCREPANCY`) to one segment revision and fingerprint. Reviewer disposition is separate. Nullable `reviewed_by` and `reviewed_at` fields preserve the latest explicit review actor and time; new review writes update disposition, reason and both audit fields atomically, while pre-migration rows honestly remain null. A survey with no meaningful candidate has no artificial match row. `SegmentVerificationRecord` is append-only history for explicit grants, revocations, automatic evidence-based grants and invalidation after material mutation.
+
+Finalized `COMPLETED` and `REVIEWED` surveys contribute usable, non-rejected evidence to cumulative analysis. Evidence remains grouped into chronological, survey-owned passes rather than being concatenated into a synthetic trace. At least two independent high-quality passes, meaningful contiguous coverage, acceptable offsets/accuracy, directional coherence and no competing-path ambiguity are required before an active `UNVERIFIED` segment can be promoted automatically. Automatic promotion is one-way; conflicting later evidence creates a review requirement and never automatically revokes `FIELD_VERIFIED`.
 
 `WalkableSegment.geometry_revision` and `geometry_fingerprint` make verification belong to exact geometry. Material endpoint, LineString or directionality edits pass through the transactional mutation service, increment revision, recompute the fingerprint and demote current verification while preserving history. Split replacements use a relational `derived_from_segment` link and remain UNVERIFIED.
 
@@ -170,9 +172,9 @@ Authentication uses Django's built-in user and permission system. Editor account
 |-------|---------|-------------|
 | DEMO | Demonstration/seed data | System / migration |
 | UNVERIFIED | Exists in the system but not field-confirmed | System on submission |
-| FIELD_VERIFIED | Physically confirmed by trusted team member | Editor / Admin only |
+| FIELD_VERIFIED | Supported by trusted field evidence for the current geometry | Editor / Admin action, or the approved conservative path-evidence evaluator |
 
-Promotion from UNVERIFIED to FIELD_VERIFIED requires deliberate editor action after physical confirmation. It must never happen automatically.
+Locations and Entrances require a deliberate authorized editor action after physical confirmation. Walkable Segments additionally support the approved conservative exception: an explicit future survey-completion action may promote `UNVERIFIED` to `FIELD_VERIFIED` when cumulative independent finalized evidence satisfies every safety threshold. The evaluator never grants Place/Entrance verification, never auto-revokes a segment, and never verifies newly created geometry from its discovery pass alone.
 
 ---
 
@@ -192,7 +194,9 @@ Sprint 003 adds nullable, history-preserving routing `created_by`/`updated_by` a
 
 Routing migration `0007` adds segment revision/fingerprint and verification-history foundations. Migration `0008` adds prospective active-capture timing and related Path Survey evidence fields. Migration `0009_entrancenetworkanchor_connector_geometry.py` adds only nullable arrival-connector geometry and preserves every existing anchor as legacy node-only until an editor explicitly confirms a connector.
 
-Locations migration `0006_location_is_checkpoint.py` adds the default-false checkpoint presentation flag. It contains no data operation and does not select or alter the trust state of any existing place. It remains unapplied to the current local SQLite database until owner review.
+Routing migration `0010_surveysegmentmatch_review_audit.py` adds nullable `reviewed_by` and `reviewed_at` fields to `SurveySegmentMatch`. It is additive, contains no data operation and deliberately leaves historical review rows without fabricated actor or timestamp metadata.
+
+Locations migration `0006_location_is_checkpoint.py` adds the default-false checkpoint presentation flag. It contains no data operation and does not select or alter the trust state of any existing place.
 
 Never rewrite an already-applied migration. Correct data issues through new migrations.
 

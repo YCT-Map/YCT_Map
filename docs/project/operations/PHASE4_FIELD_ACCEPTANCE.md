@@ -272,7 +272,8 @@ Complete this only after Section F finishes successfully enough to produce revie
 | G4 | Genuine discrepancies remain visible. | | |
 | G5 | Coverage approximately represents the segment portions actually walked. | | |
 | G6 | Repeated OSM way IDs remain distinguishable as separate segment records where applicable. | | |
-| G7 | No segment automatically becomes `FIELD_VERIFIED`. | | |
+| G7 | Only paths with sufficient cumulative independent finalized evidence may become `FIELD_VERIFIED` when the new survey completes; unrelated paths remain unchanged. | | |
+| G8 | A newly sufficient path disappears from Needs Confirmation, while ambiguous/conflicting evidence remains for human review. | | |
 
 ### Candidate interpretation record
 
@@ -282,16 +283,16 @@ Complete this only after Section F finishes successfully enough to produce revie
 | | | | | |
 | | | | | |
 
-Do not grant verification during this section.
+Do not use a manual grant during this section. Record any automatic one-way promotion produced by survey completion, including the contributing survey/pass evidence.
 
 **Section G result:** `PASS / FAIL / NOT TESTED`  
 **Section G notes/evidence:**
 
 ---
 
-## H. `FIELD_VERIFIED` Control Test
+## H. Manual `FIELD_VERIFIED` Control Test
 
-Perform this only after the owner understands trustworthy evidence for one non-critical known segment. Never grant verification merely to complete this checklist.
+Perform this only when explicit human override/review still has a justified use after cumulative evaluation. Never grant verification merely to complete this checklist.
 
 **Segment UUID:**  
 **Pre-test revision:**  

@@ -7,8 +7,10 @@ from django.db.models import Q
 from .editor_services import split_segment
 from .geometry import coordinates, distance_metres
 from .matching import project_onto_segment
-from .models import (SegmentVerificationRecord, SourceType, VerificationState,
+from .models import (PathSurvey, SegmentVerificationRecord, SourceType, VerificationState,
                      WalkableNode, WalkableSegment)
+from .survey_analysis import (candidate_confirmation_token, candidate_fingerprint,
+                              candidate_has_strict_confirmation)
 
 
 CANDIDATE_NODE_REUSE_METRES = 5.0
@@ -49,18 +51,32 @@ def preview_candidate_graph_change(candidate):
     points = coordinates(candidate["geometry"])
     start = _endpoint_preview(points[0])
     end = _endpoint_preview(points[-1])
+    action_labels = {
+        "reuse-node": "Connect to an existing junction",
+        "split-segment": "Join an existing path at a new junction",
+        "create-node": "Create a new connection point",
+    }
+    start = {**start, "action_label": action_labels[start["action"]]}
+    end = {**end, "action_label": action_labels[end["action"]]}
+    verification_ready = candidate_has_strict_confirmation(candidate)
+    verification_state = (VerificationState.FIELD_VERIFIED
+                          if verification_ready else VerificationState.UNVERIFIED)
     return {
         "candidate_id": candidate["id"],
+        # Keep the existing form-field contract while binding the token to the
+        # evidence and resulting verification state, not geometry alone.
+        "candidate_fingerprint": candidate_confirmation_token(candidate),
         "length_metres": candidate["length_metres"],
         "pass_count": candidate["pass_count"],
-        "verification_state": (VerificationState.FIELD_VERIFIED
-                               if candidate["confirmed"] else VerificationState.UNVERIFIED),
+        "verification_state": verification_state,
+        "verification_label": VerificationState(verification_state).label,
         "start": start,
         "end": end,
         "warnings": [item for item in (
             "An existing path will be split transactionally." if "split-segment" in {start["action"], end["action"]} else None,
             "A new routing node will be created." if "create-node" in {start["action"], end["action"]} else None,
-            "A second independent walk is still required." if not candidate["confirmed"] else None,
+            "A second strict independent walk is still required."
+            if not verification_ready else None,
         ) if item],
     }
 
@@ -89,6 +105,15 @@ def _resolve_endpoint(point, actor):
 @transaction.atomic
 def create_candidate_path(*, survey, candidate, actor):
     """Apply an explicitly approved preview; never called during analysis."""
+    survey = PathSurvey.objects.select_for_update().get(pk=survey.pk)
+    fingerprint = candidate.get("fingerprint") or candidate_fingerprint(candidate["geometry"])
+    source_reference = f"survey:{survey.pk}:{fingerprint[:16]}"
+    if WalkableSegment.objects.filter(source_reference=source_reference).exists():
+        raise ValidationError("This survey candidate has already been added to the routing graph.")
+    # Serialize endpoint resolution against concurrent graph edits so two
+    # confirmations cannot independently create the same junction/segment.
+    list(WalkableNode.objects.select_for_update().filter(is_active=True).values_list("pk", flat=True))
+    list(WalkableSegment.objects.select_for_update().filter(is_active=True).values_list("pk", flat=True))
     raw_points = coordinates(candidate["geometry"])
     start_node = _resolve_endpoint(raw_points[0], actor)
     end_node = _resolve_endpoint(raw_points[-1], actor)
@@ -102,14 +127,15 @@ def create_candidate_path(*, survey, candidate, actor):
     geometry_points = [list(point) for point in raw_points]
     geometry_points[0] = [float(start_node.longitude), float(start_node.latitude)]
     geometry_points[-1] = [float(end_node.longitude), float(end_node.latitude)]
-    state = VerificationState.FIELD_VERIFIED if candidate["confirmed"] else VerificationState.UNVERIFIED
+    state = (VerificationState.FIELD_VERIFIED
+             if candidate_has_strict_confirmation(candidate) else VerificationState.UNVERIFIED)
     segment = WalkableSegment(
         label=f"Survey candidate {candidate['id']}",
         start_node=start_node, end_node=end_node,
         geometry={"type": "LineString", "coordinates": geometry_points},
         is_bidirectional=True,
         source_type=SourceType.MANUAL,
-        source_reference=f"survey:{survey.pk}:{candidate['id']}",
+        source_reference=source_reference,
         verification_state=state,
         created_by=actor, updated_by=actor,
     )

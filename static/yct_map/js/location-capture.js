@@ -1,6 +1,9 @@
-import { assessSample, createLocationStabilizer } from "./location-filter.js?v=field-mapping-1";
+import { assessSample, createLocationStabilizer } from "./location-filter.js?v=final-web-closeout-1";
 
-export const FIELD_CAPTURE_DURATION_MS = 5_000;
+export const FIELD_CAPTURE_MIN_DURATION_MS = 6_000;
+export const FIELD_CAPTURE_MAX_DURATION_MS = 10_000;
+// Retained for compatibility with existing imports; capture is now adaptive.
+export const FIELD_CAPTURE_DURATION_MS = FIELD_CAPTURE_MAX_DURATION_MS;
 
 const ERROR_COPY = Object.freeze({
   "permission-denied": "Location permission was denied. Allow access or choose the point manually.",
@@ -21,7 +24,9 @@ function geolocationError(error) {
 export function createFiveSecondLocationCapture({
   geolocation = globalThis.navigator?.geolocation,
   supportedArea = null,
-  durationMs = FIELD_CAPTURE_DURATION_MS,
+  durationMs = null,
+  minimumDurationMs = FIELD_CAPTURE_MIN_DURATION_MS,
+  maximumDurationMs = durationMs ?? FIELD_CAPTURE_MAX_DURATION_MS,
   now = Date.now,
   setTimer = globalThis.setTimeout,
   clearTimer = globalThis.clearTimeout,
@@ -33,17 +38,20 @@ export function createFiveSecondLocationCapture({
 } = {}) {
   let generation = 0;
   let watchId = null;
-  let finishTimer = null;
+  let minimumTimer = null;
+  let maximumTimer = null;
   let progressTimer = null;
   let lastAccepted = null;
   let stabilizer = createLocationStabilizer({ warmupReasonableFixes: 2 });
 
   function cleanup() {
     if (watchId !== null) geolocation?.clearWatch?.(watchId);
-    if (finishTimer !== null) clearTimer(finishTimer);
+    if (minimumTimer !== null) clearTimer(minimumTimer);
+    if (maximumTimer !== null) clearTimer(maximumTimer);
     if (progressTimer !== null) clearTicker(progressTimer);
     watchId = null;
-    finishTimer = null;
+    minimumTimer = null;
+    maximumTimer = null;
     progressTimer = null;
   }
 
@@ -63,10 +71,31 @@ export function createFiveSecondLocationCapture({
     }
     const token = generation;
     const startedAt = now();
+    const finish = () => {
+      if (token !== generation) return false;
+      const selected = stabilizer.getStable() || stabilizer.finalize().sample;
+      generation += 1;
+      cleanup();
+      onProgress(100);
+      if (!selected) {
+        onFailure("unreliable", ERROR_COPY.unreliable);
+        return false;
+      }
+      if (supportedArea && !supportedArea.contains(selected)) {
+        onFailure("outside-area", ERROR_COPY["outside-area"]);
+        return false;
+      }
+      onSuccess(selected);
+      return true;
+    };
+    const finishIfConverged = () => {
+      if (token !== generation || now() - startedAt < minimumDurationMs) return false;
+      return stabilizer.isConverged() ? finish() : false;
+    };
     onProgress(0);
     progressTimer = setTicker(() => {
       if (token !== generation) return;
-      onProgress(Math.min(99, Math.floor((now() - startedAt) / durationMs * 100)));
+      onProgress(Math.min(99, Math.floor((now() - startedAt) / maximumDurationMs * 100)));
     }, 100);
 
     watchId = geolocation.watchPosition((rawPosition) => {
@@ -75,37 +104,27 @@ export function createFiveSecondLocationCapture({
       if (!assessed.accepted) return;
       lastAccepted = assessed.sample;
       stabilizer.update(assessed.sample, assessed.quality);
+      finishIfConverged();
     }, (error) => {
       if (token !== generation) return;
       const reason = geolocationError(error);
       cancel();
       onFailure(reason, ERROR_COPY[reason]);
-    }, { enableHighAccuracy: true, maximumAge: 0, timeout: Math.max(12_000, durationMs + 2_000) });
+    }, { enableHighAccuracy: true, maximumAge: 0,
+      timeout: Math.max(12_000, maximumDurationMs + 2_000) });
 
-    finishTimer = setTimer(() => {
-      if (token !== generation) return;
-      const selected = stabilizer.getStable();
-      generation += 1;
-      cleanup();
-      onProgress(100);
-      if (!selected) {
-        onFailure("unreliable", ERROR_COPY.unreliable);
-        return;
-      }
-      if (supportedArea && !supportedArea.contains(selected)) {
-        onFailure("outside-area", ERROR_COPY["outside-area"]);
-        return;
-      }
-      onSuccess(selected);
-    }, durationMs);
+    minimumTimer = setTimer(finishIfConverged, minimumDurationMs);
+    maximumTimer = setTimer(finish, maximumDurationMs);
     return true;
   }
 
   return { start, cancel, destroy: cancel, isCapturing: () => watchId !== null };
 }
 
+export const createAdaptiveLocationCapture = createFiveSecondLocationCapture;
+
 export function bindLocationCapture({ button, statusElement, onPoint, supportedAreaPromise,
-  documentObject = globalThis.document, captureFactory = createFiveSecondLocationCapture } = {}) {
+  documentObject = globalThis.document, captureFactory = createAdaptiveLocationCapture } = {}) {
   let capture = null;
   let destroyed = false;
   const idleLabel = button.textContent;

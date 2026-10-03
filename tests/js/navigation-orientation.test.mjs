@@ -2,25 +2,86 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createHeadingOppositionDiagnostic,
   createCircularHeadingSmoother,
   createDeviceOrientationService,
   headingFromOrientation,
   normalizeHeading,
   selectDisplayedHeading,
 } from "../../static/yct_map/js/device-orientation.js";
-import { recenterCameraOptions, userLocationFeature } from "../../static/yct_map/js/map.js";
+import { recenterCameraOptions, userLocationArrowLayerDefinitions,
+  userLocationArrowTipVector, userLocationFeature } from "../../static/yct_map/js/map.js";
 
-test("heading normalization handles wrap, negatives, portrait and landscape", () => {
+test("heading normalization handles wrap and rejects relative orientation", () => {
   assert.equal(normalizeHeading(0), 0);
   assert.equal(normalizeHeading(360), 0);
   assert.equal(normalizeHeading(-10), 350);
   assert.equal(headingFromOrientation({ absolute: true, alpha: 0 }, 0), 0);
   assert.equal(headingFromOrientation({ absolute: true, alpha: 90 }, 0), 270);
-  assert.equal(headingFromOrientation({ absolute: true, alpha: 90 }, 90), 180);
-  assert.equal(headingFromOrientation({ absolute: true, alpha: 90 }, 270), 0);
   assert.equal(headingFromOrientation({ absolute: false, alpha: 90 }, 0), null,
     "relative orientation must not be presented as Earth-referenced heading");
-  assert.equal(headingFromOrientation({ webkitCompassHeading: 350 }, 20), 330);
+  assert.equal(headingFromOrientation({ webkitCompassHeading: 350 }, 20), 10);
+});
+
+test("physical cardinal headings remain correct in portrait and both landscape orientations", () => {
+  const expected = [0, 90, 180, 270];
+  const fixtures = [
+    { screenAngle: 0, alphas: [0, 270, 180, 90] },
+    { screenAngle: 90, alphas: [90, 0, 270, 180] },
+    { screenAngle: 270, alphas: [270, 180, 90, 0] },
+  ];
+  for (const { screenAngle, alphas } of fixtures) {
+    assert.deepEqual(alphas.map((alpha) => headingFromOrientation(
+      { absolute: true, alpha, beta: 45, gamma: 0 }, screenAngle,
+    )), expected);
+  }
+  assert.deepEqual([270, 0, 90, 180].map((heading) =>
+    headingFromOrientation({ webkitCompassHeading: heading }, 90)), expected);
+});
+
+test("arrow core edge and shadow share an intrinsic north-up forward axis", () => {
+  const layers = userLocationArrowLayerDefinitions();
+  assert.equal(layers.length, 3);
+  assert.ok(layers.every((layer) => layer.layout["text-field"] === "▲"));
+  assert.ok(layers.every((layer) => layer.layout["text-rotate"][1] === "heading"));
+  assert.ok(layers.every((layer) => layer.layout["text-rotation-alignment"] === "map"));
+  const rounded = [0, 90, 180, 270].map((heading) =>
+    userLocationArrowTipVector(heading).map((value) => Math.abs(value) < 0.5 ? 0 : Math.round(value)));
+  assert.deepEqual(rounded, [[0, -1], [1, 0], [0, 1], [-1, 0]]);
+});
+
+test("development diagnostic detects sustained device versus movement opposition", () => {
+  const diagnostic = createHeadingOppositionDiagnostic();
+  assert.equal(diagnostic.update({ deviceHeading: 0, movementHeading: 180,
+    speedMetresPerSecond: 0.2 }).possibleSystematicInversion, false,
+  "stationary readings are not evidence of inversion");
+  diagnostic.update({ deviceHeading: 0, movementHeading: 180, speedMetresPerSecond: 1.2 });
+  diagnostic.update({ deviceHeading: 5, movementHeading: 185, speedMetresPerSecond: 1.1 });
+  const opposed = diagnostic.update({ deviceHeading: 355, movementHeading: 175,
+    speedMetresPerSecond: 1.3 });
+  assert.equal(opposed.angularDeviceMovementDifference, 180);
+  assert.equal(opposed.possibleSystematicInversion, true);
+  assert.equal(diagnostic.update({ deviceHeading: 90, movementHeading: 95,
+    speedMetresPerSecond: 1.2 }).possibleSystematicInversion, false);
+});
+
+test("cardinal movement from consecutive GPS fixes never opposes the selected arrow tip", () => {
+  const start = [3.374, 6.518];
+  const fixtures = [
+    { name: "north", end: [3.374, 6.519], heading: 0 },
+    { name: "east", end: [3.375, 6.518], heading: 90 },
+    { name: "south", end: [3.374, 6.517], heading: 180 },
+    { name: "west", end: [3.373, 6.518], heading: 270 },
+  ];
+  for (const { name, end, heading } of fixtures) {
+    const arrow = userLocationArrowTipVector(heading);
+    const longitudeDelta = end[0] - start[0];
+    const latitudeDelta = end[1] - start[1];
+    const length = Math.hypot(longitudeDelta, latitudeDelta);
+    const movementScreenVector = [longitudeDelta / length, -latitudeDelta / length];
+    const dotProduct = arrow[0] * movementScreenVector[0] + arrow[1] * movementScreenVector[1];
+    assert.ok(dotProduct > 0.99, `${name} arrow tip must agree with independent GPS movement`);
+  }
 });
 
 test("circular smoothing crosses north without averaging toward south", () => {

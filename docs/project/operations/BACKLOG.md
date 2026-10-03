@@ -117,7 +117,7 @@ Reason:     Survey tooling can help the team identify walked, unwalked and poten
 Priority:   HIGH
 Dependency: Phase 2 walkable-path network and Phase 4 authenticated editor tooling
 Release:    Phase 4 tooling; Phase 5 field use
-Status:     APPROVED — NEXT FOR PHASE 4 SPRINT 004 PRE-BUILD REVIEW
+Status:     IMPLEMENTED — TECHNICALLY VERIFIED / PHYSICAL OWNER ACCEPTANCE PENDING
 ```
 
 Required safeguards:
@@ -127,7 +127,8 @@ Required safeguards:
 - keep unwalked network sections visually identifiable;
 - allow editors to flag an observed missing path;
 - never promote one raw GPS trace directly to `FIELD_VERIFIED`;
-- require editor review, map matching and confidence rules before survey status changes.
+- require explicit survey completion, pass-level map matching and strict confidence rules before any automatic one-way path promotion;
+- preserve reviewer identity/time for new review-only decisions and keep legacy audit gaps honest;
 - flag ordinary outdoor path geometry intersecting building footprints for review;
 - allow deliberate reviewed exceptions for genuine passages or corridors.
 

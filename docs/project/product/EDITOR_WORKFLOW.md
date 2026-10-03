@@ -49,6 +49,8 @@ Rejected submissions are archived, not permanently deleted.
 
 Editors must not mark a location FIELD VERIFIED without actual physical confirmation.
 
+Walkable Segments have one approved evidence-specific exception: when an authorized owner explicitly completes a future Path Survey, the server may promote an `UNVERIFIED` segment only if cumulative independent finalized passes satisfy the strict quality and ambiguity rules. This never applies to Locations or Entrances and never automatically revokes verification.
+
 See `docs/project/governance/DEFINITION_OF_DONE.md` for the full SOFTWARE VERIFIED vs FIELD VERIFIED distinction.
 
 ---

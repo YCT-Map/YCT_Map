@@ -65,7 +65,7 @@ ID:           RISK-004
 Risk:         GPS accuracy on campus — building density and materials may degrade GPS accuracy.
 Likelihood:   MEDIUM
 Impact:       MEDIUM — live navigation may be less accurate than expected
-Mitigation:   GPS noise filtering (approved requirement). Rerouting threshold must be tuned against real campus conditions.
+Mitigation:   Bounded robust estimation, uncertainty-aware motion hysteresis, implausible-jump rejection and age-limited best-fix retention are implemented. Rerouting and filter thresholds still require physical campus validation.
 Trigger:      Field testing with GPS.
 ```
 

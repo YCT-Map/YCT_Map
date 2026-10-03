@@ -6,29 +6,35 @@
 <div class="editor-heading">
   <div>
     <p class="editor-eyebrow">{{ place.name }}</p>
-    <h1>{% if entrance.pk %}Edit entrance{% else %}Add entrance{% endif %}</h1>
+    <h1>{% if creating %}Add entrance{% else %}Edit entrance{% endif %}</h1>
     <p>Click or tap the map to set the physical arrival point. This does not change the place marker.</p>
   </div>
   <a href="{% url 'editor:place-detail' place.id %}">Back to place</a>
 </div>
 
-<form method="post" class="editor-form">
+<form method="post" action="{% if creating %}{% url 'editor:entrance-create' place.id %}{% else %}{% url 'editor:entrance-edit' place.id entrance.id %}{% endif %}" class="editor-form">
   {% csrf_token %}
   <section class="editor-card">
-    {{ form.non_field_errors }}
+    <div class="editor-section-heading"><div><h2>Entrance details</h2><p>Name the arrival point and set whether it is the active primary entrance.</p></div></div>
+    {% if form.non_field_errors %}<div class="editor-error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
     {% for field in form %}
       {% if field.name != 'latitude' and field.name != 'longitude' %}
-        <p>{{ field.label_tag }}{{ field }}{{ field.errors }}</p>
+        <div class="editor-field{% if field.name == 'is_primary' or field.name == 'is_active' %} editor-checkbox-field{% endif %}{% if field.errors %} has-error{% endif %}">
+          {% if field.name == 'is_primary' or field.name == 'is_active' %}{{ field }}<label for="{{ field.id_for_label }}">{{ field.label }}</label>{% else %}<label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% endif %}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{{ field.errors }}
+        </div>
       {% else %}
         {{ field }}
       {% endif %}
     {% endfor %}
+  </section>
+  <section class="editor-card editor-point-status">
+    <div class="editor-section-heading"><div><h2>Entrance point</h2><p>Capture this device's position or tap the map, then adjust the marker if needed.</p></div><span class="editor-required">Required</span></div>
     <div id="entrance-coordinate-errors" class="editor-error" role="alert"{% if not form.latitude.errors and not form.longitude.errors %} hidden{% endif %}>
       {{ form.latitude.errors }}{{ form.longitude.errors }}
       {% if form.latitude.errors or form.longitude.errors %}<p>Choose an entrance point on the map before saving.</p>{% endif %}
     </div>
-    <div class="editor-map-heading"><strong>Entrance point</strong><span>Required</span></div>
-    <button id="capture-entrance-location" type="button">Use current location</button>
+    <button id="capture-entrance-location" type="button" class="editor-secondary">Use current location (5 seconds)</button>
     <div id="entrance-map" class="editor-map-picker" data-state="loading"
          data-campus-boundary-url="{% static 'yct_map/data/yabatech-campus-boundary.geojson' %}"
          data-latitude="{{ entrance.latitude|default:'' }}" data-longitude="{{ entrance.longitude|default:'' }}"
@@ -36,24 +42,23 @@
     <p id="entrance-map-status" role="status" aria-live="polite">Loading entrance map…</p>
     <small>The selected coordinates are stored in hidden form fields and validated by the server.</small>
   </section>
-  <button class="editor-primary" type="submit">Save entrance</button>
+  <div class="editor-form-actions"><button class="editor-primary" type="submit">Save entrance</button><a href="{% url 'editor:place-detail' place.id %}">Cancel</a></div>
 </form>
 
-{% if entrance.pk %}
+{% if not creating %}
 <section class="editor-card editor-verification-card">
-  <p class="editor-eyebrow">Verification</p>
-  <h2>Entrance: {{ entrance.get_verification_state_display }}</h2>
-  <p>This status is independent from the parent place, publication and routing connection.</p>
+  <div class="editor-verification-heading"><div><p class="editor-eyebrow">Entrance verification</p><h2>Field evidence status</h2></div><span class="editor-status-chip editor-status-chip--{{ entrance.verification_state|lower }}">{% if entrance.verification_state == 'FIELD_VERIFIED' %}✓{% else %}●{% endif %} {{ entrance.get_verification_state_display }}</span></div>
+  <p>{% if entrance.verification_state == 'FIELD_VERIFIED' %}This physical arrival point has been field confirmed.{% else %}This physical arrival point has not yet been field confirmed.{% endif %} The parent place has its own status.</p>
   {% if can_grant_entrance_verification and entrance.verification_state != 'FIELD_VERIFIED' %}
-    <form method="post" action="{% url 'editor:entrance-verification' place.id entrance.id %}">{% csrf_token %}<input type="hidden" name="action" value="grant"><label>Reason<textarea name="reason" required></textarea></label><button class="editor-primary" type="submit">Mark entrance as field verified</button></form>
+    <details class="editor-verification-action"><summary>Mark entrance as field verified</summary><form method="post" action="{% url 'editor:entrance-verification' place.id entrance.id %}" class="editor-inline-confirmation">{% csrf_token %}<input type="hidden" name="action" value="grant"><label>Verification reason<textarea name="reason" required></textarea></label><div class="editor-form-actions"><button class="editor-primary" type="submit">Confirm verification</button></div></form></details>
   {% elif can_revoke_entrance_verification and entrance.verification_state == 'FIELD_VERIFIED' %}
-    <form method="post" action="{% url 'editor:entrance-verification' place.id entrance.id %}">{% csrf_token %}<input type="hidden" name="action" value="revoke"><label>Reason<textarea name="reason" required></textarea></label><button type="submit">Revoke entrance field verification</button></form>
+    <details class="editor-verification-action editor-verification-action--danger"><summary>Revoke entrance field verification</summary><form method="post" action="{% url 'editor:entrance-verification' place.id entrance.id %}" class="editor-inline-confirmation">{% csrf_token %}<input type="hidden" name="action" value="revoke"><label>Revocation reason<textarea name="reason" required></textarea></label><div class="editor-form-actions"><button class="editor-danger" type="submit">Confirm revocation</button></div></form></details>
   {% endif %}
 </section>
 {% endif %}
 
 <section id="entrance-routing-connection" class="editor-card entrance-routing-card"
-  {% if entrance.pk %}
+  {% if not creating %}
     data-candidates-url="{% url 'editor:entrance-connection-candidates' place.id entrance.id %}"
     data-current-node-id="{% if network_anchor and network_anchor.is_active %}{{ network_anchor.node_id }}{% endif %}"
     data-current-node-latitude="{% if network_anchor and network_anchor.is_active %}{{ network_anchor.node.latitude }}{% endif %}"
@@ -61,7 +66,7 @@
   {% endif %}>
   <p class="editor-eyebrow">Routing connection</p>
   <h2>Walkable-network arrival</h2>
-  {% if not entrance.pk %}
+  {% if creating %}
     <p>Save the entrance point first. You can then inspect and explicitly connect it to a nearby walking-network node.</p>
   {% elif network_anchor and network_anchor.is_active %}
     <div class="entrance-connection-state entrance-connection-state--connected">
@@ -78,7 +83,7 @@
     <div class="entrance-connection-state"><strong>Not connected to walking network.</strong></div>
   {% endif %}
 
-  {% if entrance.pk %}
+  {% if not creating %}
     <p>This suggestion workflow never changes the graph or verification state. Choosing a marker is only a proposal; connection occurs after confirmation.</p>
     <div class="entrance-routing-actions">
       <button id="find-routing-candidates" class="editor-primary" type="button">
@@ -132,4 +137,4 @@
   {% endif %}
 </section>
 {% endblock %}
-{% block scripts %}<script type="module" src="{% static 'yct_map/js/editor-entrance-map.js' %}?v=field-mapping-1"></script>{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'yct_map/js/editor-entrance-map.js' %}?v=final-web-closeout-1"></script>{% endblock %}

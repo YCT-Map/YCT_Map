@@ -3,8 +3,8 @@
 ## Status
 
 ```
-Current phase:     PHASE 4 SPRINT 001 — OWNER ACCEPTED / COMPLETE
-Implementation:    EDITOR SESSION AUTHENTICATION + MODEL PERMISSIONS IMPLEMENTED
+Current phase:     FINAL WEB CLOSEOUT — OWNER REVIEW REQUIRED
+Implementation:    EDITOR AUTHORIZATION + AUDITED SURVEY REVIEW IMPLEMENTED
 ```
 
 This document records the security model for YCT Map based on approved product decisions.
@@ -30,7 +30,8 @@ This document records the security model for YCT Map based on approved product d
 | Submit a contribution | Anyone (no account required) |
 | Review contributions | Authenticated editors and admins |
 | Add/edit locations | Authenticated editors and admins |
-| Verify locations (FIELD_VERIFIED) | Authenticated editors and admins |
+| Verify locations/entrances (FIELD_VERIFIED) | Authenticated editors and admins with the explicit verification permission |
+| Promote a path from cumulative field evidence | Explicit survey completion by an authorized survey owner; conservative server evaluator only |
 | Manage editor accounts | Authenticated admins |
 
 Sprint 001 provides a custom `/editor/` interface protected by Django sessions and server-side model permissions. The least-privilege `Editor` group can view/add/change places, maintain aliases and view controlled categories, but cannot hard-delete places, modify taxonomy, manage users/groups/permissions, access arbitrary Django admin records or grant itself privileges. Administrators remain active staff superusers for V1 account and taxonomy administration.
@@ -70,7 +71,7 @@ Never move backend secrets into frontend code.
 ## Campus Data Integrity
 
 - Demo data must never be exposed as verified campus data in any production-facing context.
-- Verification state changes must be deliberate editor actions — never automatic.
+- Place and Entrance verification changes must be deliberate, permission-gated editor actions. A Walkable Segment may additionally receive the approved one-way automatic grant only while an authorized owner explicitly completes a future Path Survey and cumulative finalized evidence satisfies all strict thresholds. No GET, startup, deployment, background task or ordinary review-page interaction may grant verification, and no automatic process may revoke it.
 - Real YabaTech geographic facts must not be invented or inferred without field confirmation.
 
 ---

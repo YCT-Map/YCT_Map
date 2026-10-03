@@ -13,11 +13,11 @@ Phase 1 — Foundation & Map Experience          ACCEPTED
 Phase 2 — Routing & Navigation                 ACCEPTED
 Phase 3 — Live Navigation & Core Product       ACCEPTED
 Phase 4 — Editor & Mapping Tools               IN PROGRESS — SPRINT 004 PHYSICAL OWNER ACCEPTANCE PENDING
-Phase 5 — Real YabaTech Data, Verification & Launch   NOT STARTED
+Phase 5 — Real YabaTech Data, Verification & Launch   NOT FORMALLY STARTED (production environment exists)
 
-Current:            PHASE 4 SPRINT 004 — IMPLEMENTATION + TECHNICAL AUDIT COMPLETE
+Current:            FINAL WEB CLOSEOUT + SURVEY INTELLIGENCE + LOCATION QUALITY — IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED
 Accepted:           PHASE 4 SPRINTS 001, 002 AND 003
-Next expected:      Owner review of checkpoint hierarchy + flexible progressive navigation, then Sprint 004 physical field acceptance
+Next expected:      Physical location/heading/capture + cumulative survey review, then explicit owner release decision
 ```
 
 Status values in use: `NOT STARTED` `IN PROGRESS` `BLOCKED` `COMPLETE` `ACCEPTED`
@@ -409,7 +409,7 @@ Phase 4 builds the tools the team will use during the real campus population pha
 - Parent building relationships
 - Floor information
 - Map-based location selection (click/tap to set coordinates)
-- Shared five-second stabilized current-location selection for Places and Entrances, with manual correction
+- Shared adaptive six-to-ten-second stabilized current-location selection for Places and Entrances, with manual correction
 - Combined current-location capture for a place and its initial primary entrance, with explicit overwrite confirmation
 - Missing-location representation
 - Irregular building geometry support where needed (polygon points, not assumed rectangular)

@@ -1,6 +1,7 @@
 from django.test import TestCase, override_settings
 
-from routing.models import LocationNetworkAnchor
+from routing.models import (LocationNetworkAnchor, SourceType, VerificationState,
+                            WalkableNode, WalkableSegment)
 from locations.models import Location
 from routing.geometry import distance_metres
 from routing.results import MissingAnchorError
@@ -120,3 +121,52 @@ class RoutingServiceTests(TestCase):
     def test_debug_route_endpoints_are_absent_outside_debug(self):
         self.assertEqual(self.client.get("/api/debug/route-anchors/").status_code, 404)
         self.assertEqual(self.client.get("/api/debug/route/").status_code, 404)
+
+
+class ManualShortcutRoutingRegressionTests(TestCase):
+    @staticmethod
+    def node(label, longitude, latitude):
+        return WalkableNode.objects.create(
+            label=label, longitude=longitude, latitude=latitude,
+            source_type=SourceType.MANUAL,
+            verification_state=VerificationState.UNVERIFIED,
+        )
+
+    @staticmethod
+    def segment(start, end, *, label, active=True):
+        return WalkableSegment.objects.create(
+            label=label, start_node=start, end_node=end,
+            geometry={"type": "LineString", "coordinates": [
+                [float(start.longitude), float(start.latitude)],
+                [float(end.longitude), float(end.latitude)],
+            ]},
+            is_bidirectional=True, is_active=active,
+            source_type=SourceType.MANUAL,
+            verification_state=VerificationState.UNVERIFIED,
+        )
+
+    def test_active_shortcut_is_chosen_naturally_and_never_creates_a_graph_jump(self):
+        start = self.node("Start", 3.374000, 6.518000)
+        detour = self.node("Detour", 3.374500, 6.518500)
+        destination = self.node("Destination", 3.375000, 6.518000)
+        isolated_a = self.node("Isolated A", 3.376000, 6.520000)
+        isolated_b = self.node("Isolated B", 3.376100, 6.520000)
+        left = self.segment(start, detour, label="Detour west")
+        right = self.segment(detour, destination, label="Detour east")
+        shortcut = self.segment(start, destination, label="Owner-created shortcut")
+        isolated = self.segment(isolated_a, isolated_b, label="Disconnected path")
+
+        result = route_between_nodes(start.pk, destination.pk)
+        self.assertEqual(result.segment_ids, (str(shortcut.pk),))
+        self.assertNotIn(str(isolated.pk), result.segment_ids)
+        self.assertEqual(result.geometry[0], (float(start.longitude), float(start.latitude)))
+        self.assertEqual(result.geometry[-1], (float(destination.longitude), float(destination.latitude)))
+        self.assertEqual(result.verification_states, (VerificationState.UNVERIFIED,))
+        self.assertAlmostEqual(result.eta_seconds, result.distance_metres / 1.35)
+
+        shortcut.is_active = False
+        shortcut.save(update_fields=("is_active",))
+        detour_result = route_between_nodes(start.pk, destination.pk)
+        self.assertEqual(detour_result.segment_ids, (str(left.pk), str(right.pk)))
+        self.assertEqual(detour_result.node_ids, (str(start.pk), str(detour.pk), str(destination.pk)))
+        self.assertGreater(detour_result.distance_metres, result.distance_metres)

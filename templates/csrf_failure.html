@@ -5,7 +5,7 @@
   <p class="editor-eyebrow">Security check</p>
   <h1>This form has expired</h1>
   <p>The page may have been opened before sign-in, restored from browser history, or left open while the secure session changed. Your submission was not accepted.</p>
-  <p><a class="editor-primary" href="{{ request.path }}">Reload this page safely</a></p>
+  <p><a class="editor-primary" href="{{ recovery_url }}">Return to a safe editor page</a></p>
   <a class="editor-back" href="{% url 'editor:dashboard' %}">Return to Editor dashboard</a>
 </section>
 {% endblock %}

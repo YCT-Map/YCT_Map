@@ -1,5 +1,5 @@
-import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=checkpoint-flex-nav-1";
-import { createOffRouteDetector } from "./off-route.js?v=checkpoint-flex-nav-1";
+import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=final-web-closeout-1";
+import { createOffRouteDetector } from "./off-route.js?v=final-web-closeout-1";
 
 export const MAX_LIVE_POSITION_AGE_MS = 30_000;
 export const MAX_LIVE_ROUTE_ATTEMPTS = 3;
