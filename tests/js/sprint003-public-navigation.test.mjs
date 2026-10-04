@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createDestinationPanel } from "../../static/yct_map/js/destination-panel.js";
-import { createUserNavigation, isLivePositionRouteUsable,
-  MAX_LIVE_POSITION_AGE_MS } from "../../static/yct_map/js/user-navigation.js";
+import { createUserNavigation, findNearbyMappedStart, isLivePositionRouteUsable,
+  MAX_LIVE_POSITION_AGE_MS, NEARBY_MAPPED_START_MAX_METRES } from "../../static/yct_map/js/user-navigation.js";
 
 class FakeElement {
   constructor(ownerDocument) {
@@ -250,6 +250,75 @@ test("route usability separates recent retained position from genuinely stale po
   assert.equal(isLivePositionRouteUsable({ ...retained, freshness: "stale" }, { now: 2_000 }), false);
   assert.equal(isLivePositionRouteUsable({ ...retained, accuracyMetres: 41 }, { now: 2_000 }), false);
   assert.equal(isLivePositionRouteUsable({ ...retained, supportedAreaValid: false }, { now: 2_000 }), false);
+});
+
+test("nearby mapped start is bounded, routable, and never substitutes the destination itself", () => {
+  const target = { type: "Feature", geometry: { type: "Point", coordinates: [3.3758, 6.5176] },
+    properties: { id: "food", destination_key: "location:food", name: "Food Tech New Building",
+      routing_available: true } };
+  const sports = { type: "Feature", geometry: { type: "Point", coordinates: [3.374192, 6.518525] },
+    properties: { id: "sports", destination_key: "location:sports", name: "Sports Complex",
+      routing_available: true } };
+  const far = { type: "Feature", geometry: { type: "Point", coordinates: [3.38, 6.52] },
+    properties: { id: "far", destination_key: "location:far", name: "Far place", routing_available: true } };
+  const live = { longitude: 3.3742, latitude: 6.51852 };
+  const match = findNearbyMappedStart([target, sports, far], target, live);
+  assert.equal(match.feature, sports);
+  assert.ok(match.distanceMetres < 5);
+  assert.equal(findNearbyMappedStart([target], target, live), null);
+  assert.equal(findNearbyMappedStart([target, far], target, live,
+    { maxDistanceMetres: NEARBY_MAPPED_START_MAX_METRES }), null);
+});
+
+test("unsafe live match falls back to a nearby place entrance and waits there before tracking", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  const target = { type: "Feature", geometry: { type: "Point", coordinates: [3.375797, 6.517573] },
+    properties: { id: "food", destination_key: "location:food", name: "Food Tech New Building",
+      routing_available: true } };
+  const sports = { type: "Feature", geometry: { type: "Point", coordinates: [3.374192, 6.518525] },
+    properties: { id: "sports", destination_key: "location:sports", name: "Sports Complex",
+      routing_available: true } };
+  const routeCalls = [];
+  const requested = [];
+  const gate = [3.373512, 6.518877];
+  const responsePayload = {
+    route: { type: "Feature", geometry: { type: "LineString", coordinates: [gate, [3.374, 6.518], [3.375772, 6.517637]] } },
+    summary: { origin: { name: "Sports Complex", outdoor_arrival: { label: "Sports Complex — Gate 1" } },
+      destination: { name: "Food Tech New Building", outdoor_arrival: { label: "Food Tech New Building — Main Entrance" } },
+      total_distance_metres: 492, eta_label: "~7 min", verification_state: "UNVERIFIED" },
+  };
+  const controller = createUserNavigation({ panel: harness.panel, features: [target, sports],
+    routeUrl: "/api/routes/", liveRouteUrl: "/api/routes/from-position/",
+    onRoute: (...args) => routeCalls.push(args), onClear() {}, now: () => 2_000,
+    setDeadline: () => 1, clearDeadline() {}, requestRoute: async (url) => {
+      requested.push(url);
+      return requested.length === 1
+        ? { ok: false, json: async () => ({ code: "NO_SAFE_NETWORK_MATCH", error: "Unsafe match." }) }
+        : { ok: true, json: async () => responsePayload };
+    } });
+  controller.updateLivePosition({ longitude: 3.374192, latitude: 6.518525,
+    accuracyMetres: 3, timestamp: 1_000, freshness: "fresh" });
+  controller.begin(target); chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+
+  assert.equal(requested.length, 2);
+  assert.equal(requested[0], "/api/routes/from-position/");
+  assert.equal(requested[1], "/api/routes/?origin=location%3Asports&destination=location%3Afood");
+  assert.equal(routeCalls.length, 1);
+  assert.equal(routeCalls[0][1], sports);
+  assert.equal(routeCalls[0][3].originType, "live-mapped-start");
+  assert.equal(harness.get("#user-route-from").textContent, "Sports Complex — Gate 1");
+  assert.match(harness.get("#user-route-progress-status").textContent, /Walk to Sports Complex — Gate 1/);
+  assert.match(harness.get("#user-route-data-notice").textContent, /no route from your dot/);
+  assert.match(harness.get("#user-route-eta-source").textContent, /begin at Sports Complex — Gate 1/);
+
+  controller.updateLivePosition({ longitude: 3.374192, latitude: 6.518525,
+    accuracyMetres: 3, timestamp: 3_000, freshness: "fresh" });
+  assert.match(harness.get("#user-route-progress-status").textContent, /join the mapped route/);
+  controller.updateLivePosition({ longitude: gate[0], latitude: gate[1],
+    accuracyMetres: 3, timestamp: 7_000, freshness: "fresh" });
+  assert.doesNotMatch(harness.get("#user-route-progress-status").textContent, /join the mapped route/);
 });
 
 test("passive location expiry cannot abort an active route-origin snapshot", async () => {

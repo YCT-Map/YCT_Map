@@ -1,13 +1,13 @@
-import { fetchLocations } from "./api.js?v=live-routing-recovery-1";
-import { createContributions } from "./contributions.js?v=live-routing-recovery-1";
-import { createDestinationPanel } from "./destination-panel.js?v=live-routing-recovery-1";
-import { createMap } from "./map.js?v=live-routing-recovery-1";
-import { createSearch } from "./search.js?v=live-routing-recovery-1";
-import { createRouteInspector } from "./route-inspector.js?v=live-routing-recovery-1";
-import { createUserLocation } from "./user-location.js?v=live-routing-recovery-1";
-import { createUserNavigation } from "./user-navigation.js?v=live-routing-recovery-1";
-import { createDisclosureMenu } from "./disclosure-menu.js?v=live-routing-recovery-1";
-import { loadSupportedLocationArea } from "./supported-area.js?v=live-routing-recovery-1";
+import { fetchLocations } from "./api.js?v=mapped-live-start-1";
+import { createContributions } from "./contributions.js?v=mapped-live-start-1";
+import { createDestinationPanel } from "./destination-panel.js?v=mapped-live-start-1";
+import { createMap } from "./map.js?v=mapped-live-start-1";
+import { createSearch } from "./search.js?v=mapped-live-start-1";
+import { createRouteInspector } from "./route-inspector.js?v=mapped-live-start-1";
+import { createUserLocation } from "./user-location.js?v=mapped-live-start-1";
+import { createUserNavigation } from "./user-navigation.js?v=mapped-live-start-1";
+import { createDisclosureMenu } from "./disclosure-menu.js?v=mapped-live-start-1";
+import { loadSupportedLocationArea } from "./supported-area.js?v=mapped-live-start-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");

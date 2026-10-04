@@ -79,6 +79,18 @@ Resolution:   Use explicit create/edit state, canonical form actions, stable nam
 Status:       RESOLVED LOCALLY in the Final Project Closeout Sweep; owner browser retest pending.
 ```
 
+### KI-004
+
+```
+ID:           KI-004
+Severity:     HIGH
+Type:         BUG / NAVIGATION RECOVERY
+Impact:       A precise live position inside Sports Complex can be about 65 m from the explicit routing graph. The safe 40 m match correctly rejects it, but the previous UI repeatedly retried and appeared to do nothing.
+Workaround:   Choose Sports Complex as a mapped start in the committed build.
+Resolution:   On this specific safe-match failure, offer the existing route from a nearby route-capable place entrance, disclose the unmapped approach and delay live progress/rerouting until the route start is reached.
+Status:       RESOLVED LOCALLY; physical Samsung/Edge owner retest pending.
+```
+
 ---
 
 > Update this document when issues are discovered during sprints or testing.

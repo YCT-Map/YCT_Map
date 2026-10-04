@@ -893,3 +893,21 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Passive expiry preserves the selected live origin and cannot abort an in-flight request. Explicit cancel/change/reset actions retain their cancellation behavior.
 - Every live route request captures an immutable origin snapshot. Continuous accepted updates still drive marker movement, progress and off-route logic, while rerouting uses a current accepted position.
 - Static assets use `live-routing-recovery-1`. No backend, graph, destination-data or migration change is included.
+
+---
+
+## Off-Network Live-Start Recovery
+
+**Status:** IMPLEMENTED LOCALLY — OWNER REVIEW REQUIRED
+
+**Date:** 2026-10-04
+
+**Baseline:** `a3e059b fix: restore reliable live route setup`
+
+- Reproduced the unresolved physical failure independently of GPS freshness: the Sports Complex representative point is approximately 65 m from the nearest eligible mapped segment, so the unchanged 40 m live-match safety rule correctly returns `NO_SAFE_NETWORK_MATCH` even with approximately 3 m reported accuracy.
+- Audited the current local graph: 49 active nodes, 54 active segments, no segment validation failures and strongly connected component sizes of 41, 6, 1 and 1. All three active entrance anchors are in the 41-node component, and every ordered pair of route-capable local destinations routes successfully.
+- Added a bounded nearby mapped-start recovery for `NO_SAFE_NETWORK_MATCH`. When the live point is within 100 m of another published route-capable place, the client requests the existing entrance-to-destination route instead of repeatedly failing without a useful route.
+- The UI names the exact mapped entrance, states that distance/ETA begin there and explicitly does not claim a route from the live dot to that entrance. Progress, off-route detection and rerouting remain paused until the user reaches an accuracy-aware 12–25 m join threshold around the route start.
+- The 40 m backend matching threshold, A*, route graph, entrance anchors, location records and verification states remain unchanged. No invented connector or straight-line path is introduced.
+- Static assets use `mapped-live-start-1` so deployed phones do not reuse the preceding live-routing bundle.
+- Verification passes with **240 Django tests** and **144 JavaScript tests**. Physical Samsung/Edge owner retesting remains required.

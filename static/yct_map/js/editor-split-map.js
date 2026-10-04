@@ -1,4 +1,4 @@
-import { createEntrancePointSelector } from "./entrance-point-selector.js?v=live-routing-recovery-1";
+import { createEntrancePointSelector } from "./entrance-point-selector.js?v=mapped-live-start-1";
 const element = document.querySelector("#split-map");
 if (element) import("https://unpkg.com/maplibre-gl@6.10.0/dist/maplibre-gl.mjs").then((maplibregl) => {
   const geometry = JSON.parse(document.querySelector("#split-geometry").textContent);

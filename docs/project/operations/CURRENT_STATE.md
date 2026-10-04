@@ -9,11 +9,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-10-03 |
+| **Date** | 2026-10-04 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 4 — EDITOR & MAPPING TOOLS |
-| **Pipeline Phase** | FINAL WEB CLOSEOUT, SURVEY INTELLIGENCE & LOCATION QUALITY SWEEP — IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED |
-| **Latest Meaningful Commit** | `9ce9a78` (`feat: integrate field mapping and survey verification`) — clean closeout baseline |
+| **Pipeline Phase** | LIVE ROUTING FROM OFF-NETWORK CAMPUS POSITIONS — IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED |
+| **Latest Meaningful Commit** | `a3e059b` (`fix: restore reliable live route setup`) — committed baseline |
 
 ---
 
@@ -29,9 +29,9 @@
 | Campus production dataset | INITIAL OWNER-CONFIRMED DATA: New Building and Sports Complex; all retained records remain UNVERIFIED |
 | Demo/development dataset | Live working DEMO Locations removed; DEMO fixtures retained only for automated tests |
 | Field verification | EXPLICIT LOCAL WORKFLOW IMPLEMENTED; NO PRODUCTION VERIFICATION STATE CHANGED |
-| Routing dataset | 47 OSM-derived nodes plus 2 manual nodes; 54 OSM-derived segments; 2 active entrance anchors; all UNVERIFIED |
+| Routing dataset | 47 OSM-derived nodes plus 2 manual nodes; 54 OSM-derived segments; 3 active entrance anchors; all UNVERIFIED |
 | Deployment | RENDER + NEON PRODUCTION EXISTS; THIS LOCAL CLOSEOUT HAS NOT BEEN DEPLOYED |
-| Test suite | 237 DJANGO + 133 JAVASCRIPT TESTS PASSING |
+| Test suite | 240 DJANGO + 144 JAVASCRIPT TESTS PASSING |
 
 ---
 
@@ -146,7 +146,9 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ## Active Work
 
-The Surgical Live-Routing Regression Fix is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED on top of commit `aa7aec5`. It preserves the earlier stale-location correction while repairing the frontend coupling that prevented stationary Samsung/Edge users from starting a live route. Changed assets use the coherent `live-routing-recovery-1` token. No backend, graph, destination-data, migration or production-data action is included.
+The off-network live-start correction is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED on top of commit `a3e059b`. Real-device evidence showed that a precise Sports Complex position can still be about 65 m from the nearest mapped segment, beyond the unchanged 40 m safety threshold. When that specific safe-match failure occurs near another route-capable campus place, the public client now offers the existing mapped route from that place's configured entrance and holds progress/rerouting until the user reaches the entrance. It explicitly states that no route from the live dot to the entrance is claimed. No graph geometry, backend matching threshold, destination data, migration or verification state is changed.
+
+The local graph audit found 49 active nodes and 54 active segments in strongly connected components of 41, 6, 1 and 1 nodes. All three local route-capable destinations and entrance anchors are in the 41-node component; every ordered destination pair routes successfully and all active segment models validate. The disconnected component and isolated local QA nodes have no destination anchors and do not cause the reported failure. Changed assets use the coherent `mapped-live-start-1` token.
 
 Public location confidence treats accuracy, freshness and coherent movement as separate evidence. One weaker callback may briefly retain the last reliable coordinate with its original evidence timestamp. A recent retained estimate remains route-usable for up to 30 seconds when accuracy and supported-area checks pass; a genuinely stale, inaccurate or out-of-area estimate does not. Ordinary reacquisition preserves trustworthy stabilizer history, while passive display expiry retains the user's live-origin choice and cannot abort an already-dispatched route request. Each request owns an immutable origin snapshot; subsequent accepted fixes continue driving progress, off-route detection and rerouting.
 
@@ -194,10 +196,10 @@ Owner review must still verify physical N/E/S/W phone headings, adaptive locatio
 
 ## Next Approved Task
 
-Owner-test the live-routing correction on Samsung/Edge: settle location, remain stationary for 15–25 seconds, select Sports Complex and confirm Show route completes; then repeat after background/foreground recovery and after a genuinely stale position refresh. Preview historical re-evaluation in the local Path Survey page, but do not apply graph or verification changes to production during this review.
+Owner-test the off-network live-start correction on Samsung/Edge from the Sports Complex area: select Food Tech New Building and New Building in separate attempts, choose live location, and confirm that the route opens from Sports Complex — Gate 1 with an explicit walk-to-entrance notice. Confirm that progress stays paused away from Gate 1 and begins only on approaching the mapped route. Do not apply graph or verification changes during this review.
 
 ---
 
 ## Deployment Status
 
-An operational Render/Neon deployment exists at the owner-managed production service. The `live-routing-recovery-1` working tree is local only: no deployment, Neon write or Render configuration change was performed. Cloudflare Quick Tunnel support remains development-only.
+An operational Render/Neon deployment exists at the owner-managed production service. The `mapped-live-start-1` working tree is local only: no deployment, Neon write or Render configuration change was performed. Cloudflare Quick Tunnel support remains development-only.

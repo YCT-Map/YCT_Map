@@ -107,6 +107,14 @@ The public route contract accepts stable location UUIDs and intentionally return
 
 The normal-user controller owns explicit `browsing`, `destination-selected`, `choosing-origin` and `route-available` states. A Directions action changes state atomically before the destination panel is released, preventing a fragile transition from leaving no visible owner of the interface.
 
+### Off-network live start
+
+A precise browser location is not necessarily close enough to the explicit YCT routing graph. The live-position endpoint therefore keeps its 40 m safe-match limit; GPS accuracy alone does not justify crossing an unmapped field, building or inaccessible area.
+
+If the server returns `NO_SAFE_NETWORK_MATCH` and the live point is within 100 m of another published route-capable place, the client may recover by displaying the existing route from that place's configured entrance. This is a mapped-start fallback, not a snap or an inferred connector. The route card names the entrance, says that distance and ETA begin there, and states that no route from the live dot to the entrance is claimed.
+
+The live marker remains at the measured position. Progress, off-route detection and rerouting do not begin until an accuracy-aware 12–25 m join threshold confirms that the user has approached the mapped route start. If there is no suitable nearby mapped place or the ordinary entrance-to-destination route fails, the original safe-match error remains visible. This behavior does not alter graph geometry, verification, A*, destination anchors or the backend network-matching threshold.
+
 The OSM realism pass did not replace or repair A*. A* was already returning the shortest route in the supplied graph. Replacing unrealistic synthetic geometry with a more plausible reviewed OSM-derived graph improved visible routes because route quality depends on input topology as well as algorithm correctness.
 
 Active manual shortcut segments participate through the same adjacency graph as OSM-derived segments. A* may select a shortcut only when its endpoints genuinely connect and its geometry-derived cost produces the shortest valid route; disconnected and inactive geometry cannot create a jump. Distance, ETA and route verification context are derived from the exact selected segment sequence.

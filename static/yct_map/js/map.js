@@ -1,5 +1,5 @@
-import { sliceRouteAtDistance } from "./live-route-progress.js?v=live-routing-recovery-1";
-import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=live-routing-recovery-1";
+import { sliceRouteAtDistance } from "./live-route-progress.js?v=mapped-live-start-1";
+import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=mapped-live-start-1";
 
 export const DESTINATION_SOURCE_ID = "demo-destinations";
 export const DESTINATION_CLUSTER_LAYER_ID = "destination-clusters";
@@ -712,7 +712,8 @@ export async function createMap({ container, config, features, onSelect, onReady
     );
   }
 
-  function showUserRoute(routeFeature, origin, destination, { originType = "manual", replacement = false, arrivalName = "" } = {}) {
+  function showUserRoute(routeFeature, origin, destination, { originType = "manual", replacement = false,
+    arrivalName = "", startName = "" } = {}) {
     if (!loaded || routeFeature.geometry.type !== "LineString") return;
     const coordinates = routeFeature.geometry.coordinates;
     let bounds;
@@ -726,11 +727,13 @@ export async function createMap({ container, config, features, onSelect, onReady
     lastRenderedProgressMetres = 0;
     map.getSource(USER_ROUTE_COMPLETED_SOURCE_ID).setData(featureCollection());
     map.getSource(USER_ROUTE_SOURCE_ID).setData(featureCollection([routeFeature]));
-    liveRouteActive = originType === "live";
+    const usesLiveProgress = originType === "live" || originType === "live-mapped-start";
+    liveRouteActive = usesLiveProgress;
     setUserRouteStale(false);
     map.getSource(USER_ENDPOINT_SOURCE_ID).setData({ type: "FeatureCollection", features: [
       { type: "Feature", geometry: { type: "Point", coordinates: coordinates[0] }, properties: {
-        role: originType === "live" ? "matched" : "start", name: originType === "live" ? "Matched route start" : origin.properties.name,
+        role: originType === "live" ? "matched" : "start",
+        name: startName || (originType === "live" ? "Matched route start" : origin?.properties?.name || "Route start"),
       } },
       { type: "Feature", geometry: { type: "Point", coordinates: coordinates.at(-1) }, properties: {
         role: "destination", name: arrivalName || destination.properties.name,
