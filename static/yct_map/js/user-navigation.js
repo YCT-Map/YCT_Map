@@ -1,7 +1,7 @@
-import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=final-web-closeout-1";
-import { createOffRouteDetector } from "./off-route.js?v=final-web-closeout-1";
+import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=location-freshness-1";
+import { createOffRouteDetector } from "./off-route.js?v=location-freshness-1";
 
-export const MAX_LIVE_POSITION_AGE_MS = 30_000;
+export const MAX_LIVE_POSITION_AGE_MS = 15_000;
 export const MAX_LIVE_ROUTE_ATTEMPTS = 3;
 export const LIVE_ROUTE_RECOVERY_WINDOW_MS = 10_000;
 const TRANSIENT_LIVE_ROUTE_CODES = new Set(["NO_SAFE_NETWORK_MATCH", "INSUFFICIENT_ACCURACY"]);
@@ -9,7 +9,8 @@ const LIVE_ROUTE_FINAL_MESSAGE = "Your location is clear, but it cannot yet be s
 
 export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, onRoute, onClear, onBrowse,
   onCancel, onStateChange, onRouteStale, onRouteProgress = () => {}, requestRoute = fetch, now = Date.now,
-  setDeadline = globalThis.setTimeout, clearDeadline = globalThis.clearTimeout }) {
+  setDeadline = globalThis.setTimeout, clearDeadline = globalThis.clearTimeout,
+  onFreshLocationRequired = () => false }) {
   const form = panel.querySelector("#user-route-form");
   const liveOriginInput = panel.querySelector("#user-route-origin-live");
   const liveOriginStatus = panel.querySelector("#user-route-live-status");
@@ -39,11 +40,13 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   let setupRequestGeneration = 0;
   let setupAbortController = null;
   let liveRecovery = null;
+  let freshStartWait = null;
   let liveOptionSignature = "";
 
   const csrfToken = () => document.cookie.split("; ").find((row) => row.startsWith("csrftoken="))?.split("=")[1] || "";
   function livePositionUsable(position = livePosition) {
     if (!position || position.accuracyMetres > 40 || !Number.isFinite(position.timestamp)) return false;
+    if (["retained", "stale"].includes(position.freshness)) return false;
     const age = now() - position.timestamp;
     return age >= -5_000 && age <= MAX_LIVE_POSITION_AGE_MS;
   }
@@ -51,7 +54,8 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     const usable = livePositionUsable();
     const stale = Boolean(livePosition) && !usable;
     const status = usable ? `Live location ready Â· ~${Math.round(livePosition.accuracyMetres)} m`
-      : stale ? "Waiting for a current location" : "Locate first";
+      : livePosition?.freshness === "retained" ? "Refreshing current location"
+        : stale ? "Waiting for a current location" : "Locate first";
     const signature = `${usable}:${status}`;
     if (signature !== liveOptionSignature) {
       liveOriginInput.disabled = !usable;
@@ -61,8 +65,8 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     updateSubmitState();
   }
   function updateSubmitState() {
-    submitButton.disabled = setupRequestActive || Boolean(liveRecovery) || !selectedOrigin
-      || (selectedOrigin === "__live__" && !livePositionUsable());
+    submitButton.disabled = setupRequestActive || Boolean(liveRecovery) || Boolean(freshStartWait)
+      || !selectedOrigin;
   }
   function resetMessages() {
     error.hidden = true;
@@ -86,6 +90,10 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     if (recovery && recovery.deadlineId !== null) clearDeadline(recovery.deadlineId);
     if (recovery) recovery.deadlineId = null;
   }
+  function clearFreshStartWait(wait = freshStartWait) {
+    if (wait?.deadlineId !== null && wait?.deadlineId !== undefined) clearDeadline(wait.deadlineId);
+    if (freshStartWait === wait) freshStartWait = null;
+  }
   function cancelPendingSetup() {
     setupRequestGeneration += 1;
     setupAbortController?.abort();
@@ -93,6 +101,7 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     setupRequestActive = false;
     clearRecoveryTimer();
     liveRecovery = null;
+    clearFreshStartWait();
     requestStatus.hidden = true;
     requestStatus.textContent = "";
     submitButton.textContent = "Show route";
@@ -194,6 +203,7 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     setRoutePanelState("setup");
     panel.hidden = false;
     updateSubmitState();
+    if (livePosition && !livePositionUsable()) onFreshLocationRequired();
     retryButton.hidden = true;
     const firstMappedInput = mappedOrigins.children[0]?.children?.[0];
     (liveOriginInput.disabled ? firstMappedInput : liveOriginInput)?.focus();
@@ -306,6 +316,25 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     return attemptLiveRoute(position, recovery);
   }
 
+  function waitForFreshRouteOrigin() {
+    const wait = { deadlineId: null };
+    freshStartWait = wait;
+    showSetupActivity("Refreshing your location...", "recovering");
+    const requested = onFreshLocationRequired();
+    if (requested === false) {
+      clearFreshStartWait(wait);
+      showSetupError("Current location is unavailable. Use Locate me again or choose a mapped start.");
+      return false;
+    }
+    wait.deadlineId = setDeadline(() => {
+      if (freshStartWait !== wait) return;
+      clearFreshStartWait(wait);
+      showSetupError("Current location could not be refreshed. Try Locate me again or choose a mapped start.");
+    }, LIVE_ROUTE_RECOVERY_WINDOW_MS);
+    updateSubmitState();
+    return true;
+  }
+
   async function calculate(event) {
     event.preventDefault();
     if (setupRequestActive || liveRecovery) return;
@@ -316,7 +345,7 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     const useLive = selectedOrigin === "__live__";
     if (useLive && !livePositionUsable()) {
       updateLiveOption();
-      showSetupError("Your live position is no longer current. Use Locate me again or choose a mapped start.");
+      waitForFreshRouteOrigin();
       return;
     }
     resetMessages();
@@ -422,11 +451,19 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   function updateLivePosition(position) {
     livePosition = position;
     updateLiveOption();
+    if (freshStartWait && livePositionUsable(position)) {
+      clearFreshStartWait();
+      void startLiveRouteRecovery(position);
+      return;
+    }
     if (liveRecovery && position.timestamp > liveRecovery.lastAttemptTimestamp) {
       if (setupRequestActive) liveRecovery.pendingPosition = position;
       else void attemptLiveRoute(position, liveRecovery);
     }
-    if (!activeTracker) return;
+    // Route-origin freshness is intentionally stricter than progress tracking.
+    // Once a route is active, the tracker owns accuracy/age plausibility, but an
+    // explicitly retained old coordinate must never advance navigation.
+    if (!activeTracker || ["retained", "stale"].includes(position?.freshness)) return;
     const progress = activeTracker.update(position);
     renderProgress(progress);
     const routeState = offRouteDetector.evaluate(position, activeTracker.getCoordinates(), { arrived: progress.state === "arrived" });
@@ -444,6 +481,10 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   function clearLivePosition() {
     livePosition = null;
     if (liveRecovery || setupRequestActive) cancelPendingSetup();
+    if (freshStartWait) {
+      updateLiveOption();
+      return;
+    }
     if (selectedOrigin === "__live__") {
       selectedOrigin = "";
       liveOriginInput.checked = false;

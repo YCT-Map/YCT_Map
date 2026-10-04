@@ -25,9 +25,10 @@ from routing.editor_services import (MAX_ENTRANCE_NODE_METRES, NEARBY_ENTRANCE_N
 from routing.models import (EntranceNetworkAnchor, PathSurvey, SourceType, SurveySegmentMatch,
                             VerificationState, WalkableNode, WalkableSegment)
 from routing.geometry import distance_metres
-from routing.survey_services import (MATCH_DISTANCE_METRES, decide_verification,
-                                     analyse_survey_dry_run, record_match_review,
-                                     store_samples, transition_survey)
+from routing.survey_services import (MATCH_DISTANCE_METRES, analyse_survey_dry_run,
+                                     apply_finalized_evidence, decide_verification,
+                                     evaluate_finalized_evidence, finalized_evidence_summary,
+                                     record_match_review, store_samples, transition_survey)
 from routing.matching import project_onto_segment
 from routing.candidate_services import create_candidate_path, preview_candidate_graph_change
 from django.utils.dateparse import parse_datetime
@@ -637,10 +638,43 @@ def segment_split(request, segment_id):
 @require_GET
 @active_editor_any("routing.conduct_path_survey", "routing.review_path_survey")
 def survey_list(request):
+    return render(request, "editor/survey_list.html", _survey_list_context(request))
+
+
+def _survey_list_context(request, *, historical_preview=None):
     surveys = PathSurvey.objects.select_related("owner", "reviewed_by")
     if not request.user.has_perm("routing.review_path_survey"):
         surveys = surveys.filter(owner=request.user)
-    return render(request, "editor/survey_list.html", {"surveys": surveys})
+    return {
+        "surveys": surveys,
+        "historical_preview": historical_preview,
+        "can_review_historical": request.user.has_perm("routing.review_path_survey"),
+        "can_apply_historical": request.user.has_perm("routing.review_path_survey")
+        and request.user.has_perm("routing.grant_field_verified"),
+    }
+
+
+@require_POST
+@active_editor("routing.review_path_survey")
+def survey_re_evaluate(request):
+    action = request.POST.get("action")
+    if action == "preview":
+        preview = finalized_evidence_summary(evaluate_finalized_evidence())
+        return render(request, "editor/survey_list.html", _survey_list_context(
+            request, historical_preview=preview,
+        ))
+    if action != "apply" or request.POST.get("confirm") != "yes":
+        messages.error(request, "Preview the results and explicitly confirm before applying verification.")
+        return redirect("editor:survey-list")
+    if not request.user.has_perm("routing.grant_field_verified"):
+        raise PermissionDenied
+    applied = apply_finalized_evidence(actor=request.user)
+    messages.success(
+        request,
+        f"Historical evidence re-evaluated. {len(applied['promoted_segment_ids'])} existing "
+        "path segment(s) became FIELD_VERIFIED. No path geometry or survey status changed.",
+    )
+    return redirect("editor:survey-list")
 
 
 @require_POST

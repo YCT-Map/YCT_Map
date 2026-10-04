@@ -1,4 +1,57 @@
-{% extends "editor/base.html" %}{% block title %}Path surveys{% endblock %}{% block content %}
-<div class="editor-heading"><div><p class="editor-eyebrow">Field evidence</p><h1>Path surveys</h1><p>GPS traces are private evidence. They never rewrite paths or verify them automatically.</p></div><form method="post" action="{% url 'editor:survey-create' %}">{% csrf_token %}<button class="editor-primary">New path survey</button></form></div>
-<section class="editor-card"><h2>Survey sessions</h2>{% for survey in surveys %}<p><a href="{% url 'editor:survey-detail' survey.id %}">{{ survey.created_at|date:"j M Y, H:i" }}</a> · {{ survey.get_status_display }} · {{ survey.owner.get_username }} · {{ survey.samples.count }} samples</p>{% empty %}<p>No path surveys have been created.</p>{% endfor %}</section>
+{% extends "editor/base.html" %}
+{% block title %}Path surveys{% endblock %}
+{% block content %}
+<div class="editor-heading">
+  <div>
+    <p class="editor-eyebrow">Field evidence</p>
+    <h1>Path surveys</h1>
+    <p>Survey traces are stored as private field evidence. They never create or change paths automatically. Strong finalized evidence can verify an existing path.</p>
+  </div>
+  {% if perms.routing.conduct_path_survey %}
+    <form method="post" action="{% url 'editor:survey-create' %}">{% csrf_token %}<button class="editor-primary">New path survey</button></form>
+  {% endif %}
+</div>
+
+{% if can_review_historical %}
+<section class="editor-card">
+  <h2>Historical evidence re-evaluation</h2>
+  <p>Preview all completed and reviewed survey evidence against the current graph. Previewing is read-only and never creates or changes path geometry.</p>
+  <form method="post" action="{% url 'editor:survey-re-evaluate' %}">
+    {% csrf_token %}
+    <button name="action" value="preview">Preview re-evaluation</button>
+  </form>
+  {% if historical_preview %}
+    <div class="survey-review-summary" aria-label="Historical evidence preview">
+      <span><strong>{{ historical_preview.finalized_surveys }}</strong> finalized surveys considered</span>
+      <span><strong>{{ historical_preview.eligible_verifications }}</strong> existing paths eligible for verification</span>
+      <span><strong>{{ historical_preview.needs_confirmation }}</strong> still need confirmation</span>
+      <span><strong>{{ historical_preview.conflicts }}</strong> conflicts</span>
+      <span><strong>{{ historical_preview.unobserved }}</strong> unobserved paths</span>
+      <span><strong>{{ historical_preview.candidates }}</strong> candidate paths</span>
+      <span><strong>{{ historical_preview.one_pass_candidates }}</strong> one-pass candidates</span>
+      <span><strong>{{ historical_preview.multi_pass_candidates }}</strong> multi-pass candidates</span>
+    </div>
+    <p class="editor-muted">Applying can only promote eligible existing UNVERIFIED paths. It cannot revoke verification, create candidates, change geometry, or change survey status.</p>
+    {% if can_apply_historical %}
+      <form method="post" action="{% url 'editor:survey-re-evaluate' %}" class="editor-inline-confirmation">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="apply">
+        <label class="editor-checkbox-field"><input type="checkbox" name="confirm" value="yes" required> Apply these verification results to existing paths.</label>
+        <button class="editor-primary" type="submit">Apply verification results</button>
+      </form>
+    {% else %}
+      <p class="editor-warning">You may inspect this preview, but your account cannot grant FIELD_VERIFIED.</p>
+    {% endif %}
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="editor-card">
+  <h2>Survey sessions</h2>
+  {% for survey in surveys %}
+    <p><a href="{% url 'editor:survey-detail' survey.id %}">{{ survey.created_at|date:"j M Y, H:i" }}</a> · {{ survey.get_status_display }} · {{ survey.owner.get_username }} · {{ survey.samples.count }} samples</p>
+  {% empty %}
+    <p>No path surveys have been created.</p>
+  {% endfor %}
+</section>
 {% endblock %}

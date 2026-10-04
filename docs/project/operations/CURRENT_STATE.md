@@ -146,7 +146,11 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ## Active Work
 
-The Final Web Closeout, Survey Intelligence & Location Quality Sweep is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED on top of commit `9ce9a78`. It preserves the preceding uncommitted closeout work, closes the per-match reviewer audit gap, evaluates independent evidence across finalized surveys and improves browser-location stability and Place/Entrance capture. Changed assets use the coherent `final-web-closeout-1` token. No commit, push or deployment is included.
+The Surgical Location Freshness + Historical Survey Re-evaluation Fix is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED on top of commit `67eb0b4`. It corrects stale retained public location without changing GPS acquisition thresholds, routing graph, A*, heading, candidate creation or editor capture. Changed assets use the coherent `location-freshness-1` token. No commit, push, deployment or production-data action is included.
+
+Public location confidence now treats accuracy, freshness and coherent movement as separate evidence. One weaker callback may briefly retain the last reliable coordinate, but that coordinate keeps its real evidence timestamp, is labelled as retained rather than Good/current, expires after 15 seconds and triggers bounded reacquisition. Several coherent fresh fixes can override an older more precise cluster. A live route origin must be fresh; a retained/stale origin starts a visible refresh wait and routing continues automatically only after a fresh eligible fix arrives.
+
+Reviewers can now preview cumulative finalized historical evidence through an explicit Path Survey action. Applying it requires a separate confirmed, CSRF-protected, permission-gated POST and transactionally promotes only eligible existing `UNVERIFIED` segments. It never creates/splits geometry, changes survey status or revokes `FIELD_VERIFIED`. Deployment, startup, GET requests and preview remain mutation-free.
 
 The arrow bug was a screen-orientation sign regression: the orientation pipeline subtracted the screen angle even though the established device-to-geographic transform requires it once in the positive direction. The layered `▲` artwork already points north at zero and remains MapLibre map-aligned, so no 180-degree artwork correction or manual map-bearing compensation was added. Development-only `?headingDebug=1` now also reports sustained device-versus-movement opposition.
 
@@ -190,10 +194,10 @@ Owner review must still verify physical N/E/S/W phone headings, adaptive locatio
 
 ## Next Approved Task
 
-Owner-test the local web closeout build on Samsung/Edge: location settling and movement responsiveness, physical cardinal heading, Place/Entrance adaptive capture plus manual adjustment, stable editor refresh/back navigation, reviewer/time persistence and one new survey over a Needs Confirmation path. Do not apply candidate graph or verification changes to production during this review.
+Owner-test the local freshness correction on Samsung/Edge: settle location, walk 20–40 m, verify the marker advances, background/foreground the browser, then confirm live-origin routing waits for and uses a fresh point. Preview historical re-evaluation in the local Path Survey page, but do not apply graph or verification changes to production during this review.
 
 ---
 
 ## Deployment Status
 
-An operational Render/Neon deployment exists at the owner-managed production service. The `final-web-closeout-1` working tree is local only: no deployment, Neon write or Render configuration change was performed. Cloudflare Quick Tunnel support remains development-only.
+An operational Render/Neon deployment exists at the owner-managed production service. The `location-freshness-1` working tree is local only: no deployment, Neon write or Render configuration change was performed. Cloudflare Quick Tunnel support remains development-only.

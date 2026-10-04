@@ -857,3 +857,21 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Applied migration `0010` only to the local SQLite database after an external temporary backup. All 11 existing match rows retained null reviewer/time metadata. Dry runs across the three finalized surveys present in this SQLite copy left survey status, segment state, match count and verification history unchanged; the previously referenced historical survey UUID is not present in this copy.
 - Final verification passes with **237 Django tests** and **133 JavaScript tests**, plus system check, migration drift, Python compilation, JavaScript syntax, Git whitespace and HTTP smoke gates. Static assets use one `final-web-closeout-1` version token, including shared editor selector imports.
 - No Neon write, production migration, production graph/verification/survey change, Render action, native/mobile project, commit, push or deployment is included.
+
+---
+
+## Surgical Location Freshness + Historical Survey Re-evaluation Fix
+
+**Status:** IMPLEMENTED LOCALLY — OWNER REVIEW REQUIRED
+
+**Date:** 2026-10-04
+
+**Baseline:** `67eb0b4 feat: complete web closeout and survey intelligence`
+
+- Corrected a stale-location defect in which isolated weaker callbacks were discarded before they could form coherent movement evidence, while a retained coordinate inherited newer callback timestamps and could masquerade as current.
+- Retained positions now preserve their evidence timestamp, carry an explicit retained freshness state, use honest UI copy, expire after 15 seconds and trigger safe reacquisition. Coherent fresh walking evidence can override an older precise cluster without weakening isolated-outlier or implausible-jump protection.
+- Live route setup rejects retained/stale origins, visibly requests a fresh fix and automatically continues only when an eligible fresh replacement arrives. Foreground return reacquires stale state without accumulating geolocation watchers.
+- Corrected Path Survey copy and added an explicit two-step historical evidence workflow. Preview is read-only; apply is confirmed, POST-only, CSRF/permission protected, transactional and reuses the cumulative evaluator used by future completion.
+- Historical apply can only promote eligible existing `UNVERIFIED` segments. It cannot revoke verification, create/split candidate geometry, change surveys or alter raw samples. GET, deployment and startup remain mutation-free.
+- Static assets use `location-freshness-1`. No schema migration, production/Neon write, graph edit, survey-status change, candidate creation, commit, push or deployment is included.
+- Verification passes with **240 Django tests** and **138 JavaScript tests**, plus system check, migration drift, Python compilation, JavaScript syntax, whitespace and local HTTP smoke gates.

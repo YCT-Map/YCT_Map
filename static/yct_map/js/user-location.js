@@ -1,10 +1,12 @@
-import { assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=final-web-closeout-1";
-import { createGeolocationService } from "./geolocation.js?v=final-web-closeout-1";
+import { accuracyState, assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=location-freshness-1";
+import { createGeolocationService } from "./geolocation.js?v=location-freshness-1";
 import { createDeviceOrientationService, DEVICE_HEADING_STALE_MS,
   createHeadingOppositionDiagnostic, headingDiagnosticSnapshot, screenOrientationDegrees,
-  selectDisplayedHeading } from "./device-orientation.js?v=final-web-closeout-1";
+  selectDisplayedHeading } from "./device-orientation.js?v=location-freshness-1";
 
 export const INITIAL_LOCATION_ACQUISITION_MAX_MS = 10_000;
+export const LIVE_LOCATION_STALE_AFTER_MS = 15_000;
+export const LIVE_LOCATION_RESUME_REACQUIRE_MS = 10_000;
 
 const COPY = {
   idle: "Location is optional and stays on this device.",
@@ -17,6 +19,7 @@ const COPY = {
   "permission-denied": "Location access was denied. You can still choose a starting point manually.",
   unavailable: "Your location is temporarily unavailable. Try again or use a manual start.",
   "timed-out": "Location is taking too long. Try again or use a manual start.",
+  refreshing: "Refreshing your location...",
   stopped: "Live location stopped. Manual directions remain available.",
   retained: "Location quality reduced · retaining the last reliable position.",
   "outside-area": "You’re outside the YabaTech mapping area.",
@@ -54,6 +57,7 @@ export function createUserLocation({
   let deviceHeadingTimestamp = null;
   let deviceHeadingExpiry = null;
   let acquisitionDeadline = null;
+  let freshnessDeadline = null;
   const headingOpposition = createHeadingOppositionDiagnostic();
 
   function currentHeading() {
@@ -89,16 +93,18 @@ export function createUserLocation({
     state = nextState;
     element.dataset.state = state;
     message.textContent = COPY[state];
-    locateButton.hidden = ["requesting-permission", "locating", "warming-up", "active", "low-accuracy", "retained"].includes(state);
+    locateButton.hidden = ["requesting-permission", "locating", "warming-up", "active", "low-accuracy", "retained", "refreshing"].includes(state);
     locateButton.disabled = state === "unsupported";
     recenterButton.hidden = !acceptedPosition;
     stopButton.hidden = !trackingRequested;
     accuracy.hidden = !acceptedPosition;
     if (acceptedPosition) {
       const confidence = acceptedPosition.locationConfidence;
-      const quality = `Location quality: ${locationQualityLabel(acceptedPosition.accuracyMetres)}`;
       const confidenceCopy = confidence === "unstable" ? " · position unstable" : "";
-      accuracy.textContent = `${quality}${confidenceCopy} · estimated uncertainty ~${Math.round(acceptedPosition.deviceAccuracyMetres ?? acceptedPosition.accuracyMetres)} m`;
+      const uncertainty = Math.round(acceptedPosition.deviceAccuracyMetres ?? acceptedPosition.accuracyMetres);
+      accuracy.textContent = acceptedPosition.freshness === "retained"
+        ? `Last reliable position · estimated uncertainty ~${uncertainty} m`
+        : `Location quality: ${locationQualityLabel(acceptedPosition.accuracyMetres)}${confidenceCopy} · estimated uncertainty ~${uncertainty} m`;
     }
     publishHeading();
   }
@@ -106,6 +112,41 @@ export function createUserLocation({
   function clearAcquisitionDeadline() {
     if (acquisitionDeadline !== null) clearDeadline(acquisitionDeadline);
     acquisitionDeadline = null;
+  }
+
+  function clearFreshnessDeadline() {
+    if (freshnessDeadline !== null) clearDeadline(freshnessDeadline);
+    freshnessDeadline = null;
+  }
+
+  function startAcquisitionDeadline() {
+    clearAcquisitionDeadline();
+    acquisitionDeadline = setDeadline(finishInitialAcquisition, INITIAL_LOCATION_ACQUISITION_MAX_MS);
+  }
+
+  function scheduleFreshnessExpiry() {
+    clearFreshnessDeadline();
+    if (!trackingRequested || !acceptedPosition) return;
+    const age = Math.max(0, now() - acceptedPosition.timestamp);
+    freshnessDeadline = setDeadline(expireDisplayedPosition,
+      Math.max(0, LIVE_LOCATION_STALE_AFTER_MS - age));
+  }
+
+  function notifyPosition(position, stabilized, { focus = false } = {}) {
+    const displayed = currentHeading();
+    onPosition({ ...position, displayedHeadingDegrees: displayed.headingDegrees,
+      displayedHeadingSource: displayed.source },
+    { focus, quality: stabilized.quality, stabilized: !stabilized.moved,
+      motionState: stabilized.motionState, freshness: stabilized.freshness });
+  }
+
+  function publishRetained(stabilized) {
+    acceptedPosition = { ...stabilized.sample, freshness: "retained",
+      retainedAgeMs: stabilized.retainedAgeMs };
+    notifyPosition(acceptedPosition, stabilized);
+    scheduleFreshnessExpiry();
+    render("retained");
+    return false;
   }
 
   function publishStabilized(stabilized) {
@@ -120,13 +161,12 @@ export function createUserLocation({
       render("outside-area");
       return false;
     }
-    if (stabilized.reason === "keep-better-position") {
-      acceptedPosition = stabilized.sample;
-      render("retained");
-      return false;
+    if (stabilized.freshness === "retained" ||
+        ["keep-better-position", "checking-movement"].includes(stabilized.reason)) {
+      return publishRetained(stabilized);
     }
     clearAcquisitionDeadline();
-    acceptedPosition = stabilized.sample;
+    acceptedPosition = { ...stabilized.sample, freshness: "fresh" };
     headingOpposition.update({
       deviceHeading,
       movementHeading: acceptedPosition.headingDegrees,
@@ -134,11 +174,8 @@ export function createUserLocation({
     });
     const shouldFocus = !focusedInitially && stabilized.quality !== "provisional";
     if (shouldFocus) focusedInitially = true;
-    const displayed = currentHeading();
-    onPosition({ ...acceptedPosition, displayedHeadingDegrees: displayed.headingDegrees,
-      displayedHeadingSource: displayed.source },
-    { focus: shouldFocus, quality: stabilized.quality, stabilized: !stabilized.moved,
-      motionState: stabilized.motionState });
+    notifyPosition(acceptedPosition, stabilized, { focus: shouldFocus });
+    scheduleFreshnessExpiry();
     render(stabilized.quality === "reasonable" ? "active" : "low-accuracy");
     return true;
   }
@@ -146,7 +183,12 @@ export function createUserLocation({
   function receive(rawPosition) {
     const result = assessSample(rawPosition, lastRawAccepted);
     if (!result.accepted) {
-      if (acceptedPosition && ["poor-accuracy", "keep-better-position"].includes(result.reason)) render("retained");
+      if (acceptedPosition && result.reason === "poor-accuracy") {
+        publishRetained({ ready: true, reason: "keep-better-position",
+          sample: acceptedPosition, quality: accuracyState(acceptedPosition.accuracyMetres),
+          freshness: "retained", retainedAgeMs: Math.max(0, result.sample.timestamp - acceptedPosition.timestamp),
+          moved: false, motionState: acceptedPosition.motionState || "stationary" });
+      }
       else if (!acceptedPosition && ["poor-accuracy", "keep-better-position"].includes(result.reason)) render("locating");
       return result;
     }
@@ -168,9 +210,52 @@ export function createUserLocation({
     if (!publishStabilized(stabilized) && state !== "outside-area") render("timed-out");
   }
 
+  function restartFreshAcquisition({ preserveDisplayed = true } = {}) {
+    if (!trackingRequested) return false;
+    lastRawAccepted = null;
+    stabilizer.reset();
+    focusedInitially = Boolean(acceptedPosition);
+    if (acceptedPosition && preserveDisplayed) {
+      acceptedPosition = { ...acceptedPosition, freshness: "retained" };
+      notifyPosition(acceptedPosition, {
+        quality: accuracyState(acceptedPosition.accuracyMetres), moved: false,
+        motionState: acceptedPosition.motionState || "stationary", freshness: "retained",
+      });
+    } else if (!preserveDisplayed) {
+      acceptedPosition = null;
+      onClear();
+    }
+    render("refreshing");
+    startAcquisitionDeadline();
+    const restarted = service.reacquire?.();
+    if (restarted === undefined) service.resume?.();
+    return restarted !== false;
+  }
+
+  function expireDisplayedPosition() {
+    freshnessDeadline = null;
+    if (!trackingRequested || !acceptedPosition) return;
+    const age = Math.max(0, now() - acceptedPosition.timestamp);
+    if (age < LIVE_LOCATION_STALE_AFTER_MS) {
+      scheduleFreshnessExpiry();
+      return;
+    }
+    acceptedPosition = null;
+    lastRawAccepted = null;
+    stabilizer.reset();
+    focusedInitially = false;
+    onClear();
+    render("refreshing");
+    startAcquisitionDeadline();
+    const restarted = service.reacquire?.();
+    if (restarted === false) fail("unavailable");
+    else if (restarted === undefined) service.resume?.();
+  }
+
   function fail(nextState) {
     if (["unsupported", "permission-denied", "unavailable", "timed-out", "outside-area"].includes(nextState)) {
       clearAcquisitionDeadline();
+      clearFreshnessDeadline();
       if (["unsupported", "permission-denied"].includes(nextState)) trackingRequested = false;
       lastRawAccepted = null;
       stabilizer.reset();
@@ -194,8 +279,7 @@ export function createUserLocation({
     // may display their orientation prompt. Failure never blocks GPS startup.
     void orientationService.start(receiveOrientation, () => publishHeading());
     render("requesting-permission");
-    clearAcquisitionDeadline();
-    acquisitionDeadline = setDeadline(finishInitialAcquisition, INITIAL_LOCATION_ACQUISITION_MAX_MS);
+    startAcquisitionDeadline();
     return service.start(
       (position) => { if (!acceptedPosition) render("locating"); receive(position); },
       fail,
@@ -208,6 +292,7 @@ export function createUserLocation({
     orientationService.stop();
     if (deviceHeadingExpiry !== null) clearDeadline(deviceHeadingExpiry);
     clearAcquisitionDeadline();
+    clearFreshnessDeadline();
     deviceHeadingExpiry = null;
     deviceHeading = null;
     deviceHeadingTimestamp = null;
@@ -226,7 +311,14 @@ export function createUserLocation({
       service.stop({ preserveCallbacks: true });
       orientationService.pause();
     } else {
-      service.resume();
+      const age = acceptedPosition ? Math.max(0, now() - acceptedPosition.timestamp) : Infinity;
+      if (!acceptedPosition || acceptedPosition.freshness === "retained" ||
+          age >= LIVE_LOCATION_RESUME_REACQUIRE_MS) {
+        restartFreshAcquisition();
+      } else {
+        service.resume();
+        scheduleFreshnessExpiry();
+      }
       orientationService.resume();
     }
   }
@@ -239,6 +331,7 @@ export function createUserLocation({
 
   return {
     start, stop, receive,
+    refresh: () => restartFreshAcquisition(),
     getState: () => state,
     getAcceptedPosition: () => acceptedPosition,
     getHeadingDiagnostic() {
@@ -263,6 +356,7 @@ export function createUserLocation({
       orientationService.destroy();
       if (deviceHeadingExpiry !== null) clearDeadline(deviceHeadingExpiry);
       clearAcquisitionDeadline();
+      clearFreshnessDeadline();
       documentObject?.removeEventListener?.("visibilitychange", visibilityChanged);
     },
   };

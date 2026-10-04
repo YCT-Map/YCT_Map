@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { assessSample, createLocationStabilizer, locationQualityLabel, normalizePosition } from "../../static/yct_map/js/location-filter.js";
 import { createGeolocationService } from "../../static/yct_map/js/geolocation.js";
-import { createUserLocation } from "../../static/yct_map/js/user-location.js";
+import { createUserLocation, LIVE_LOCATION_STALE_AFTER_MS } from "../../static/yct_map/js/user-location.js";
 
 function position({ longitude = 3.374, latitude = 6.519, accuracy = 12, timestamp = 1_000,
   heading = null, speed = null } = {}) {
@@ -131,6 +131,42 @@ test("a worse fix is retained briefly but released after the reliable fix ages",
   assert.equal(released.sample.deviceAccuracyMetres, 70);
 });
 
+test("coherent newer movement overrides an older precise retained position", () => {
+  const stabilizer = createLocationStabilizer({ retainedFixMaximumAgeMs: 12_000 });
+  for (const [longitude, timestamp] of [[3.374, 1_000], [3.374001, 2_000], [3.374002, 3_000]]) {
+    stabilizer.update(normalizePosition(position({ longitude, timestamp, accuracy: 4 })), "reasonable");
+  }
+  const oldPosition = stabilizer.getStable();
+  const first = stabilizer.update(normalizePosition(position({ longitude: 3.37410,
+    timestamp: 5_000, accuracy: 15, speed: 1 })), "reasonable");
+  assert.equal(first.freshness, "retained");
+  assert.equal(first.sample.timestamp, oldPosition.timestamp,
+    "a retained coordinate must keep the timestamp of its supporting evidence");
+
+  const moved = stabilizer.update(normalizePosition(position({ longitude: 3.37420,
+    timestamp: 7_000, accuracy: 15, speed: 1 })), "reasonable");
+  assert.equal(moved.freshness, "fresh");
+  assert.equal(moved.reason, "movement");
+  assert.ok(moved.sample.longitude > oldPosition.longitude + 0.00005,
+    "several coherent fresh fixes must displace an older precise cluster");
+  assert.equal(moved.sample.timestamp, 7_000);
+});
+
+test("fresh seven-to-ten metre fixes can replace an older four-metre fix", () => {
+  const stabilizer = createLocationStabilizer();
+  for (const [longitude, timestamp] of [[3.374, 1_000], [3.374001, 2_000], [3.374002, 3_000]]) {
+    stabilizer.update(normalizePosition(position({ longitude, timestamp, accuracy: 4 })), "reasonable");
+  }
+  let result;
+  for (const [longitude, timestamp] of [[3.37408, 5_000], [3.37416, 7_000], [3.37424, 9_000]]) {
+    result = stabilizer.update(normalizePosition(position({ longitude, timestamp,
+      accuracy: 9, speed: 1 })), "reasonable");
+  }
+  assert.equal(result.freshness, "fresh");
+  assert.equal(result.reason, "movement");
+  assert.ok(result.sample.longitude > 3.37408);
+});
+
 test("geolocation service reports unsupported and cleans up its watcher", () => {
   let unsupported = null;
   const missing = createGeolocationService({ geolocation: null });
@@ -190,6 +226,27 @@ test("an obsolete initial request cannot restart a watcher or publish a stale po
   initialCallbacks[1](position({timestamp:2_000}));
   assert.equal(watchCount,1);
   assert.equal(received[0][0],"new");
+});
+
+test("fresh reacquisition replaces the watcher without duplicating it", () => {
+  const initialCallbacks = [];
+  const cleared = [];
+  let watchId = 0;
+  const geolocation = {
+    getCurrentPosition(success) { initialCallbacks.push(success); },
+    watchPosition() { watchId += 1; return watchId; },
+    clearWatch(id) { cleared.push(id); },
+  };
+  const service = createGeolocationService({ geolocation });
+  service.start(() => {}, () => {});
+  initialCallbacks[0](position());
+  assert.equal(watchId, 1);
+  assert.equal(service.reacquire(), true);
+  assert.deepEqual(cleared, [1]);
+  initialCallbacks[1](position({ timestamp: 2_000 }));
+  assert.equal(watchId, 2, "reacquisition starts exactly one replacement watcher");
+  service.stop();
+  assert.deepEqual(cleared, [1, 2]);
 });
 
 class FakeElement {
@@ -307,6 +364,48 @@ test("initial acquisition has a strict ten-second fallback without slowing later
 
   positionCallback(position({ longitude: 3.37404, accuracy: 8, timestamp: 12_000 }));
   assert.ok(shown.length >= 2, "rolling live updates do not incur another acquisition delay");
+  controller.destroy();
+});
+
+test("retained position is labelled honestly and expires into fresh reacquisition", () => {
+  const harness = locationHarness();
+  let positionCallback;
+  let reacquisitions = 0;
+  let clock = 4_000;
+  let nextDeadline = 0;
+  const deadlines = new Map();
+  const shown = [];
+  const controller = createUserLocation({
+    element: harness.root,
+    service: {
+      isSupported: true,
+      start(onPosition) { positionCallback = onPosition; return true; },
+      stop() {}, resume() {}, reacquire() { reacquisitions += 1; return true; },
+    },
+    documentObject: { hidden: false, addEventListener() {}, removeEventListener() {} },
+    now: () => clock,
+    setDeadline(callback, delay) {
+      const id = ++nextDeadline; deadlines.set(id, { callback, delay }); return id;
+    },
+    clearDeadline(id) { deadlines.delete(id); },
+    onPosition: (sample, meta) => shown.push({ sample, meta }),
+    onClear() {}, onRecenter() {},
+  });
+  controller.start();
+  for (const [longitude, timestamp, accuracy] of [
+    [3.374, 1_000, 5], [3.374001, 2_000, 5], [3.374002, 3_000, 5], [3.374003, 4_000, 5],
+  ]) positionCallback(position({ longitude, timestamp, accuracy }));
+  positionCallback(position({ longitude: 3.37401, timestamp: 5_000, accuracy: 100 }));
+  assert.equal(shown.at(-1).meta.freshness, "retained");
+  assert.match(harness.get("#location-accuracy").textContent, /Last reliable position/);
+  assert.doesNotMatch(harness.get("#location-accuracy").textContent, /Location quality: Good/);
+
+  clock = 4_000 + LIVE_LOCATION_STALE_AFTER_MS + 1;
+  const freshnessTimer = [...deadlines.values()].find((item) => item.delay <= LIVE_LOCATION_STALE_AFTER_MS);
+  freshnessTimer.callback();
+  assert.equal(controller.getAcceptedPosition(), null);
+  assert.equal(controller.getState(), "refreshing");
+  assert.equal(reacquisitions, 1);
   controller.destroy();
 });
 

@@ -247,38 +247,12 @@ def analyse_survey(survey):
         assessment["segment"].pk for assessment in current_assessments
         if assessment["best"] is not None
     }
-    point_sets = finalized_evidence_point_sets()
-    cumulative = _cumulative_assessments(point_sets, segments)
     matches_by_segment = {match.segment_id: match for match in results}
-    for assessment in cumulative:
-        segment = assessment["segment"]
-        if segment.pk not in affected_ids or not assessment["auto_verify"]:
-            continue
-        if segment.verification_state != VerificationState.UNVERIFIED:
-            continue
-        supporting = assessment["supporting_passes"]
-        earliest = min(item.points[0].captured_at for item in supporting)
-        existed_before_evidence = segment.created_at <= earliest
-        has_confirmation_after_creation = any(
-            item.points[0].captured_at >= segment.created_at for item in supporting
-        )
-        if not (existed_before_evidence or has_confirmation_after_creation):
-            continue
-        segment.verification_state = VerificationState.FIELD_VERIFIED
-        segment.save(update_fields=("verification_state", "updated_at"))
-        SegmentVerificationRecord.objects.create(
-            segment=segment,
-            survey_match=matches_by_segment.get(segment.pk),
-            action=SegmentVerificationRecord.Action.GRANTED,
-            geometry_revision=segment.geometry_revision,
-            geometry_fingerprint=segment.geometry_fingerprint,
-            actor=None,
-            reason=(
-                "Automatic grant: cumulative finalized field evidence supplied "
-                f"{len(supporting)} independent, contiguous, high-quality passes "
-                "without a competing-path conflict."
-            ),
-        )
+    apply_finalized_evidence(
+        actor=None,
+        affected_segment_ids=affected_ids,
+        survey_matches_by_segment=matches_by_segment,
+    )
     return results
 
 
@@ -299,16 +273,94 @@ def finalized_evidence_point_sets():
     )
 
 
+def evaluate_finalized_evidence(*, lock_segments=False):
+    """Evaluate all immutable finalized evidence against the current graph."""
+    point_sets = finalized_evidence_point_sets()
+    segments_query = WalkableSegment.objects.filter(is_active=True).select_related(
+        "start_node", "end_node",
+    )
+    if lock_segments:
+        segments_query = segments_query.select_for_update()
+    segments = list(segments_query)
+    return {
+        "finalized_surveys": PathSurvey.objects.filter(
+            status__in=FINALIZED_SURVEY_STATUSES,
+        ).count(),
+        "existing": _cumulative_assessments(point_sets, segments),
+        "candidates": discover_cumulative_candidate_paths(point_sets, segments),
+    }
+
+
+def finalized_evidence_summary(evaluation):
+    existing = evaluation["existing"]
+    candidates = evaluation["candidates"]
+    return {
+        "finalized_surveys": evaluation["finalized_surveys"],
+        "eligible_verifications": sum(
+            item.get("auto_verify", False)
+            and item["segment"].verification_state == VerificationState.UNVERIFIED
+            for item in existing
+        ),
+        "needs_confirmation": sum(item.get("needs_confirmation", False) for item in existing),
+        "unobserved": sum(item.get("classification") == "UNOBSERVED" for item in existing),
+        "conflicts": sum(
+            item.get("needs_review", False) or item.get("classification") == "DISCREPANCY"
+            for item in existing
+        ),
+        "candidates": len(candidates),
+        "one_pass_candidates": sum(item.get("pass_count", 0) < 2 for item in candidates),
+        "multi_pass_candidates": sum(item.get("pass_count", 0) >= 2 for item in candidates),
+    }
+
+
+@transaction.atomic
+def apply_finalized_evidence(*, actor, affected_segment_ids=None, survey_matches_by_segment=None):
+    """Promote eligible existing geometry using the shared cumulative evaluator.
+
+    `actor=None` is reserved for the automatic future-survey completion path.
+    A real actor denotes the explicit historical re-evaluation action and must
+    already hold the verification grant permission.
+    """
+    if actor is not None and not actor.has_perm("routing.grant_field_verified"):
+        raise PermissionDenied
+    affected = None if affected_segment_ids is None else set(affected_segment_ids)
+    matches = survey_matches_by_segment or {}
+    evaluation = evaluate_finalized_evidence(lock_segments=True)
+    promoted = []
+    for assessment in evaluation["existing"]:
+        segment = assessment["segment"]
+        if affected is not None and segment.pk not in affected:
+            continue
+        if not assessment.get("auto_verify"):
+            continue
+        if segment.verification_state != VerificationState.UNVERIFIED:
+            continue
+        supporting = assessment.get("supporting_passes", ())
+        segment.verification_state = VerificationState.FIELD_VERIFIED
+        segment.save(update_fields=("verification_state", "updated_at"))
+        SegmentVerificationRecord.objects.create(
+            segment=segment,
+            survey_match=matches.get(segment.pk),
+            action=SegmentVerificationRecord.Action.GRANTED,
+            geometry_revision=segment.geometry_revision,
+            geometry_fingerprint=segment.geometry_fingerprint,
+            actor=actor,
+            reason=(
+                ("Explicit historical re-evaluation grant" if actor is not None else "Automatic grant")
+                + ": cumulative finalized field evidence supplied "
+                + f"{len(supporting)} independent, contiguous, high-quality passes "
+                + "without a competing-path conflict."
+            ),
+        )
+        promoted.append(segment.pk)
+    return {**evaluation, "promoted_segment_ids": tuple(promoted)}
+
+
 def analyse_survey_dry_run(survey):
     """Derive campus-wide finalized evidence without writing database state."""
     if survey.status not in FINALIZED_SURVEY_STATUSES:
         return {"existing": [], "candidates": []}
-    point_sets = finalized_evidence_point_sets()
-    segments = list(WalkableSegment.objects.filter(is_active=True).select_related("start_node", "end_node"))
-    return {
-        "existing": _cumulative_assessments(point_sets, segments),
-        "candidates": discover_cumulative_candidate_paths(point_sets, segments),
-    }
+    return evaluate_finalized_evidence()
 
 
 @transaction.atomic

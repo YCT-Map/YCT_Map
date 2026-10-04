@@ -32,14 +32,7 @@ export function createGeolocationService({ geolocation = globalThis.navigator?.g
     );
   }
 
-  function start(onPosition, onError) {
-    stop();
-    callbacks = { onPosition, onError };
-    const token = generation;
-    if (!geolocation) {
-      onError("unsupported");
-      return false;
-    }
+  function requestCurrentAndWatch(token = generation) {
     geolocation.getCurrentPosition(
       (position) => {
         if (token !== generation) return;
@@ -54,6 +47,17 @@ export function createGeolocationService({ geolocation = globalThis.navigator?.g
       },
       GEOLOCATION_OPTIONS.initial,
     );
+  }
+
+  function start(onPosition, onError) {
+    stop();
+    callbacks = { onPosition, onError };
+    const token = generation;
+    if (!geolocation) {
+      onError("unsupported");
+      return false;
+    }
+    requestCurrentAndWatch(token);
     return true;
   }
 
@@ -68,5 +72,12 @@ export function createGeolocationService({ geolocation = globalThis.navigator?.g
     if (geolocation && callbacks) startWatch(generation);
   }
 
-  return { start, stop, resume, isSupported: Boolean(geolocation) };
+  function reacquire() {
+    if (!geolocation || !callbacks) return false;
+    stop({ preserveCallbacks: true });
+    requestCurrentAndWatch(generation);
+    return true;
+  }
+
+  return { start, stop, resume, reacquire, isSupported: Boolean(geolocation) };
 }

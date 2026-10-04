@@ -1,5 +1,5 @@
-import { sliceRouteAtDistance } from "./live-route-progress.js?v=final-web-closeout-1";
-import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=final-web-closeout-1";
+import { sliceRouteAtDistance } from "./live-route-progress.js?v=location-freshness-1";
+import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=location-freshness-1";
 
 export const DESTINATION_SOURCE_ID = "demo-destinations";
 export const DESTINATION_CLUSTER_LAYER_ID = "destination-clusters";

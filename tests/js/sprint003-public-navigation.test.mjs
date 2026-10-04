@@ -341,19 +341,42 @@ test("failed reroute retains guidance and exposes a retry action", async () => {
   assert.match(harness.get("#user-route-progress-status").textContent, /Unable to safely reroute/);
 });
 
-test("a stale live position cannot be reused as a new route origin", async () => {
+test("a stale live route origin waits for reacquisition and then routes from the fresh fix", async () => {
   globalThis.document = { cookie: "csrftoken=test-token" };
-  const harness=createHarness(navigationSelectors()); let requests=0; let clock=1_000;
+  const harness=createHarness(navigationSelectors()); let requests=0; let clock=1_000; let refreshes=0;
   const controller=createUserNavigation({panel:harness.panel,features:[destination,origin],routeUrl:"/api/routes/",
     liveRouteUrl:"/api/routes/from-position/",onRoute(){},onClear(){},now:()=>clock,
+    onFreshLocationRequired(){refreshes+=1;return true;},setDeadline:()=>1,clearDeadline(){},
     requestRoute:async()=>{requests+=1;return {ok:true,json:async()=>routePayload()};}});
   controller.updateLivePosition({longitude:3.374,latitude:6.518,accuracyMetres:5,timestamp:1_000});
   controller.begin(destination);
   chooseLiveOrigin(harness);
-  clock=40_001;
+  clock=20_001;
   await harness.get("#user-route-form").listeners.get("submit")({preventDefault(){}});
   assert.equal(requests,0);
-  assert.match(harness.get("#user-route-error").textContent,/no longer current/);
+  assert.equal(refreshes,1);
+  assert.match(harness.get("#user-route-request-status").textContent,/Refreshing your location/);
+  controller.updateLivePosition({longitude:3.3742,latitude:6.5181,accuracyMetres:8,
+    timestamp:20_001,freshness:"fresh"});
+  await new Promise((resolve)=>setTimeout(resolve,0));
+  assert.equal(requests,1);
+  assert.equal(harness.get("#user-route-result").hidden,false);
+});
+
+test("a retained coordinate never starts a live route request", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness=createHarness(navigationSelectors()); let requests=0; let refreshes=0;
+  const controller=createUserNavigation({panel:harness.panel,features:[destination,origin],routeUrl:"/api/routes/",
+    liveRouteUrl:"/api/routes/from-position/",onRoute(){},onClear(){},now:()=>2_000,
+    onFreshLocationRequired(){refreshes+=1;return true;},setDeadline:()=>1,clearDeadline(){},
+    requestRoute:async()=>{requests+=1;return {ok:true,json:async()=>routePayload()};}});
+  controller.updateLivePosition({longitude:3.374,latitude:6.518,accuracyMetres:5,
+    timestamp:1_000,freshness:"retained"});
+  controller.begin(destination);
+  chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({preventDefault(){}});
+  assert.equal(requests,0);
+  assert.ok(refreshes>=1);
 });
 
 test("foreground suspension hides and restores a route without resetting it", () => {

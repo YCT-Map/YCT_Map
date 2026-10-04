@@ -140,10 +140,13 @@ export function createLocationStabilizer({
     return "approximate";
   }
 
-  function resultFor(reason, sample, { moved = false, ready = true } = {}) {
+  function resultFor(reason, sample, { moved = false, ready = true,
+    freshness = "fresh", retainedAgeMs = null } = {}) {
     return { ready, reason, sample,
       quality: sample ? accuracyState(sample.accuracyMetres) : null,
       confidence: sample?.locationConfidence ?? null,
+      freshness,
+      retainedAgeMs,
       moved,
       motionState };
   }
@@ -152,7 +155,7 @@ export function createLocationStabilizer({
     const estimate = robustEstimate(items);
     motionState = "stationary";
     stable = { ...estimate, timestamp: items.at(-1).timestamp, headingDegrees: null,
-      motionState, locationConfidence: confidenceFor(estimate) };
+      motionState, freshness: "fresh", locationConfidence: confidenceFor(estimate) };
     if (stable.deviceAccuracyMetres <= ACCURACY.lowMetres) lastReliableTimestamp = stable.timestamp;
     return resultFor(reason, stable, { moved: true });
   }
@@ -181,13 +184,12 @@ export function createLocationStabilizer({
 
     const materiallyWorse = sample.accuracyMetres >= stable.accuracyMetres * 1.75 &&
       sample.accuracyMetres - stable.accuracyMetres >= 10;
-    const reliableAge = lastReliableTimestamp === null ? Infinity : sample.timestamp - lastReliableTimestamp;
+    // `stable.timestamp` belongs to the evidence that supports the displayed
+    // coordinate. It must not be refreshed merely because a newer callback was
+    // received while that older coordinate remained on screen.
+    const reliableAge = Math.max(0, sample.timestamp - stable.timestamp);
     const retentionLimit = motionState === "stationary"
       ? retainedFixMaximumAgeMs : retainedFixMaximumAgeMs * 0.6;
-    if (materiallyWorse && reliableAge <= retentionLimit) {
-      recent.pop();
-      return { ...resultFor("keep-better-position", stable), retainedAgeMs: reliableAge };
-    }
 
     const estimate = robustEstimate(recent);
     const displacement = distanceMetres(stable, estimate);
@@ -223,17 +225,38 @@ export function createLocationStabilizer({
       if (stationaryEvidence >= STABILIZATION.stationaryEvidenceRequired) motionState = "stationary";
     }
 
+    // Keep one isolated weaker fix from moving the marker, but retain it in
+    // `recent` so several coherent fresh fixes can prove that the user moved.
+    // While movement is still being confirmed, do not make the old displayed
+    // coordinate look fresh by copying the new callback timestamp onto it.
+    const movementPending = credibleMovement && motionState === "stationary";
+    if (motionState === "stationary" &&
+        ((materiallyWorse && reliableAge <= retentionLimit) || movementPending)) {
+      stable = { ...stable, freshness: "retained" };
+      return resultFor(
+        movementPending ? "checking-movement" : "keep-better-position",
+        stable,
+        { freshness: "retained", retainedAgeMs: reliableAge },
+      );
+    }
+
     if (motionState === "stationary") {
       stable = { ...stable, timestamp: sample.timestamp,
         accuracyMetres: estimate.accuracyMetres, deviceAccuracyMetres: sample.accuracyMetres,
         observedSpreadMetres: estimate.observedSpreadMetres, locationConfidence: confidenceFor(estimate),
-        headingDegrees: null, speedMetresPerSecond: null, motionState };
+        headingDegrees: null, speedMetresPerSecond: null, motionState, freshness: "fresh" };
       if (sample.accuracyMetres <= ACCURACY.lowMetres) lastReliableTimestamp = sample.timestamp;
       return resultFor(credibleMovement ? "checking-movement" : "stationary", stable);
     }
 
-    stable = { ...estimate, headingDegrees: credibleMovement ? sample.headingDegrees : null,
-      motionState, locationConfidence: confidenceFor(estimate) };
+    // Once coherent movement wins the hysteresis decision, estimate from the
+    // latest coherent fixes instead of allowing an older precise cluster to
+    // keep anchoring the user behind their real movement.
+    const movementEstimate = credibleMovement
+      ? robustEstimate(recent.slice(-3)) : estimate;
+    stable = { ...movementEstimate, timestamp: sample.timestamp,
+      headingDegrees: credibleMovement ? sample.headingDegrees : null,
+      motionState, freshness: "fresh", locationConfidence: confidenceFor(movementEstimate) };
     if (sample.accuracyMetres <= ACCURACY.lowMetres) lastReliableTimestamp = sample.timestamp;
     return resultFor("movement", stable, { moved: true });
   }

@@ -1,13 +1,13 @@
-import { fetchLocations } from "./api.js?v=final-web-closeout-1";
-import { createContributions } from "./contributions.js?v=final-web-closeout-1";
-import { createDestinationPanel } from "./destination-panel.js?v=final-web-closeout-1";
-import { createMap } from "./map.js?v=final-web-closeout-1";
-import { createSearch } from "./search.js?v=final-web-closeout-1";
-import { createRouteInspector } from "./route-inspector.js?v=final-web-closeout-1";
-import { createUserLocation } from "./user-location.js?v=final-web-closeout-1";
-import { createUserNavigation } from "./user-navigation.js?v=final-web-closeout-1";
-import { createDisclosureMenu } from "./disclosure-menu.js?v=final-web-closeout-1";
-import { loadSupportedLocationArea } from "./supported-area.js?v=final-web-closeout-1";
+import { fetchLocations } from "./api.js?v=location-freshness-1";
+import { createContributions } from "./contributions.js?v=location-freshness-1";
+import { createDestinationPanel } from "./destination-panel.js?v=location-freshness-1";
+import { createMap } from "./map.js?v=location-freshness-1";
+import { createSearch } from "./search.js?v=location-freshness-1";
+import { createRouteInspector } from "./route-inspector.js?v=location-freshness-1";
+import { createUserLocation } from "./user-location.js?v=location-freshness-1";
+import { createUserNavigation } from "./user-navigation.js?v=location-freshness-1";
+import { createDisclosureMenu } from "./disclosure-menu.js?v=location-freshness-1";
+import { loadSupportedLocationArea } from "./supported-area.js?v=location-freshness-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -81,6 +81,7 @@ async function start() {
       onRouteProgress: (progress) => mapController?.updateUserRouteProgress(progress),
       onClear: () => mapController?.clearUserRoute(),
       onRouteStale: (stale) => mapController?.setUserRouteStale(stale),
+      onFreshLocationRequired: () => userLocationController?.refresh?.() ?? false,
       onBrowse: () => document.querySelector("#location-search")?.focus(),
       onStateChange: setInterfaceState,
       onCancel: (feature) => {

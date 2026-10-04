@@ -16,7 +16,8 @@ from routing.survey_analysis import (EvidencePoint, analyse_existing_segment,
                                      candidate_runs, detect_segment_passes,
                                      discover_candidate_paths,
                                      discover_cumulative_candidate_paths)
-from routing.survey_services import analyse_survey, analyse_survey_dry_run
+from routing.survey_services import (analyse_survey, analyse_survey_dry_run,
+                                     apply_finalized_evidence)
 
 
 class PassAwareSurveyAnalysisTests(TestCase):
@@ -322,6 +323,145 @@ class PassAwareSurveyAnalysisTests(TestCase):
         self.assertTrue(response.context["candidates"])
         self.assertEqual(response.context["confirmation_candidates"], [])
         self.assertContains(response, "No observed path currently needs another walk.")
+
+
+class HistoricalEvidenceReevaluationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.reviewer = get_user_model().objects.create_user(
+            "historical-reviewer", password="test-password-42",
+        )
+        cls.reviewer.user_permissions.add(*Permission.objects.filter(codename__in=(
+            "review_path_survey", "grant_field_verified",
+        )))
+        cls.review_only = get_user_model().objects.create_user(
+            "historical-preview", password="test-password-42",
+        )
+        cls.review_only.user_permissions.add(Permission.objects.get(codename="review_path_survey"))
+
+    def setUp(self):
+        self.a = WalkableNode.objects.create(
+            longitude=3.374, latitude=6.518, verification_state=VerificationState.UNVERIFIED,
+        )
+        self.b = WalkableNode.objects.create(
+            longitude=3.375, latitude=6.518, verification_state=VerificationState.UNVERIFIED,
+        )
+        self.segment = WalkableSegment.objects.create(
+            start_node=self.a,
+            end_node=self.b,
+            geometry={"type": "LineString", "coordinates": [[3.374, 6.518], [3.375, 6.518]]},
+            verification_state=VerificationState.UNVERIFIED,
+        )
+        self.start = timezone.now() + timedelta(seconds=1)
+        self._survey(False, 0)
+        self._survey(True, 60)
+
+    def _survey(self, reverse, seconds):
+        survey = PathSurvey.objects.create(
+            owner=self.reviewer, status=PathSurvey.Status.COMPLETED,
+        )
+        coordinates = [[3.374 + index * .0002, 6.518] for index in range(6)]
+        if reverse:
+            coordinates.reverse()
+        PathSurveySample.objects.bulk_create([
+            PathSurveySample(
+                survey=survey,
+                sequence=index + 1,
+                captured_at=self.start + timedelta(seconds=seconds + index * 5),
+                longitude=coordinate[0],
+                latitude=coordinate[1],
+                accuracy_metres=5,
+                classification=PathSurveySample.Classification.ACCEPTED,
+            )
+            for index, coordinate in enumerate(coordinates)
+        ])
+        return survey
+
+    def snapshot(self):
+        return {
+            "surveys": tuple(PathSurvey.objects.values_list("pk", "status")),
+            "samples": PathSurveySample.objects.count(),
+            "nodes": WalkableNode.objects.count(),
+            "segments": WalkableSegment.objects.count(),
+            "records": SegmentVerificationRecord.objects.count(),
+        }
+
+    def test_get_pages_and_preview_are_read_only(self):
+        self.client.force_login(self.reviewer)
+        before = self.snapshot()
+        listing = self.client.get(reverse("editor:survey-list"))
+        self.assertEqual(listing.status_code, 200)
+        self.assertContains(listing, "Historical evidence re-evaluation")
+        self.assertEqual(self.client.get(reverse("editor:survey-re-evaluate")).status_code, 405)
+        self.assertEqual(self.snapshot(), before)
+
+        preview = self.client.post(reverse("editor:survey-re-evaluate"), {"action": "preview"})
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.context["historical_preview"]["eligible_verifications"], 1)
+        self.assertEqual(self.snapshot(), before)
+        self.segment.refresh_from_db()
+        self.assertEqual(self.segment.verification_state, VerificationState.UNVERIFIED)
+
+    def test_apply_requires_permission_confirmation_and_csrf(self):
+        url = reverse("editor:survey-re-evaluate")
+        before = self.snapshot()
+        self.client.force_login(self.review_only)
+        self.assertEqual(self.client.post(url, {"action": "apply", "confirm": "yes"}).status_code, 403)
+        self.assertEqual(self.snapshot(), before)
+
+        self.client.force_login(self.reviewer)
+        response = self.client.post(url, {"action": "apply"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.snapshot(), before)
+
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.reviewer)
+        self.assertEqual(csrf_client.post(url, {"action": "apply", "confirm": "yes"}).status_code, 403)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_explicit_apply_promotes_only_existing_geometry_and_is_idempotent(self):
+        # A separate unmapped trace may appear in diagnostics, but applying the
+        # evaluation must never materialize it as graph geometry.
+        far = [[3.378 + index * .00006, 6.521] for index in range(5)]
+        survey = PathSurvey.objects.create(owner=self.reviewer, status=PathSurvey.Status.COMPLETED)
+        PathSurveySample.objects.bulk_create([
+            PathSurveySample(
+                survey=survey, sequence=index + 1,
+                captured_at=self.start + timedelta(seconds=120 + index * 5),
+                longitude=coordinate[0], latitude=coordinate[1], accuracy_metres=5,
+                classification=PathSurveySample.Classification.ACCEPTED,
+            ) for index, coordinate in enumerate(far)
+        ])
+        before_nodes = WalkableNode.objects.count()
+        before_segments = WalkableSegment.objects.count()
+        before_statuses = tuple(PathSurvey.objects.values_list("pk", "status"))
+        before_samples = tuple(PathSurveySample.objects.order_by("survey_id", "sequence").values_list(
+            "survey_id", "sequence", "captured_at", "longitude", "latitude", "accuracy_metres",
+            "classification", "rejection_reason",
+        ))
+        self.client.force_login(self.reviewer)
+        response = self.client.post(reverse("editor:survey-re-evaluate"), {
+            "action": "apply", "confirm": "yes",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.segment.refresh_from_db()
+        self.assertEqual(self.segment.verification_state, VerificationState.FIELD_VERIFIED)
+        record = SegmentVerificationRecord.objects.get(segment=self.segment)
+        self.assertEqual(record.actor, self.reviewer)
+        self.assertEqual(WalkableNode.objects.count(), before_nodes)
+        self.assertEqual(WalkableSegment.objects.count(), before_segments)
+        self.assertEqual(tuple(PathSurvey.objects.values_list("pk", "status")), before_statuses)
+        self.assertEqual(tuple(PathSurveySample.objects.order_by("survey_id", "sequence").values_list(
+            "survey_id", "sequence", "captured_at", "longitude", "latitude", "accuracy_metres",
+            "classification", "rejection_reason",
+        )), before_samples)
+        post_apply = analyse_survey_dry_run(PathSurvey.objects.order_by("pk").first())
+        verified = next(item for item in post_apply["existing"] if item["segment"].pk == self.segment.pk)
+        self.assertFalse(verified["needs_confirmation"])
+
+        repeated = apply_finalized_evidence(actor=self.reviewer)
+        self.assertEqual(repeated["promoted_segment_ids"], ())
+        self.assertEqual(SegmentVerificationRecord.objects.filter(segment=self.segment).count(), 1)
 
 
 class CandidateGraphCreationTests(TestCase):

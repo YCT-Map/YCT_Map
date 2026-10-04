@@ -36,6 +36,7 @@ urlpatterns = [
     path("paths/segments/<uuid:segment_id>/", editor_views.segment_edit, name="segment-edit"),
     path("paths/segments/<uuid:segment_id>/split/", editor_views.segment_split, name="segment-split"),
     path("surveys/", editor_views.survey_list, name="survey-list"),
+    path("surveys/re-evaluate/", editor_views.survey_re_evaluate, name="survey-re-evaluate"),
     path("surveys/new/", editor_views.survey_create, name="survey-create"),
     path("surveys/<uuid:survey_id>/", editor_views.survey_detail, name="survey-detail"),
     path("surveys/<uuid:survey_id>/samples/", editor_views.survey_samples, name="survey-samples"),

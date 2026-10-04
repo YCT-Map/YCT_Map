@@ -1,6 +1,6 @@
-import { createEntrancePointSelector } from "./entrance-point-selector.js?v=final-web-closeout-1";
-import { bindLocationCapture } from "./location-capture.js?v=final-web-closeout-1";
-import { loadSupportedLocationArea } from "./supported-area.js?v=final-web-closeout-1";
+import { createEntrancePointSelector } from "./entrance-point-selector.js?v=location-freshness-1";
+import { bindLocationCapture } from "./location-capture.js?v=location-freshness-1";
+import { loadSupportedLocationArea } from "./supported-area.js?v=location-freshness-1";
 
 const element = typeof document === "undefined" ? null : document.querySelector("#place-map");
 if (element) {
