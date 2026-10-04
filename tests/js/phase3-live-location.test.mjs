@@ -397,7 +397,7 @@ test("retained position is labelled honestly and expires into fresh reacquisitio
   ]) positionCallback(position({ longitude, timestamp, accuracy }));
   positionCallback(position({ longitude: 3.37401, timestamp: 5_000, accuracy: 100 }));
   assert.equal(shown.at(-1).meta.freshness, "retained");
-  assert.match(harness.get("#location-accuracy").textContent, /Last reliable position/);
+  assert.match(harness.get("#location-accuracy").textContent, /Recent reliable position/);
   assert.doesNotMatch(harness.get("#location-accuracy").textContent, /Location quality: Good/);
 
   clock = 4_000 + LIVE_LOCATION_STALE_AFTER_MS + 1;
@@ -405,6 +405,79 @@ test("retained position is labelled honestly and expires into fresh reacquisitio
   freshnessTimer.callback();
   assert.equal(controller.getAcceptedPosition(), null);
   assert.equal(controller.getState(), "refreshing");
+  assert.equal(reacquisitions, 1);
+  controller.destroy();
+});
+
+test("ordinary refresh preserves filter history so one good callback restores readiness", () => {
+  const harness = locationHarness();
+  let positionCallback;
+  let reacquisitions = 0;
+  const shown = [];
+  const service = {
+    isSupported: true,
+    start(onPosition) { positionCallback = onPosition; return true; },
+    stop() {}, resume() {},
+    reacquire() {
+      reacquisitions += 1;
+      positionCallback(position({ longitude: 3.374004, timestamp: 6_000, accuracy: 6 }));
+      return true;
+    },
+  };
+  const controller = createUserLocation({
+    element: harness.root, service,
+    documentObject: { hidden: false, addEventListener() {}, removeEventListener() {} },
+    now: () => 6_000,
+    onPosition: (sample) => shown.push(sample), onClear() {}, onRecenter() {},
+  });
+  controller.start();
+  for (const [longitude, timestamp] of [
+    [3.374, 1_000], [3.374001, 2_000], [3.374002, 3_000], [3.374003, 4_000],
+  ]) positionCallback(position({ longitude, timestamp, accuracy: 6 }));
+  const before = shown.length;
+  assert.equal(controller.refresh(), true);
+  assert.equal(reacquisitions, 1);
+  assert.ok(shown.length > before, "one fresh callback should reuse established history, not restart warmup");
+  assert.equal(controller.getAcceptedPosition().timestamp, 6_000);
+  assert.notEqual(controller.getState(), "warming-up");
+  controller.destroy();
+});
+
+test("visibility resume keeps a recent fix and reacquires only after the route-age window", () => {
+  const harness = locationHarness();
+  let positionCallback;
+  let visibilityCallback;
+  let clock = 4_000;
+  let resumes = 0;
+  let reacquisitions = 0;
+  const fakeDocument = {
+    hidden: false,
+    addEventListener(type, callback) { if (type === "visibilitychange") visibilityCallback = callback; },
+    removeEventListener() {},
+  };
+  const service = {
+    isSupported: true,
+    start(onPosition) { positionCallback = onPosition; return true; },
+    stop() {}, resume() { resumes += 1; }, reacquire() { reacquisitions += 1; return true; },
+  };
+  const controller = createUserLocation({
+    element: harness.root, service, documentObject: fakeDocument, now: () => clock,
+    onPosition() {}, onClear() {}, onRecenter() {},
+  });
+  controller.start();
+  for (const [longitude, timestamp] of [
+    [3.374, 1_000], [3.374001, 2_000], [3.374002, 3_000], [3.374003, 4_000],
+  ]) positionCallback(position({ longitude, timestamp, accuracy: 6 }));
+
+  fakeDocument.hidden = true; visibilityCallback();
+  clock = 29_000;
+  fakeDocument.hidden = false; visibilityCallback();
+  assert.equal(resumes, 1);
+  assert.equal(reacquisitions, 0, "a 25-second-old stationary fix remains within route tolerance");
+
+  fakeDocument.hidden = true; visibilityCallback();
+  clock = 34_001;
+  fakeDocument.hidden = false; visibilityCallback();
   assert.equal(reacquisitions, 1);
   controller.destroy();
 });

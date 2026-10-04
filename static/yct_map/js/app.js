@@ -1,13 +1,13 @@
-import { fetchLocations } from "./api.js?v=location-freshness-1";
-import { createContributions } from "./contributions.js?v=location-freshness-1";
-import { createDestinationPanel } from "./destination-panel.js?v=location-freshness-1";
-import { createMap } from "./map.js?v=location-freshness-1";
-import { createSearch } from "./search.js?v=location-freshness-1";
-import { createRouteInspector } from "./route-inspector.js?v=location-freshness-1";
-import { createUserLocation } from "./user-location.js?v=location-freshness-1";
-import { createUserNavigation } from "./user-navigation.js?v=location-freshness-1";
-import { createDisclosureMenu } from "./disclosure-menu.js?v=location-freshness-1";
-import { loadSupportedLocationArea } from "./supported-area.js?v=location-freshness-1";
+import { fetchLocations } from "./api.js?v=live-routing-recovery-1";
+import { createContributions } from "./contributions.js?v=live-routing-recovery-1";
+import { createDestinationPanel } from "./destination-panel.js?v=live-routing-recovery-1";
+import { createMap } from "./map.js?v=live-routing-recovery-1";
+import { createSearch } from "./search.js?v=live-routing-recovery-1";
+import { createRouteInspector } from "./route-inspector.js?v=live-routing-recovery-1";
+import { createUserLocation } from "./user-location.js?v=live-routing-recovery-1";
+import { createUserNavigation } from "./user-navigation.js?v=live-routing-recovery-1";
+import { createDisclosureMenu } from "./disclosure-menu.js?v=live-routing-recovery-1";
+import { loadSupportedLocationArea } from "./supported-area.js?v=live-routing-recovery-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -125,9 +125,9 @@ async function start() {
         mapController?.showUserLocation(position, options);
         navigationController?.updateLivePosition(position);
       },
-      onClear: () => {
+      onClear: (details) => {
         mapController?.clearUserLocation();
-        navigationController?.clearLivePosition();
+        navigationController?.clearLivePosition(details);
       },
       onRecenter: () => mapController?.recenterUserLocation(),
       onHeading: (heading) => mapController?.updateUserHeading(heading),

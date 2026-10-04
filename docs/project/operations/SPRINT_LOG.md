@@ -875,3 +875,21 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Historical apply can only promote eligible existing `UNVERIFIED` segments. It cannot revoke verification, create/split candidate geometry, change surveys or alter raw samples. GET, deployment and startup remain mutation-free.
 - Static assets use `location-freshness-1`. No schema migration, production/Neon write, graph edit, survey-status change, candidate creation, commit, push or deployment is included.
 - Verification passes with **240 Django tests** and **138 JavaScript tests**, plus system check, migration drift, Python compilation, JavaScript syntax, whitespace and local HTTP smoke gates.
+
+---
+
+## Surgical Live-Routing Regression Fix
+
+**Status:** IMPLEMENTED LOCALLY — OWNER REVIEW REQUIRED
+
+**Date:** 2026-10-04
+
+**Baseline:** `aa7aec5 fix: surgical location freshness and historical survey re-evaluation`
+
+- Repaired a frontend-only regression where stationary jitter produced a recent `retained` estimate that navigation treated as invalid, and a 15-second display timer could cancel an already-valid route request.
+- Restored the known-working 30-second route-origin age tolerance without weakening the 40 m accuracy limit, supported-area checks, backend network matching or finite stale-position lifetime.
+- A recent retained estimate is now route-usable when age and accuracy qualify; genuinely stale, inaccurate and out-of-area positions still require refresh.
+- Ordinary refresh and visibility recovery preserve trustworthy stabilizer history, allowing one high-quality reacquisition callback to restore readiness instead of rearming a three-fix warmup.
+- Passive expiry preserves the selected live origin and cannot abort an in-flight request. Explicit cancel/change/reset actions retain their cancellation behavior.
+- Every live route request captures an immutable origin snapshot. Continuous accepted updates still drive marker movement, progress and off-route logic, while rerouting uses a current accepted position.
+- Static assets use `live-routing-recovery-1`. No backend, graph, destination-data or migration change is included.

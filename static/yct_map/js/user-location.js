@@ -1,12 +1,12 @@
-import { accuracyState, assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=location-freshness-1";
-import { createGeolocationService } from "./geolocation.js?v=location-freshness-1";
+import { accuracyState, assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=live-routing-recovery-1";
+import { createGeolocationService } from "./geolocation.js?v=live-routing-recovery-1";
 import { createDeviceOrientationService, DEVICE_HEADING_STALE_MS,
   createHeadingOppositionDiagnostic, headingDiagnosticSnapshot, screenOrientationDegrees,
-  selectDisplayedHeading } from "./device-orientation.js?v=location-freshness-1";
+  selectDisplayedHeading } from "./device-orientation.js?v=live-routing-recovery-1";
 
 export const INITIAL_LOCATION_ACQUISITION_MAX_MS = 10_000;
-export const LIVE_LOCATION_STALE_AFTER_MS = 15_000;
-export const LIVE_LOCATION_RESUME_REACQUIRE_MS = 10_000;
+export const LIVE_LOCATION_STALE_AFTER_MS = 30_000;
+export const LIVE_LOCATION_RESUME_REACQUIRE_MS = 30_000;
 
 const COPY = {
   idle: "Location is optional and stays on this device.",
@@ -21,7 +21,7 @@ const COPY = {
   "timed-out": "Location is taking too long. Try again or use a manual start.",
   refreshing: "Refreshing your location...",
   stopped: "Live location stopped. Manual directions remain available.",
-  retained: "Location quality reduced · retaining the last reliable position.",
+  retained: "Location stable · using a recent reliable position.",
   "outside-area": "You’re outside the YabaTech mapping area.",
 };
 
@@ -58,6 +58,7 @@ export function createUserLocation({
   let deviceHeadingExpiry = null;
   let acquisitionDeadline = null;
   let freshnessDeadline = null;
+  let reacquisitionActive = false;
   const headingOpposition = createHeadingOppositionDiagnostic();
 
   function currentHeading() {
@@ -103,7 +104,7 @@ export function createUserLocation({
       const confidenceCopy = confidence === "unstable" ? " · position unstable" : "";
       const uncertainty = Math.round(acceptedPosition.deviceAccuracyMetres ?? acceptedPosition.accuracyMetres);
       accuracy.textContent = acceptedPosition.freshness === "retained"
-        ? `Last reliable position · estimated uncertainty ~${uncertainty} m`
+        ? `Recent reliable position · estimated uncertainty ~${uncertainty} m`
         : `Location quality: ${locationQualityLabel(acceptedPosition.accuracyMetres)}${confidenceCopy} · estimated uncertainty ~${uncertainty} m`;
     }
     publishHeading();
@@ -141,6 +142,8 @@ export function createUserLocation({
   }
 
   function publishRetained(stabilized) {
+    reacquisitionActive = false;
+    clearAcquisitionDeadline();
     acceptedPosition = { ...stabilized.sample, freshness: "retained",
       retainedAgeMs: stabilized.retainedAgeMs };
     notifyPosition(acceptedPosition, stabilized);
@@ -157,7 +160,7 @@ export function createUserLocation({
       lastRawAccepted = null;
       stabilizer.reset();
       focusedInitially = false;
-      onClear();
+      onClear({ reason: "outside-area", reacquiring: false });
       render("outside-area");
       return false;
     }
@@ -166,6 +169,7 @@ export function createUserLocation({
       return publishRetained(stabilized);
     }
     clearAcquisitionDeadline();
+    reacquisitionActive = false;
     acceptedPosition = { ...stabilized.sample, freshness: "fresh" };
     headingOpposition.update({
       deviceHeading,
@@ -205,15 +209,20 @@ export function createUserLocation({
 
   function finishInitialAcquisition() {
     acquisitionDeadline = null;
+    if (reacquisitionActive) {
+      reacquisitionActive = false;
+      render(acceptedPosition ? "retained" : "unavailable");
+      return;
+    }
     if (acceptedPosition || !trackingRequested) return;
     const stabilized = stabilizer.finalize();
     if (!publishStabilized(stabilized) && state !== "outside-area") render("timed-out");
   }
 
-  function restartFreshAcquisition({ preserveDisplayed = true } = {}) {
+  function restartFreshAcquisition({ preserveDisplayed = true, notifyClear = true } = {}) {
     if (!trackingRequested) return false;
-    lastRawAccepted = null;
-    stabilizer.reset();
+    if (reacquisitionActive) return true;
+    reacquisitionActive = true;
     focusedInitially = Boolean(acceptedPosition);
     if (acceptedPosition && preserveDisplayed) {
       acceptedPosition = { ...acceptedPosition, freshness: "retained" };
@@ -223,12 +232,13 @@ export function createUserLocation({
       });
     } else if (!preserveDisplayed) {
       acceptedPosition = null;
-      onClear();
+      if (notifyClear) onClear({ reason: "refreshing", reacquiring: true });
     }
     render("refreshing");
     startAcquisitionDeadline();
     const restarted = service.reacquire?.();
     if (restarted === undefined) service.resume?.();
+    if (restarted === false) reacquisitionActive = false;
     return restarted !== false;
   }
 
@@ -241,21 +251,16 @@ export function createUserLocation({
       return;
     }
     acceptedPosition = null;
-    lastRawAccepted = null;
-    stabilizer.reset();
     focusedInitially = false;
-    onClear();
-    render("refreshing");
-    startAcquisitionDeadline();
-    const restarted = service.reacquire?.();
-    if (restarted === false) fail("unavailable");
-    else if (restarted === undefined) service.resume?.();
+    onClear({ reason: "stale", reacquiring: true });
+    if (!restartFreshAcquisition({ preserveDisplayed: false, notifyClear: false })) fail("unavailable");
   }
 
   function fail(nextState) {
     if (["unsupported", "permission-denied", "unavailable", "timed-out", "outside-area"].includes(nextState)) {
       clearAcquisitionDeadline();
       clearFreshnessDeadline();
+      reacquisitionActive = false;
       if (["unsupported", "permission-denied"].includes(nextState)) trackingRequested = false;
       lastRawAccepted = null;
       stabilizer.reset();
@@ -263,7 +268,7 @@ export function createUserLocation({
       focusedInitially = false;
       if (acceptedPosition) {
         acceptedPosition = null;
-        onClear();
+        onClear({ reason: nextState, reacquiring: false });
       }
     }
     render(nextState);
@@ -275,6 +280,7 @@ export function createUserLocation({
       return false;
     }
     trackingRequested = true;
+    reacquisitionActive = false;
     // Called directly from the Locate me gesture so permission-gated browsers
     // may display their orientation prompt. Failure never blocks GPS startup.
     void orientationService.start(receiveOrientation, () => publishHeading());
@@ -293,6 +299,7 @@ export function createUserLocation({
     if (deviceHeadingExpiry !== null) clearDeadline(deviceHeadingExpiry);
     clearAcquisitionDeadline();
     clearFreshnessDeadline();
+    reacquisitionActive = false;
     deviceHeadingExpiry = null;
     deviceHeading = null;
     deviceHeadingTimestamp = null;
@@ -301,7 +308,7 @@ export function createUserLocation({
     focusedInitially = false;
     stabilizer.reset();
     headingOpposition.reset();
-    onClear();
+    onClear({ reason: "stopped", reacquiring: false });
     render("stopped");
   }
 
@@ -312,8 +319,7 @@ export function createUserLocation({
       orientationService.pause();
     } else {
       const age = acceptedPosition ? Math.max(0, now() - acceptedPosition.timestamp) : Infinity;
-      if (!acceptedPosition || acceptedPosition.freshness === "retained" ||
-          age >= LIVE_LOCATION_RESUME_REACQUIRE_MS) {
+      if (!acceptedPosition || age >= LIVE_LOCATION_RESUME_REACQUIRE_MS) {
         restartFreshAcquisition();
       } else {
         service.resume();

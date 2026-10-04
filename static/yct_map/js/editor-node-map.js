@@ -1,4 +1,4 @@
-import { createEntrancePointSelector } from "./entrance-point-selector.js?v=location-freshness-1";
+import { createEntrancePointSelector } from "./entrance-point-selector.js?v=live-routing-recovery-1";
 
 const element = document.querySelector("#node-map");
 if (element) import("https://unpkg.com/maplibre-gl@6.10.0/dist/maplibre-gl.mjs").then((maplibregl) => {

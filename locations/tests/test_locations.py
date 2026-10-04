@@ -212,7 +212,7 @@ class LocationEndpointTests(TestCase):
 class MapPageTests(TestCase):
     def test_map_page_contains_approved_map_configuration(self):
         response = self.client.get(reverse("locations:map"))
-        asset_version = "location-freshness-1"
+        asset_version = "live-routing-recovery-1"
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "https://tiles.openfreemap.org/styles/liberty")
@@ -248,7 +248,7 @@ class MapPageTests(TestCase):
     def test_current_modules_use_the_same_cache_version(self):
         app_path = settings.BASE_DIR / "static/yct_map/js/app.js"
         app_source = app_path.read_text(encoding="utf-8")
-        asset_version = "location-freshness-1"
+        asset_version = "live-routing-recovery-1"
 
         for module in (
             "api.js",

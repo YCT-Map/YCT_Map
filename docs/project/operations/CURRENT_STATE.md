@@ -146,9 +146,9 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ## Active Work
 
-The Surgical Location Freshness + Historical Survey Re-evaluation Fix is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED on top of commit `67eb0b4`. It corrects stale retained public location without changing GPS acquisition thresholds, routing graph, A*, heading, candidate creation or editor capture. Changed assets use the coherent `location-freshness-1` token. No commit, push, deployment or production-data action is included.
+The Surgical Live-Routing Regression Fix is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED on top of commit `aa7aec5`. It preserves the earlier stale-location correction while repairing the frontend coupling that prevented stationary Samsung/Edge users from starting a live route. Changed assets use the coherent `live-routing-recovery-1` token. No backend, graph, destination-data, migration or production-data action is included.
 
-Public location confidence now treats accuracy, freshness and coherent movement as separate evidence. One weaker callback may briefly retain the last reliable coordinate, but that coordinate keeps its real evidence timestamp, is labelled as retained rather than Good/current, expires after 15 seconds and triggers bounded reacquisition. Several coherent fresh fixes can override an older more precise cluster. A live route origin must be fresh; a retained/stale origin starts a visible refresh wait and routing continues automatically only after a fresh eligible fix arrives.
+Public location confidence treats accuracy, freshness and coherent movement as separate evidence. One weaker callback may briefly retain the last reliable coordinate with its original evidence timestamp. A recent retained estimate remains route-usable for up to 30 seconds when accuracy and supported-area checks pass; a genuinely stale, inaccurate or out-of-area estimate does not. Ordinary reacquisition preserves trustworthy stabilizer history, while passive display expiry retains the user's live-origin choice and cannot abort an already-dispatched route request. Each request owns an immutable origin snapshot; subsequent accepted fixes continue driving progress, off-route detection and rerouting.
 
 Reviewers can now preview cumulative finalized historical evidence through an explicit Path Survey action. Applying it requires a separate confirmed, CSRF-protected, permission-gated POST and transactionally promotes only eligible existing `UNVERIFIED` segments. It never creates/splits geometry, changes survey status or revokes `FIELD_VERIFIED`. Deployment, startup, GET requests and preview remain mutation-free.
 
@@ -194,10 +194,10 @@ Owner review must still verify physical N/E/S/W phone headings, adaptive locatio
 
 ## Next Approved Task
 
-Owner-test the local freshness correction on Samsung/Edge: settle location, walk 20–40 m, verify the marker advances, background/foreground the browser, then confirm live-origin routing waits for and uses a fresh point. Preview historical re-evaluation in the local Path Survey page, but do not apply graph or verification changes to production during this review.
+Owner-test the live-routing correction on Samsung/Edge: settle location, remain stationary for 15–25 seconds, select Sports Complex and confirm Show route completes; then repeat after background/foreground recovery and after a genuinely stale position refresh. Preview historical re-evaluation in the local Path Survey page, but do not apply graph or verification changes to production during this review.
 
 ---
 
 ## Deployment Status
 
-An operational Render/Neon deployment exists at the owner-managed production service. The `location-freshness-1` working tree is local only: no deployment, Neon write or Render configuration change was performed. Cloudflare Quick Tunnel support remains development-only.
+An operational Render/Neon deployment exists at the owner-managed production service. The `live-routing-recovery-1` working tree is local only: no deployment, Neon write or Render configuration change was performed. Cloudflare Quick Tunnel support remains development-only.

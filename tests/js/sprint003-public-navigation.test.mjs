@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createDestinationPanel } from "../../static/yct_map/js/destination-panel.js";
-import { createUserNavigation } from "../../static/yct_map/js/user-navigation.js";
+import { createUserNavigation, isLivePositionRouteUsable,
+  MAX_LIVE_POSITION_AGE_MS } from "../../static/yct_map/js/user-navigation.js";
 
 class FakeElement {
   constructor(ownerDocument) {
@@ -239,6 +240,52 @@ test("accepted live position is offered and sent through the protected live rout
   assert.deepEqual(JSON.parse(request.options.body).position, { latitude: 6.518, longitude: 3.374, accuracy_metres: 10 });
 });
 
+test("route usability separates recent retained position from genuinely stale position", () => {
+  const retained = { longitude: 3.374, latitude: 6.518, accuracyMetres: 12,
+    timestamp: 1_000, freshness: "retained" };
+  assert.equal(isLivePositionRouteUsable(retained, { now: 26_000 }), true);
+  assert.equal(isLivePositionRouteUsable(retained, {
+    now: 1_000 + MAX_LIVE_POSITION_AGE_MS + 1,
+  }), false);
+  assert.equal(isLivePositionRouteUsable({ ...retained, freshness: "stale" }, { now: 2_000 }), false);
+  assert.equal(isLivePositionRouteUsable({ ...retained, accuracyMetres: 41 }, { now: 2_000 }), false);
+  assert.equal(isLivePositionRouteUsable({ ...retained, supportedAreaValid: false }, { now: 2_000 }), false);
+});
+
+test("passive location expiry cannot abort an active route-origin snapshot", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  let resolveResponse;
+  let requestOptions;
+  const routeCalls = [];
+  const responsePromise = new Promise((resolve) => { resolveResponse = resolve; });
+  const controller = createUserNavigation({
+    panel: harness.panel, features: [destination, origin], routeUrl: "/api/routes/",
+    liveRouteUrl: "/api/routes/from-position/", onRoute: (...args) => routeCalls.push(args), onClear() {},
+    now: () => 2_000, setDeadline: () => 1, clearDeadline() {},
+    requestRoute: async (_url, options) => { requestOptions = options; return responsePromise; },
+  });
+  const position = { longitude: 3.374, latitude: 6.518, accuracyMetres: 8,
+    timestamp: 1_000, freshness: "fresh" };
+  controller.updateLivePosition(position);
+  controller.begin(destination);
+  chooseLiveOrigin(harness);
+  const submission = harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+  await Promise.resolve();
+
+  controller.clearLivePosition({ reason: "stale", reacquiring: true });
+  assert.equal(requestOptions.signal.aborted, false);
+  assert.equal(harness.get("#user-route-origin-live").checked, true);
+  assert.equal(harness.get("#user-route-live-status").textContent, "Refreshing current location");
+  assert.deepEqual(JSON.parse(requestOptions.body).position,
+    { latitude: 6.518, longitude: 3.374, accuracy_metres: 8 });
+
+  resolveResponse({ ok: true, json: async () => routePayload() });
+  await submission;
+  assert.equal(routeCalls.length, 1);
+  assert.equal(harness.get("#user-route-result").hidden, false);
+});
+
 test("only trustworthy tracker progress is emitted for progressive route presentation", async () => {
   globalThis.document = { cookie: "csrftoken=test-token" };
   const harness = createHarness(navigationSelectors());
@@ -351,23 +398,23 @@ test("a stale live route origin waits for reacquisition and then routes from the
   controller.updateLivePosition({longitude:3.374,latitude:6.518,accuracyMetres:5,timestamp:1_000});
   controller.begin(destination);
   chooseLiveOrigin(harness);
-  clock=20_001;
+  clock=32_001;
   await harness.get("#user-route-form").listeners.get("submit")({preventDefault(){}});
   assert.equal(requests,0);
   assert.equal(refreshes,1);
   assert.match(harness.get("#user-route-request-status").textContent,/Refreshing your location/);
   controller.updateLivePosition({longitude:3.3742,latitude:6.5181,accuracyMetres:8,
-    timestamp:20_001,freshness:"fresh"});
+    timestamp:32_001,freshness:"fresh"});
   await new Promise((resolve)=>setTimeout(resolve,0));
   assert.equal(requests,1);
   assert.equal(harness.get("#user-route-result").hidden,false);
 });
 
-test("a retained coordinate never starts a live route request", async () => {
+test("a recent retained coordinate remains route-usable on a stationary phone", async () => {
   globalThis.document = { cookie: "csrftoken=test-token" };
   const harness=createHarness(navigationSelectors()); let requests=0; let refreshes=0;
   const controller=createUserNavigation({panel:harness.panel,features:[destination,origin],routeUrl:"/api/routes/",
-    liveRouteUrl:"/api/routes/from-position/",onRoute(){},onClear(){},now:()=>2_000,
+    liveRouteUrl:"/api/routes/from-position/",onRoute(){},onClear(){},now:()=>26_000,
     onFreshLocationRequired(){refreshes+=1;return true;},setDeadline:()=>1,clearDeadline(){},
     requestRoute:async()=>{requests+=1;return {ok:true,json:async()=>routePayload()};}});
   controller.updateLivePosition({longitude:3.374,latitude:6.518,accuracyMetres:5,
@@ -375,8 +422,9 @@ test("a retained coordinate never starts a live route request", async () => {
   controller.begin(destination);
   chooseLiveOrigin(harness);
   await harness.get("#user-route-form").listeners.get("submit")({preventDefault(){}});
-  assert.equal(requests,0);
-  assert.ok(refreshes>=1);
+  assert.equal(requests,1);
+  assert.equal(refreshes,0);
+  assert.match(harness.get("#user-route-live-status").textContent,/Recent stable position/);
 });
 
 test("foreground suspension hides and restores a route without resetting it", () => {
@@ -421,7 +469,7 @@ test("origin cards keep live first, filter mapped starts, and avoid GPS-driven r
   clock = 40_001;
   controller.updateLivePosition({ longitude: 3.37401, latitude: 6.51801, accuracyMetres: 5, timestamp: 1_100 });
   assert.equal(harness.get("#user-route-origin-live").disabled, true);
-  assert.equal(harness.get("#user-route-live-status").textContent, "Waiting for a current location");
+  assert.equal(harness.get("#user-route-live-status").textContent, "Current location needs refreshing");
 });
 
 test("transient live-start failure waits for a newer accepted position and then succeeds", async () => {

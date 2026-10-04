@@ -1,11 +1,28 @@
-import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=location-freshness-1";
-import { createOffRouteDetector } from "./off-route.js?v=location-freshness-1";
+import { createLiveRouteTracker, formatEta } from "./live-route-progress.js?v=live-routing-recovery-1";
+import { createOffRouteDetector } from "./off-route.js?v=live-routing-recovery-1";
 
-export const MAX_LIVE_POSITION_AGE_MS = 15_000;
+export const MAX_LIVE_POSITION_AGE_MS = 30_000;
 export const MAX_LIVE_ROUTE_ATTEMPTS = 3;
 export const LIVE_ROUTE_RECOVERY_WINDOW_MS = 10_000;
 const TRANSIENT_LIVE_ROUTE_CODES = new Set(["NO_SAFE_NETWORK_MATCH", "INSUFFICIENT_ACCURACY"]);
 const LIVE_ROUTE_FINAL_MESSAGE = "Your location is clear, but it cannot yet be safely connected to the mapped campus paths. Choose a mapped starting point or try live location again after moving closer to a mapped walkway.";
+
+export function isLivePositionRouteUsable(position, { now = Date.now(),
+  maxAgeMs = MAX_LIVE_POSITION_AGE_MS } = {}) {
+  if (!position || position.accuracyMetres > 40 || !Number.isFinite(position.timestamp)) return false;
+  if (position.freshness === "stale" || position.supportedAreaValid === false) return false;
+  return now - position.timestamp <= maxAgeMs;
+}
+
+function routeOriginSnapshot(position) {
+  return Object.freeze({
+    longitude: position.longitude,
+    latitude: position.latitude,
+    accuracyMetres: position.accuracyMetres,
+    timestamp: position.timestamp,
+    freshness: position.freshness || "fresh",
+  });
+}
 
 export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, onRoute, onClear, onBrowse,
   onCancel, onStateChange, onRouteStale, onRouteProgress = () => {}, requestRoute = fetch, now = Date.now,
@@ -42,20 +59,21 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   let liveRecovery = null;
   let freshStartWait = null;
   let liveOptionSignature = "";
+  let livePositionRefreshing = false;
 
   const csrfToken = () => document.cookie.split("; ").find((row) => row.startsWith("csrftoken="))?.split("=")[1] || "";
   function livePositionUsable(position = livePosition) {
-    if (!position || position.accuracyMetres > 40 || !Number.isFinite(position.timestamp)) return false;
-    if (["retained", "stale"].includes(position.freshness)) return false;
-    const age = now() - position.timestamp;
-    return age >= -5_000 && age <= MAX_LIVE_POSITION_AGE_MS;
+    return isLivePositionRouteUsable(position, { now: now() });
   }
   function updateLiveOption() {
     const usable = livePositionUsable();
     const stale = Boolean(livePosition) && !usable;
-    const status = usable ? `Live location ready Â· ~${Math.round(livePosition.accuracyMetres)} m`
-      : livePosition?.freshness === "retained" ? "Refreshing current location"
-        : stale ? "Waiting for a current location" : "Locate first";
+    const retained = usable && livePosition?.freshness === "retained";
+    const status = retained
+      ? `Recent stable position Â· ~${Math.round(livePosition.accuracyMetres)} m`
+      : usable ? `Live location ready Â· ~${Math.round(livePosition.accuracyMetres)} m`
+        : livePositionRefreshing ? "Refreshing current location"
+          : stale || selectedOrigin === "__live__" ? "Current location needs refreshing" : "Locate first";
     const signature = `${usable}:${status}`;
     if (signature !== liveOptionSignature) {
       liveOriginInput.disabled = !usable;
@@ -256,15 +274,16 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       finishLiveRecovery(recovery);
       return false;
     }
+    const originSnapshot = routeOriginSnapshot(position);
     recovery.pendingPosition = null;
-    recovery.lastAttemptTimestamp = position.timestamp;
+    recovery.lastAttemptTimestamp = originSnapshot.timestamp;
     recovery.attempts += 1;
     setupRequestActive = true;
     setupAbortController = new AbortController();
     error.hidden = true;
     showSetupActivity(recovery.attempts === 1 ? "Calculating route…" : "Checking a newer live position…");
     try {
-      const response = await requestLiveRoute(position, { signal: setupAbortController.signal });
+      const response = await requestLiveRoute(originSnapshot, { signal: setupAbortController.signal });
       const payload = await response.json();
       if (!response.ok) throw routeResponseError(payload, "No route is available.");
       if (liveRecovery !== recovery) return false;
@@ -414,18 +433,23 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
 
   async function performReroute(position, { manualRetry = false } = {}) {
     if (!activeTracker || !destination || rerouteRequestActive) return false;
+    if (!livePositionUsable(position)) {
+      panel.querySelector("#user-route-progress-status").textContent = "Refreshing your position before rerouting.";
+      return false;
+    }
+    const originSnapshot = routeOriginSnapshot(position);
     rerouteRequestActive = true;
     retryButton.hidden = true;
     offRouteDetector.markRerouting();
     panel.querySelector("#user-route-progress-status").textContent = "Finding a new route…";
     try {
-      const response = await requestLiveRoute(position);
+      const response = await requestLiveRoute(originSnapshot);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Unable to calculate a replacement route.");
       const totalDistance = payload.summary.total_distance_metres;
       renderDestinationSummary(payload.summary.destination);
       activeTracker.replaceRoute(payload.route.geometry.coordinates, totalDistance);
-      offRouteDetector.markSuccess(position.timestamp);
+      offRouteDetector.markSuccess(originSnapshot.timestamp);
       onRoute(payload.route, null, destination, {
         originType: "live", replacement: true,
         arrivalName: payload.summary.destination.outdoor_arrival?.label || payload.summary.destination.name,
@@ -449,6 +473,7 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   }
 
   function updateLivePosition(position) {
+    livePositionRefreshing = false;
     livePosition = position;
     updateLiveOption();
     if (freshStartWait && livePositionUsable(position)) {
@@ -478,19 +503,24 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       void performReroute(position);
     }
   }
-  function clearLivePosition() {
+  function clearLivePosition({ reacquiring = false } = {}) {
     livePosition = null;
-    if (liveRecovery || setupRequestActive) cancelPendingSetup();
+    livePositionRefreshing = reacquiring;
+    if (!reacquiring) {
+      if (liveRecovery || setupRequestActive) cancelPendingSetup();
+      if (selectedOrigin === "__live__") {
+        selectedOrigin = "";
+        liveOriginInput.checked = false;
+        error.hidden = true;
+        setRoutePanelState("setup");
+      }
+    }
     if (freshStartWait) {
       updateLiveOption();
       return;
     }
-    if (selectedOrigin === "__live__") {
-      selectedOrigin = "";
-      liveOriginInput.checked = false;
-      error.hidden = true;
-      setRoutePanelState("setup");
-    }
+    // Passive display expiry must not abort a route request that already owns
+    // an immutable origin snapshot, nor silently discard the user's choice.
     updateLiveOption();
   }
 
