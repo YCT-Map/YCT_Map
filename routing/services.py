@@ -91,7 +91,7 @@ def route_from_live_position(longitude, latitude, accuracy_metres, destination_l
     virtual_id = "live-origin"
     nodes = dict(graph.nodes)
     nodes[virtual_id] = SimpleNamespace(
-        longitude=match.coordinate[0], latitude=match.coordinate[1], verification_state=VerificationState.UNVERIFIED,
+        longitude=match.coordinate[0], latitude=match.coordinate[1], verification_state=match.segment.verification_state,
     )
     adjacency = {node_id: tuple(arcs) for node_id, arcs in graph.adjacency.items()}
     arcs = []

@@ -907,7 +907,28 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Reproduced the unresolved physical failure independently of GPS freshness: the Sports Complex representative point is approximately 65 m from the nearest eligible mapped segment, so the unchanged 40 m live-match safety rule correctly returns `NO_SAFE_NETWORK_MATCH` even with approximately 3 m reported accuracy.
 - Audited the current local graph: 49 active nodes, 54 active segments, no segment validation failures and strongly connected component sizes of 41, 6, 1 and 1. All three active entrance anchors are in the 41-node component, and every ordered pair of route-capable local destinations routes successfully.
 - Added a bounded nearby mapped-start recovery for `NO_SAFE_NETWORK_MATCH`. When the live point is within 100 m of another published route-capable place, the client requests the existing entrance-to-destination route instead of repeatedly failing without a useful route.
-- The UI names the exact mapped entrance, states that distance/ETA begin there and explicitly does not claim a route from the live dot to that entrance. Progress, off-route detection and rerouting remain paused until the user reaches an accuracy-aware 12–25 m join threshold around the route start.
-- The 40 m backend matching threshold, A*, route graph, entrance anchors, location records and verification states remain unchanged. No invented connector or straight-line path is introduced.
 - Static assets use `mapped-live-start-1` so deployed phones do not reuse the preceding live-routing bundle.
 - Verification passes with **240 Django tests** and **144 JavaScript tests**. Physical Samsung/Edge owner retesting remains required.
+
+---
+
+## Final System Closeout Sweep
+
+**Status:** IMPLEMENTED & AUDITED LOCALLY — READY FOR OWNER REVIEW
+
+**Date:** 2026-10-05
+
+**Baseline:** `system-closeout-2`
+
+- Standardized graph display labels without schema migration: `WalkableNode.label` stores clean positive integers (`1`, `2`...) and `WalkableSegment.label` stores bijective base-26 uppercase alphabetic codes (`A`, `B`... `Z`, `AA`, `AB`...). Provenance is preserved in `source_reference` and `source_type`. UI renders "Node <label>" and "Segment <label>".
+- Implemented `assign_graph_display_labels` (`--dry-run` and `--apply`): deterministic sorting by (`created_at`, `source_reference`, `id`), fully idempotent.
+- Implemented `verify_current_map_baseline` (`--dry-run` and `--apply`): transitions active, published Locations, active Entrances of published places, active WalkableNodes, active WalkableSegments, and active EntranceNetworkAnchors to `FIELD_VERIFIED` with reason "Owner-approved final map baseline", creating append-only `SegmentVerificationRecord` rows. Fully idempotent.
+- Fixed route verification classification: `classify_route_verification` returns `FIELD_VERIFIED` when all traversed elements are `FIELD_VERIFIED`, wired into both `public_route` and `public_route_from_position`.
+- UI updates: Destination panel and User Navigation HUD hide unverified notice banners and badges when viewing or navigating `FIELD_VERIFIED` places and routes. Custom attribution updated to `"YCT Map campus data · OSM-derived route data"`.
+- Resolved lower-right HUD control overlap: coordinated CSS custom properties (`--locate-me-clearance` and `--map-ctrl-bottom-offset`) anchor Locate Me at bottom right and elevate MapLibre controls (NavigationControl zoom buttons and compass arrow needle) strictly above it. Desktop baseline uses `--locate-me-height: 5.75rem` to clear the desktop card and error states completely with a 26px clear gap to the compass arrow button. Mobile portrait and landscape maintain dedicated compact clearances and offsets.
+- Unified cache-busting asset token: bumped to `system-closeout-2` across `locations/views.py`, `locations/tests/test_locations.py`, all editor templates, and all JS ES6 imports.
+- Zero schema migrations (no migration 0011). `makemigrations --check --dry-run` confirms no changes.
+- Real-time zoom-dependent graph labels: Walkable path editor overview (`/editor/paths/`) and map developer network inspector dynamically display bold centered numeric IDs on node circles (e.g. `24`) and uppercase alphabetic codes along segment paths (e.g. `AB`) upon zooming in (`minzoom: 16.5`) with crisp halo styling, keeping the campus overview clean while providing immediate spatial identity on closeup.
+- Test suites pass 100%: **254 Django tests** (+14 new) and **149 JavaScript tests** (+5 new). Zero regressions.
+
+

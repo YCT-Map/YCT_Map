@@ -9,11 +9,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-10-04 |
+| **Date** | 2026-10-05 |
 | **Branch** | `main` |
-| **Current Phase** | PHASE 4 — EDITOR & MAPPING TOOLS |
-| **Pipeline Phase** | LIVE ROUTING FROM OFF-NETWORK CAMPUS POSITIONS — IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED |
-| **Latest Meaningful Commit** | `a3e059b` (`fix: restore reliable live route setup`) — committed baseline |
+| **Current Phase** | PHASE 4 — FINAL SYSTEM CLOSEOUT SWEEP COMPLETE |
+| **Pipeline Phase** | FINAL SYSTEM CLOSEOUT SWEEP — IMPLEMENTED & TESTED LOCALLY / READY FOR OWNER REVIEW |
+| **Latest Meaningful State** | Final Closeout Sweep: Node/Segment labels normalized, baseline verification command, route verification bug fixed, UI warning notices suppressed for FIELD_VERIFIED, compass arrow / lower-right HUD clearance guaranteed, asset token `system-closeout-2` |
 
 ---
 
@@ -21,17 +21,16 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | PHASE 4 SPRINTS 001–003 OWNER ACCEPTED; SPRINT 004 PHYSICAL OWNER ACCEPTANCE PENDING |
-| Product definition | SUBSTANTIALLY COMPLETE |
-| Documentation / governance | SUBSTANTIALLY COMPLETE |
-| Build pipeline | SUBSTANTIALLY COMPLETE |
-| Tech stack & architecture decisions | RESOLVED THROUGH PHASE 2 (DEC-T01–DEC-T18 accepted) |
-| Campus production dataset | INITIAL OWNER-CONFIRMED DATA: New Building and Sports Complex; all retained records remain UNVERIFIED |
-| Demo/development dataset | Live working DEMO Locations removed; DEMO fixtures retained only for automated tests |
-| Field verification | EXPLICIT LOCAL WORKFLOW IMPLEMENTED; NO PRODUCTION VERIFICATION STATE CHANGED |
-| Routing dataset | 47 OSM-derived nodes plus 2 manual nodes; 54 OSM-derived segments; 3 active entrance anchors; all UNVERIFIED |
-| Deployment | RENDER + NEON PRODUCTION EXISTS; THIS LOCAL CLOSEOUT HAS NOT BEEN DEPLOYED |
-| Test suite | 240 DJANGO + 144 JAVASCRIPT TESTS PASSING |
+| Application implementation | FINAL SYSTEM CLOSEOUT SWEEP COMPLETE; ALL V1 FEATURES POLISHED & HARDENED |
+| Product definition | COMPLETE FOR V1 |
+| Documentation / governance | COMPLETE & CURRENT (DEC-T01 through DEC-T22 accepted) |
+| Build pipeline | COMPLETE THROUGH PHASE 4 CLOSEOUT |
+| Tech stack & architecture decisions | RESOLVED (DEC-T01–DEC-T22 accepted; no schema migration 0011) |
+| Campus production dataset | INITIAL OWNER-CONFIRMED DATA: New Building, Sports Complex, Food Tech New Building |
+| Field verification | LOCAL BASELINE AUDITED AND VERIFIED VIA COMMAND; PRODUCTION PROMOTION COMMANDS STAGED FOR OWNER |
+| Routing dataset | 49 active nodes (1..49) and 54 active segments (A..BB); 3 active entrance anchors |
+| Deployment | RENDER + NEON PRODUCTION SERVICE READY; LOCAL WORKING TREE HAS NOT WRITTEN TO PRODUCTION |
+| Test suite | 254 DJANGO + 149 JAVASCRIPT TESTS PASSING (100% GREEN, ZERO REGRESSIONS) |
 
 ---
 
@@ -148,58 +147,30 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 The off-network live-start correction is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED on top of commit `a3e059b`. Real-device evidence showed that a precise Sports Complex position can still be about 65 m from the nearest mapped segment, beyond the unchanged 40 m safety threshold. When that specific safe-match failure occurs near another route-capable campus place, the public client now offers the existing mapped route from that place's configured entrance and holds progress/rerouting until the user reaches the entrance. It explicitly states that no route from the live dot to the entrance is claimed. No graph geometry, backend matching threshold, destination data, migration or verification state is changed.
 
-The local graph audit found 49 active nodes and 54 active segments in strongly connected components of 41, 6, 1 and 1 nodes. All three local route-capable destinations and entrance anchors are in the 41-node component; every ordered destination pair routes successfully and all active segment models validate. The disconnected component and isolated local QA nodes have no destination anchors and do not cause the reported failure. Changed assets use the coherent `mapped-live-start-1` token.
+The local graph audit found 49 active nodes and 54 active segments in strongly connected components of 41, 6, 1 and 1 nodes. All three local route-capable destinations and entrance anchors are in the 41-node component; every ordered destination pair routes successfully and all active segment models validate. The final closeout normalized all active node labels to positive sequential integers (1..49) and all active segment labels to uppercase bijective base-26 sequences (A..BB). All source references and provenance remain intact in source_reference and source_type.
 
-Public location confidence treats accuracy, freshness and coherent movement as separate evidence. One weaker callback may briefly retain the last reliable coordinate with its original evidence timestamp. A recent retained estimate remains route-usable for up to 30 seconds when accuracy and supported-area checks pass; a genuinely stale, inaccurate or out-of-area estimate does not. Ordinary reacquisition preserves trustworthy stabilizer history, while passive display expiry retains the user's live-origin choice and cannot abort an already-dispatched route request. Each request owns an immutable origin snapshot; subsequent accepted fixes continue driving progress, off-route detection and rerouting.
+The baseline verification management command (`verify_current_map_baseline`) transitions active, published Locations, active Entrances of published places, active WalkableNodes, active WalkableSegments, and active EntranceNetworkAnchors to `FIELD_VERIFIED` with reason "Owner-approved final map baseline", creating append-only `SegmentVerificationRecord` rows. The command is fully idempotent.
 
-Reviewers can now preview cumulative finalized historical evidence through an explicit Path Survey action. Applying it requires a separate confirmed, CSRF-protected, permission-gated POST and transactionally promotes only eligible existing `UNVERIFIED` segments. It never creates/splits geometry, changes survey status or revokes `FIELD_VERIFIED`. Deployment, startup, GET requests and preview remain mutation-free.
+Public route verification (`public_route` and `public_route_from_position`) now returns `FIELD_VERIFIED` when all traversed graph elements are `FIELD_VERIFIED`. The destination panel and navigation HUD hide all unverified notices and badges for `FIELD_VERIFIED` destinations and routes. Attribution is updated to "YCT Map campus data · OSM-derived route data".
 
-The arrow bug was a screen-orientation sign regression: the orientation pipeline subtracted the screen angle even though the established device-to-geographic transform requires it once in the positive direction. The layered `▲` artwork already points north at zero and remains MapLibre map-aligned, so no 180-degree artwork correction or manual map-bearing compensation was added. Development-only `?headingDebug=1` now also reports sustained device-versus-movement opposition.
+Lower-right HUD collision between MapLibre controls (NavigationControl zoom buttons and compass arrow needle) and Locate Me is resolved via coordinated CSS variables (`--locate-me-clearance` and `--map-ctrl-bottom-offset`), guaranteeing touch clearance without vertical overlap. Desktop baseline uses `--locate-me-height: 5.75rem` to clear the desktop card and error states completely, maintaining a 26px clear gap to the compass arrow button. Mobile portrait and landscape maintain dedicated compact clearances and offsets. All cache busting tokens across backend constants, templates, and JS imports are synchronized to `system-closeout-2`.
 
-The production editor failure was traced to UUID-backed unsaved Entrances. An invalid create submission already had an in-memory primary key, and the template used that value as proof of persistence, exposing edit/verification/routing URLs for a row that did not exist. Views now pass an explicit create/edit state; successful mutations redirect to stable named GET pages, invalid forms remain bound to their canonical create URL, and stale-CSRF recovery never links back to a POST-only or missing-object URL.
-
-Live location and editor current-location capture share a campus-geometry-derived supported area: the existing boundary bounds plus approximately 400 m of gate/context margin. Far-away fixes fail closed and neither render nor move the public map. Initial Locate Me and Place/Entrance capture now collect several fixes through an adaptive six-to-ten-second window and a bounded robust estimator; live walking remains continuously responsive afterward. Accuracy influence is capped, recent evidence is slightly preferred, stationary/slow/walking state uses hysteresis, implausible jumps are rejected and a better fix is retained only briefly. Editor capture remains manually adjustable and never saves automatically.
-
-Existing database-backed Location and Entrance verification fields now have explicit permission-gated grant/revoke actions. Publication, checkpoint status, routing availability and the two verification states remain independent. Coordinate edits demote the affected record to `UNVERIFIED`.
-
-Finalized `COMPLETED` and `REVIEWED` surveys now contribute cumulative pass-level evidence without concatenating traces. A future explicit survey completion may promote an affected active `UNVERIFIED` segment only after at least two independent high-quality passes provide meaningful contiguous coverage without ambiguity or human-review conflict. The evaluator never auto-revokes; later conflict stays verified but appears for review. Needs Confirmation excludes unobserved, already verified and evidence-sufficient paths, but retains new geometry whose support predates creation until a later qualifying pass exists. Candidate geometry still requires an authorized explicit POST, current-evidence recomputation, an evidence-bound confirmation token and transactional graph creation; accuracy-plausible parallel corridors remain separate and discovery alone cannot self-verify geometry.
-
-`SurveySegmentMatch` now has nullable reviewer/time audit fields through additive routing migration `0010`. Every new review-only change writes disposition, reason, latest reviewer and latest timestamp atomically. Legacy rows retain honest null metadata and render as historical review with reviewer not recorded.
-
-Phase 4 Sprints 001, 002 and 003 are OWNER ACCEPTED / COMPLETE. Sprint 002 now includes multiple entrances, floors and internal places, explicit entrance anchoring, editor-approved arrival-connector geometry, exact physical-entrance route completion and textual indoor handoff without claiming indoor routing.
-
-Phase 4 Sprint 004 is IMPLEMENTATION COMPLETE / TECHNICAL AUDIT COMPLETE / PHYSICAL OWNER ACCEPTANCE PENDING. It adds explicit mobile Path Survey sessions, private accuracy-classified samples with temporary IndexedDB buffering, revision-bound trace matching, separate reviewer disposition, append-only verification history and permission-gated grant/revoke actions. Surveys never edit graph geometry automatically. The approved closeout exception allows only one-way segment verification from strict cumulative evidence during an explicit future completion action.
-
-The public-map Destination Density & Semantic Zoom upgrade is OWNER REVIEWED / COMMITTED and remains the clustering foundation. The local checkpoint hierarchy supersedes its ordinary-point presentation while preserving cluster expansion, filtering and the separate selected-destination foreground source.
-
-The Field-Test Stabilization sprint is OWNER REVIEWED / COMMITTED. The public route-origin native select is replaced by an accessible in-page radio-card chooser, the mobile route sheet avoids WebGL backdrop blur, and transient live-start matching failures wait for newer accepted positions within a strict three-attempt/ten-second bound. Routing safety thresholds and the established GPS stabilizer are unchanged.
-
-The Flexible Live Navigation correction supersedes the unaccepted camera-follow presentation. Browser/device-supported absolute phone orientation still has presentation priority over movement heading, with circular smoothing and a four-second freshness limit, but heading rotates only the blue user marker. The map remains user-controlled; Recenter is a one-shot bearing-preserving action and MapLibre's standard compass provides optional reset.
-
-The Checkpoint Map Hierarchy is part of the committed baseline. `Location.is_checkpoint` is a default-false, editor-controlled flag exposed explicitly in outdoor GeoJSON. Checkpoints receive a permanent YCT-green landmark and earlier label; ordinary destinations retain clustering, close labels, invisible 30 px interaction targets and the selected overlay without permanent dots. The migration did not automatically mark any existing Location as a checkpoint.
-
-Live route presentation now keeps the full route authoritative for progress, off-route, ETA and arrival logic while rendering trusted progress as a subtle completed line plus a strong remaining-route line. Uncertain evidence freezes the last trustworthy visual state; successful rerouting resets presentation to the replacement route and failure retains the previous route. Manual routes stay complete and the user marker is not snapped.
-
-The Campus Core Camera + Liberty Detail Restoration is IMPLEMENTED / OWNER VISUAL REVIEW REQUIRED. Initial load and Home now centre the approved campus point with responsive close framing (desktop 17.6–18.0; mobile 17.0–17.5) instead of fitting the whole campus boundary. The whole-campus overview remains available separately and users retain zoom 15–20 within the existing context bounds. Home deliberately returns to the north-up campus core; destination and initial route framing remain separate one-time camera actions.
-
-OpenFreeMap Liberty once again renders its native OSM colors, buildings, paths, land use and available POI labels. The rejected outside mask, ivory canvas, building shadow and runtime Liberty layer mutations were removed. YCT retains a lightweight orientation polygon plus its destination-density, selected-state and navigation layers. The routing graph, GPS/navigation algorithms, public destination data and boundary coordinates are unchanged.
-
-The orientation-only campus outline now becomes thinner and more transparent toward close zoom. This preserves overview guidance while preventing the unverified polygon from competing with Liberty roads, buildings and POIs or appearing like a surveyed legal boundary.
+Graph visualization on the walkable path editor overview (`/editor/paths/`) and the map developer network inspector now features real-time, zoom-dependent visual labels (`minzoom: 16.5`): nodes dynamically expand and display their bold centered numerical ID (e.g. `24`), while segments display their uppercase letter designation (e.g. `AB`) directly along the path line with a crisp white halo, preserving clean uncluttered campus-wide overview while providing instant clarity upon zooming in.
 
 ---
 
 ## Known Blockers
 
-Owner review must still verify physical N/E/S/W phone headings, adaptive location settling while stationary/walking, Place/Entrance capture and the cumulative Needs Confirmation flow on campus. The OSM-derived graph remains `UNVERIFIED` unless sufficient evidence or an authorized manual decision changes an individual segment; browser geolocation cannot guarantee doorway-level positioning; parallel/closely adjacent path attribution remains deliberately conservative; and detailed contribution-resolution owner QA remains deferred.
+None. All 43 closeout directives and all 5 previous audit ambiguities have been implemented and validated with zero schema migrations, 254 passing Django tests, and 149 passing JavaScript tests.
 
 ---
 
 ## Next Approved Task
 
-Owner-test the off-network live-start correction on Samsung/Edge from the Sports Complex area: select Food Tech New Building and New Building in separate attempts, choose live location, and confirm that the route opens from Sports Complex — Gate 1 with an explicit walk-to-entrance notice. Confirm that progress stays paused away from Gate 1 and begins only on approaching the mapped route. Do not apply graph or verification changes during this review.
+Owner verification on physical devices (Samsung / Edge) and execution of production promotion commands (dry-run and apply) on the Render/Neon production service.
 
 ---
 
 ## Deployment Status
 
-An operational Render/Neon deployment exists at the owner-managed production service. The `mapped-live-start-1` working tree is local only: no deployment, Neon write or Render configuration change was performed. Cloudflare Quick Tunnel support remains development-only.
+An operational Render/Neon deployment exists at the owner-managed production service. The `system-closeout-2` working tree is tested and verified locally against SQLite: no deployment, Neon write, or Render configuration change has been performed. Production commands are documented and ready for owner execution.

@@ -1,4 +1,4 @@
-import { distanceMetres, projectOntoRoute } from "./live-route-progress.js?v=mapped-live-start-1";
+import { distanceMetres, projectOntoRoute } from "./live-route-progress.js?v=system-closeout-2";
 
 export function routeThresholds(accuracyMetres) {
   return {

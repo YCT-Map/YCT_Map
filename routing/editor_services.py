@@ -23,11 +23,7 @@ MAX_ENTRANCE_NODE_CANDIDATES = 6
 
 
 def _node_display_label(node):
-    if node.label and not node.label.startswith("OSM-derived node "):
-        return node.label
-    if node.source_type == SourceType.OSM and node.source_reference:
-        return f"OSM path junction · {node.source_reference}"
-    return node.label or f"Walking-network node {str(node.pk)[:8]}"
+    return node.display_label
 
 
 def entrance_node_candidates(entrance):
@@ -186,11 +182,11 @@ def split_segment(segment, point, actor):
         raise ValidationError("Choose a split point within 5 metres of this segment.")
     if min(distance_metres(projected, points[0]), distance_metres(projected, points[-1])) < 1:
         raise ValidationError("Choose a split point at least 1 metre from either endpoint.")
-    node = WalkableNode.objects.create(label=f"Split of {segment.label or segment.pk}", longitude=projected[0], latitude=projected[1],
+    node = WalkableNode.objects.create(longitude=projected[0], latitude=projected[1],
         source_type=SourceType.MANUAL, verification_state=VerificationState.UNVERIFIED, created_by=actor, updated_by=actor)
     first_points = points[:index + 1] + [projected]
     second_points = [projected] + points[index + 1:]
-    common = dict(label=segment.label, is_bidirectional=segment.is_bidirectional, source_type=SourceType.MANUAL,
+    common = dict(is_bidirectional=segment.is_bidirectional, source_type=SourceType.MANUAL,
                   source_reference=f"split:{segment.id}",
                   derived_from_segment=segment, verification_state=VerificationState.UNVERIFIED,
                   is_active=True, created_by=actor, updated_by=actor)

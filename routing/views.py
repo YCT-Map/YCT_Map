@@ -6,6 +6,7 @@ import json
 from django.views.decorators.http import require_GET, require_POST
 
 from .eta import format_approximate_eta
+from .labels import classify_route_verification
 from .models import LocationNetworkAnchor, VerificationState, WalkableNode, WalkableSegment
 from .matching import InsufficientAccuracyError, LivePositionError, NoSafeNetworkMatchError
 from .results import InvalidNodeError, MissingAnchorError, NoRouteError
@@ -128,7 +129,7 @@ def public_route(request):
         geometry = route_geojson_geometry(result.geometry)
     except InvalidRouteGeometryError as error:
         return JsonResponse({"error": str(error), "code": "INVALID_ROUTE_GEOMETRY"}, status=422)
-    route_state = "DEMO" if result.verification_states == (VerificationState.DEMO,) else "UNVERIFIED"
+    route_state = classify_route_verification(result.verification_states)
     response = JsonResponse({
         "route": {"type": "Feature", "geometry": geometry, "properties": {"route_state": route_state}},
         "summary": {
@@ -183,8 +184,9 @@ def public_route_from_position(request):
         geometry = route_geojson_geometry(result.geometry)
     except InvalidRouteGeometryError as error:
         return JsonResponse({"error": str(error), "code": "INVALID_ROUTE_GEOMETRY"}, status=422)
+    route_state = classify_route_verification(result.verification_states)
     response = JsonResponse({
-        "route": {"type": "Feature", "geometry": geometry, "properties": {"route_state": "UNVERIFIED", "origin_type": "live"}},
+        "route": {"type": "Feature", "geometry": geometry, "properties": {"route_state": route_state, "origin_type": "live"}},
         "summary": {
             "origin": {"name": "Your location", "type": "live"},
             "destination": destination_summary(destination),
@@ -193,7 +195,7 @@ def public_route_from_position(request):
             "eta_label": format_approximate_eta(result.eta_seconds),
             "eta_is_approximate": True,
             "eta_source": "fallback",
-            "verification_state": "UNVERIFIED",
+            "verification_state": route_state,
             "network_match_distance_metres": round(match.distance_metres, 2),
         },
     })

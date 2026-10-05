@@ -425,3 +425,49 @@ Reason:      Cumulative pass-level evidence reflects repeated physical observati
 Consequences: Rejected samples and unfinished/abandoned surveys do not contribute. Human REJECTED or DISCREPANCY_CONFIRMED dispositions constrain automatic evaluation. Candidate geometry still requires explicit authorized confirmation and transactional creation; one discovery pass creates UNVERIFIED geometry, and separate strict evidence is required for verification. Locations and Entrances remain explicitly verified by authorized people, and no GET, deployment, startup or background process changes verification state.
 Alternatives considered: Require manual path verification despite sufficient repeated evidence (rejected — leaves confirmation work stale), concatenate all historical samples into one trace (rejected — invents a traversal), allow automatic revocation (rejected — destructive and unsafe), apply the rule to Places or Entrances (rejected — outside the approved evidence model).
 ```
+
+---
+
+## DEC-T20
+
+```
+ID:          DEC-T20
+Date:        2026-10-05
+Status:      ACCEPTED
+Decision:    Standardize WalkableNode and WalkableSegment display labels without schema migration. Store clean positive integers ("1", "2"...) in WalkableNode.label and bijective base-26 uppercase alphabetic codes ("A", "B"... "Z", "AA", "AB"...) in WalkableSegment.label. Retain source/OSM identifiers exclusively in source_reference and source_type. Render "Node <label>" and "Segment <label>" in human-facing templates. Management command assign_graph_display_labels provides deterministic, idempotent normalization.
+Context:     Prior import and QA operations left mixed label styles ("osm_node_...", "node_...", "way_...", "QA Node A") which confused field reviewers and cluttered path lists.
+Reason:      Enforces clear, distinct human-readable identities across node and segment models without modifying the database schema or losing upstream source provenance.
+Consequences: Field forms and path lists display clean labels. Sequential next-label allocators automatically assign consecutive numbers and letter codes during segment splits and candidate approvals.
+Alternatives considered: Add a new display_label database column (rejected — unnecessary migration), keep raw OSM IDs in labels (rejected — unreadable in field UI).
+```
+
+---
+
+## DEC-T21
+
+```
+ID:          DEC-T21
+Date:        2026-10-05
+Status:      ACCEPTED
+Decision:    Provide an explicit, idempotent management command verify_current_map_baseline to promote current active/published campus graph entities to FIELD_VERIFIED with audit reason "Owner-approved final map baseline". Update public_route and public_route_from_position verification classifiers to return FIELD_VERIFIED when all traversed graph elements are verified, and suppress UI warning banners and unverified notices when navigating verified routes and viewing verified destinations.
+Context:     Accepted campus graph elements remained UNVERIFIED after field acceptance, causing routes between verified places to trigger "UNVERIFIED ROUTE" and "OSM-derived route geometry is UNVERIFIED" warnings.
+Reason:      Enables owner authorization of the verified baseline through a deliberate, audited command while fixing the classification bug and removing false warning banners on verified destinations and paths.
+Consequences: Baseline promotion creates append-only SegmentVerificationRecord entries. Inactive elements or unpublished drafts remain skipped. Public navigation displays no unverified warning banners when traversing verified routes.
+Alternatives considered: Silently update database rows via ad-hoc SQL (rejected — violates governance and audit logging), leave baseline unverified (rejected — shows false warnings on accepted campus data).
+```
+
+---
+
+## DEC-T22
+
+```
+ID:          DEC-T22
+Date:        2026-10-05
+Status:      ACCEPTED
+Decision:    Coordinated CSS custom properties for lower-right HUD controls. Anchor Locate Me (#user-location-controls) at the bottom-right clearance (--locate-me-clearance) and position MapLibre controls (.maplibregl-ctrl-bottom-right) strictly above it at --map-ctrl-bottom-offset (clearance + height + gap), with dedicated compact offsets for mobile landscape.
+Context:     MapLibre's bottom-right controls stack vertically upward from their bottom anchor, causing a direct collision with the Locate Me button when independently positioned.
+Reason:      Guarantees zero physical overlap across all screen sizes and orientations without modifying MapLibre internals or Locate Me JavaScript logic.
+Consequences: Locate Me and MapLibre zoom/compass controls maintain comfortable touch separation across desktop, mobile portrait, and mobile landscape viewports.
+Alternatives considered: Move Locate Me to top right (rejected — collides with discovery/search HUD), move MapLibre controls to top left (rejected — collides with brand and navigation cards).
+```
+

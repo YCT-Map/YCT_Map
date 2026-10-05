@@ -49,8 +49,8 @@ test("mobile header and search stay compact without shrinking touch targets", ()
 test("idle locate control is compact and lower-right controls keep separate offsets", () => {
   assert.match(css, /#user-location-controls\[data-state="idle"\]\s*\{[^}]*width:\s*auto[^}]*box-shadow:\s*none/s);
   assert.match(css, /data-state="idle"\]\s+\.locate-action\s*\{[^}]*min-height:\s*2\.75rem/s);
-  assert.match(css, /#user-location-controls\s*\{[^}]*7\.3rem/s);
-  assert.match(css, /\.maplibregl-ctrl-bottom-right\s*\{[^}]*2\.35rem/s);
+  assert.match(css, /#user-location-controls\s*\{[^}]*bottom:\s*var\(--locate-me-clearance\)/s);
+  assert.match(css, /\.maplibregl-ctrl-bottom-right\s*\{[^}]*bottom:\s*var\(--map-ctrl-bottom-offset\)/s);
 });
 
 test("mobile attribution stays compact until the legal text is opened", () => {

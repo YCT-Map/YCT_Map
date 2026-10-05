@@ -44,8 +44,33 @@ class WalkableNode(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    @property
+    def display_label(self):
+        clean = (self.label or "").strip()
+        if clean.isdigit():
+            return f"Node {clean}"
+        return clean or str(self.id)
+
+    def clean(self):
+        super().clean()
+        if not self.label:
+            from .labels import next_node_label
+            self.label = next_node_label()
+        else:
+            from .labels import clean_node_label
+            self.label = clean_node_label(self.label)
+
+    def save(self, *args, **kwargs):
+        if not self.label:
+            from .labels import next_node_label
+            self.label = next_node_label()
+        else:
+            from .labels import clean_node_label
+            self.label = clean_node_label(self.label)
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return self.label or str(self.id)
+        return self.display_label
 
 
 class WalkableSegment(models.Model):
@@ -76,11 +101,27 @@ class WalkableSegment(models.Model):
         constraints = [models.CheckConstraint(condition=~models.Q(start_node=models.F("end_node")), name="routing_segment_distinct_nodes")]
 
     @property
+    def display_label(self):
+        clean = (self.label or "").strip().upper()
+        if clean.isalpha():
+            return f"Segment {clean}"
+        return clean or str(self.id)
+
+    def __str__(self):
+        return self.display_label
+
+    @property
     def distance_metres(self):
         return length_metres(self.geometry)
 
     def clean(self):
         super().clean()
+        if not self.label:
+            from .labels import next_segment_label
+            self.label = next_segment_label()
+        else:
+            from .labels import clean_segment_label
+            self.label = clean_segment_label(self.label)
         if self.start_node_id == self.end_node_id:
             raise ValidationError({"end_node": "A segment cannot connect a node to itself."})
         if self.is_active and self.start_node_id and not self.start_node.is_active:
@@ -102,6 +143,12 @@ class WalkableSegment(models.Model):
         return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
     def save(self, *args, **kwargs):
+        if not self.label:
+            from .labels import next_segment_label
+            self.label = next_segment_label()
+        else:
+            from .labels import clean_segment_label
+            self.label = clean_segment_label(self.label)
         if not self.geometry_fingerprint:
             self.geometry_fingerprint = self.calculate_geometry_fingerprint()
         super().save(*args, **kwargs)

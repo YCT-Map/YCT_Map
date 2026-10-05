@@ -41,7 +41,7 @@ def _endpoint_preview(point):
         endpoint_distance = min(projection.distance_to_start, projection.distance_to_end)
         if endpoint_distance >= 1:
             return {"action": "split-segment", "segment_id": str(segment.pk),
-                    "label": segment.label or str(segment.pk),
+                    "label": segment.display_label,
                     "distance_metres": round(segment_distance, 1),
                     "coordinate": list(projection.coordinate)}
     return {"action": "create-node", "coordinate": list(point), "distance_metres": None}
@@ -91,7 +91,7 @@ def _resolve_endpoint(point, actor):
             node, _, _ = split_segment(segment, projection.coordinate, actor)
             return node
     node = WalkableNode(
-        label="Survey candidate connection",
+        label="",
         longitude=Decimal(f"{point[0]:.6f}"), latitude=Decimal(f"{point[1]:.6f}"),
         source_type=SourceType.MANUAL,
         source_reference="path-survey-candidate",
@@ -107,7 +107,7 @@ def create_candidate_path(*, survey, candidate, actor):
     """Apply an explicitly approved preview; never called during analysis."""
     survey = PathSurvey.objects.select_for_update().get(pk=survey.pk)
     fingerprint = candidate.get("fingerprint") or candidate_fingerprint(candidate["geometry"])
-    source_reference = f"survey:{survey.pk}:{fingerprint[:16]}"
+    source_reference = f"survey:{survey.pk}:{candidate.get('id', '')}:{fingerprint[:16]}"
     if WalkableSegment.objects.filter(source_reference=source_reference).exists():
         raise ValidationError("This survey candidate has already been added to the routing graph.")
     # Serialize endpoint resolution against concurrent graph edits so two
@@ -130,7 +130,7 @@ def create_candidate_path(*, survey, candidate, actor):
     state = (VerificationState.FIELD_VERIFIED
              if candidate_has_strict_confirmation(candidate) else VerificationState.UNVERIFIED)
     segment = WalkableSegment(
-        label=f"Survey candidate {candidate['id']}",
+        label="",
         start_node=start_node, end_node=end_node,
         geometry={"type": "LineString", "coordinates": geometry_points},
         is_bidirectional=True,

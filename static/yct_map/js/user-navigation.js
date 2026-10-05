@@ -1,6 +1,6 @@
 import { createLiveRouteTracker, distanceMetres,
-  formatEta } from "./live-route-progress.js?v=mapped-live-start-1";
-import { createOffRouteDetector } from "./off-route.js?v=mapped-live-start-1";
+  formatEta } from "./live-route-progress.js?v=system-closeout-2";
+import { createOffRouteDetector } from "./off-route.js?v=system-closeout-2";
 
 export const MAX_LIVE_POSITION_AGE_MS = 30_000;
 export const NEARBY_MAPPED_START_MAX_METRES = 100;
@@ -267,9 +267,31 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     panel.querySelector("#user-route-eta-source").textContent = mappedJoin
       ? `Distance and ETA begin at ${originArrival}`
       : useLive ? "Approximate ETA at 1.35 m/s" : "";
-    panel.querySelector("#user-route-data-notice").textContent = mappedJoin
-      ? `Your live position could not be matched safely to a path. Walk to ${originArrival}; no route from your dot to that entrance is claimed.`
-      : "OSM-derived route geometry is UNVERIFIED and is not field-verified campus navigation.";
+    const routeState = payload.summary?.verification_state
+      || payload.route?.properties?.route_state
+      || "UNVERIFIED";
+    const routeBadge = panel.querySelector("#user-route-badge") || panel.querySelector(".demo-route-label");
+    const routeNotice = panel.querySelector("#user-route-data-notice");
+    if (routeBadge) {
+      if (routeState === "FIELD_VERIFIED") {
+        routeBadge.hidden = true;
+      } else {
+        routeBadge.hidden = false;
+        routeBadge.textContent = routeState === "DEMO" ? "DEMO ROUTE" : "UNVERIFIED ROUTE";
+      }
+    }
+    if (routeNotice) {
+      if (routeState === "FIELD_VERIFIED") {
+        routeNotice.hidden = true;
+      } else {
+        routeNotice.hidden = false;
+        routeNotice.textContent = mappedJoin
+          ? `Your live position could not be matched safely to a path. Walk to ${originArrival}; no route from your dot to that entrance is claimed.`
+          : routeState === "DEMO"
+          ? "Synthetic information for product demonstration only."
+          : "OSM-derived route geometry is UNVERIFIED and is not field-verified campus navigation.";
+      }
+    }
     formState.hidden = true;
     result.hidden = false;
     requestStatus.hidden = true;

@@ -1,5 +1,5 @@
-import { sliceRouteAtDistance } from "./live-route-progress.js?v=mapped-live-start-1";
-import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=mapped-live-start-1";
+import { sliceRouteAtDistance } from "./live-route-progress.js?v=system-closeout-2";
+import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=system-closeout-2";
 
 export const DESTINATION_SOURCE_ID = "demo-destinations";
 export const DESTINATION_CLUSTER_LAYER_ID = "destination-clusters";
@@ -24,7 +24,9 @@ export const CAMPUS_LINE_LAYER_ID = "yabatech-campus-outline";
 export const CAMPUS_LABEL_LAYER_ID = "yabatech-campus-label";
 const NETWORK_SOURCE_ID = "demo-walkable-network";
 const NETWORK_LINE_LAYER_ID = "demo-walkable-network-lines";
+const NETWORK_LINE_LABEL_LAYER_ID = "demo-walkable-network-line-labels";
 const NETWORK_NODE_LAYER_ID = "demo-walkable-network-nodes";
+const NETWORK_NODE_LABEL_LAYER_ID = "demo-walkable-network-node-labels";
 const ROUTE_SOURCE_ID = "calculated-demo-route";
 const ROUTE_LAYER_ID = "calculated-demo-route-line";
 const USER_ROUTE_SOURCE_ID = "user-demo-route";
@@ -548,7 +550,7 @@ export async function createMap({ container, config, features, onSelect, onReady
   map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
   map.addControl(new CampusFocusControl(() => focusCampusCore({ resetNavigation: true })), "bottom-right");
   map.addControl(
-    new maplibregl.AttributionControl({ compact: true, customAttribution: "YCT Map campus data · OSM-derived UNVERIFIED route data" }),
+    new maplibregl.AttributionControl({ compact: true, customAttribution: "YCT Map campus data · OSM-derived route data" }),
     "bottom-right",
   );
 
@@ -567,21 +569,91 @@ export async function createMap({ container, config, features, onSelect, onReady
     }
     if (demoNetwork?.features?.length) {
       map.addSource(NETWORK_SOURCE_ID, { type: "geojson", data: demoNetwork });
-      map.addLayer({ id: NETWORK_LINE_LAYER_ID, type: "line", source: NETWORK_SOURCE_ID,
+      map.addLayer({
+        id: NETWORK_LINE_LAYER_ID,
+        type: "line",
+        source: NETWORK_SOURCE_ID,
         filter: ["==", ["get", "feature_type"], "segment"],
         layout: { visibility: "none" },
-        paint: { "line-color": "#6a4bbc", "line-width": 3, "line-opacity": 0.72, "line-dasharray": [2, 2] } });
-      map.addLayer({ id: NETWORK_NODE_LAYER_ID, type: "circle", source: NETWORK_SOURCE_ID,
+        paint: {
+          "line-color": "#6a4bbc",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 15, 3, 17, 4.5, 19, 6],
+          "line-opacity": 0.72,
+          "line-dasharray": [2, 2],
+        },
+      });
+      map.addLayer({
+        id: NETWORK_LINE_LABEL_LAYER_ID,
+        type: "symbol",
+        source: NETWORK_SOURCE_ID,
+        filter: ["==", ["get", "feature_type"], "segment"],
+        minzoom: 16.5,
+        layout: {
+          visibility: "none",
+          "symbol-placement": "line-center",
+          "text-field": ["to-string", ["coalesce", ["get", "label"], ""]],
+          "text-font": ["Noto Sans Bold"],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 16.5, 9.5, 18, 11, 20, 12.5],
+          "text-keep-upright": true,
+          "text-allow-overlap": false,
+          "text-padding": 4,
+          "text-max-angle": 360,
+        },
+        paint: {
+          "text-color": "#4a2d8a",
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 2.25,
+          "text-halo-blur": 0.5,
+        },
+      });
+      map.addLayer({
+        id: NETWORK_NODE_LAYER_ID,
+        type: "circle",
+        source: NETWORK_SOURCE_ID,
         filter: ["==", ["get", "feature_type"], "node"],
         layout: { visibility: "none" },
-        paint: { "circle-radius": 4, "circle-color": "#6a4bbc", "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 } });
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 15, 4, 16.5, 6, 17.5, 8.5, 18.5, 10.5, 20, 12.5],
+          "circle-color": "#6a4bbc",
+          "circle-stroke-color": "#fff",
+          "circle-stroke-width": 1.5,
+        },
+      });
+      map.addLayer({
+        id: NETWORK_NODE_LABEL_LAYER_ID,
+        type: "symbol",
+        source: NETWORK_SOURCE_ID,
+        filter: ["==", ["get", "feature_type"], "node"],
+        minzoom: 16.5,
+        layout: {
+          visibility: "none",
+          "text-field": ["to-string", ["coalesce", ["get", "label"], ""]],
+          "text-font": ["Noto Sans Bold"],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 16.5, 8, 17.5, 9.5, 18.5, 11, 20, 12.5],
+          "text-anchor": "center",
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
+        },
+        paint: {
+          "text-color": "#ffffff",
+        },
+      });
       const inspector = document.querySelector("#network-inspector");
       const toggle = document.querySelector("#toggle-demo-network");
       inspector.hidden = false;
       toggle.addEventListener("click", () => {
         const visible = toggle.getAttribute("aria-pressed") !== "true";
         toggle.setAttribute("aria-pressed", String(visible));
-        for (const layer of [NETWORK_LINE_LAYER_ID, NETWORK_NODE_LAYER_ID]) map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
+        for (const layer of [
+          NETWORK_LINE_LAYER_ID,
+          NETWORK_LINE_LABEL_LAYER_ID,
+          NETWORK_NODE_LAYER_ID,
+          NETWORK_NODE_LABEL_LAYER_ID,
+        ]) {
+          if (map.getLayer(layer)) {
+            map.setLayoutProperty(layer, "visibility", visible ? "visible" : "none");
+          }
+        }
       });
     }
 

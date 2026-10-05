@@ -24,6 +24,7 @@ export function createDestinationPanel(panel, { onDirections } = {}) {
     description.textContent = properties.description || "No additional description is available.";
     const verificationState = properties.verification_state || "UNVERIFIED";
     if (verification) {
+      verification.hidden = verificationState === "FIELD_VERIFIED";
       verification.textContent = verificationState.replace("_", " ");
     }
     if (dataNotice && dataNoticeText) {

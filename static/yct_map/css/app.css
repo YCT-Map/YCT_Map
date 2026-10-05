@@ -17,6 +17,10 @@
   --safe-right: max(1rem, env(safe-area-inset-right));
   --safe-bottom: max(1rem, env(safe-area-inset-bottom));
   --safe-left: max(1rem, env(safe-area-inset-left));
+  --locate-me-height: 5.75rem;
+  --locate-me-gap: 0.75rem;
+  --locate-me-clearance: calc(var(--safe-bottom) + 0.65rem);
+  --map-ctrl-bottom-offset: calc(var(--locate-me-clearance) + var(--locate-me-height) + var(--locate-me-gap));
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -419,7 +423,7 @@ input {
   position: absolute;
   z-index: 4;
   right: var(--safe-right);
-  bottom: calc(var(--safe-bottom) + 8.6rem);
+  bottom: var(--locate-me-clearance);
   display: grid;
   gap: 0.45rem;
   width: min(14.5rem, calc(100vw - 2rem));
@@ -430,6 +434,7 @@ input {
   box-shadow: 0 5px 16px rgba(13, 44, 32, 0.15);
   backdrop-filter: blur(12px);
 }
+
 
 .locate-action,
 .location-session-actions button {
@@ -549,7 +554,7 @@ input {
 
 @media (max-width: 41.99rem) {
   .route-inspector { right: var(--safe-right); bottom: calc(var(--safe-bottom) + 7.3rem); max-height: 15rem; overflow-y: auto; }
-  .user-location-controls { right: var(--safe-right); bottom: calc(var(--safe-bottom) + 7.9rem); width: 12.5rem; }
+  .user-location-controls { right: var(--safe-right); bottom: var(--locate-me-clearance); width: 12.5rem; }
 }
 
 .map-status {
@@ -695,7 +700,7 @@ input {
 
 .maplibregl-ctrl-bottom-right {
   right: var(--safe-right);
-  bottom: calc(var(--safe-bottom) + 2.7rem);
+  bottom: var(--map-ctrl-bottom-offset);
 }
 
 .maplibregl-ctrl-group {
@@ -1044,9 +1049,16 @@ input {
     scroll-snap-align: start;
   }
 
+  :root {
+    --locate-me-clearance: max(.65rem, env(safe-area-inset-bottom));
+    --locate-me-height: 2.75rem;
+    --locate-me-gap: 0.65rem;
+    --map-ctrl-bottom-offset: calc(var(--locate-me-clearance) + var(--locate-me-height) + var(--locate-me-gap));
+  }
+
   #user-location-controls {
     right: max(.65rem, env(safe-area-inset-right));
-    bottom: calc(max(.65rem, env(safe-area-inset-bottom)) + 7.3rem);
+    bottom: var(--locate-me-clearance);
     width: min(11.75rem, calc(100vw - 1.3rem));
     padding: .5rem;
   }
@@ -1073,7 +1085,7 @@ input {
 
   .maplibregl-ctrl-bottom-right {
     right: max(.65rem, env(safe-area-inset-right));
-    bottom: calc(max(.65rem, env(safe-area-inset-bottom)) + 2.35rem);
+    bottom: var(--map-ctrl-bottom-offset);
   }
   .map-status { max-width: calc(100vw - 5.2rem); }
   .debug-tools { left: max(.65rem, env(safe-area-inset-left)); }
@@ -1094,8 +1106,14 @@ input {
 }
 
 @media (max-width: 41.99rem) and (max-height: 30rem) {
+  :root {
+    --locate-me-clearance: max(.35rem, env(safe-area-inset-bottom));
+    --locate-me-gap: 0.4rem;
+    --map-ctrl-bottom-offset: calc(var(--locate-me-clearance) + var(--locate-me-height) + var(--locate-me-gap));
+  }
   .app-header { top: max(.35rem, env(safe-area-inset-top)); }
   .discovery { top: calc(max(.35rem, env(safe-area-inset-top)) + 2.75rem); }
   .category-list { margin-top: .2rem; }
-  #user-location-controls { bottom: calc(max(.4rem, env(safe-area-inset-bottom)) + 6.7rem); }
+  #user-location-controls { bottom: var(--locate-me-clearance); }
+  .maplibregl-ctrl-bottom-right { bottom: var(--map-ctrl-bottom-offset); }
 }
