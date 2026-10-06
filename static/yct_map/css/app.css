@@ -730,6 +730,12 @@ input {
   font-size: 9px;
 }
 
+.maplibregl-ctrl-attrib a[href*="maplibre"],
+.maplibregl-ctrl-attrib a[href*="openstreetmap"],
+.maplibregl-ctrl-attrib a[href*="openfreemap"] {
+  display: none !important;
+}
+
 @media (min-width: 42rem) {
   .brand-copy {
     display: flex;

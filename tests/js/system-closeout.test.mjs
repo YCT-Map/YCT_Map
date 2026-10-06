@@ -243,8 +243,8 @@ for (const state of ["FIELD_VERIFIED", "DEMO", "UNVERIFIED"]) {
   });
 }
 
-test("map attribution specifies YCT Map campus data and OSM-derived route data", () => {
+test("map attribution specifies YCT Map campus data", () => {
   const mapJsPath = path.resolve("static/yct_map/js/map.js");
   const content = fs.readFileSync(mapJsPath, "utf-8");
-  assert.match(content, /customAttribution:\s*("YCT Map campus data · OSM-derived route data"|\["YCT Map campus data · OSM-derived route data"\])/);
+  assert.match(content, /customAttribution:\s*("YCT Map campus data"|\["YCT Map campus data"\])/);
 });

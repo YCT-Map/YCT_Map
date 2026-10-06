@@ -112,6 +112,8 @@ export function createFieldMap({maplibregl, element, statusElement, network, tra
     map.addLayer({id:"survey-network",type:"line",source:"survey-network",paint:{"line-color":"#7557b7","line-width":3,"line-opacity":.65,"line-dasharray":[2,1.5]}});
     map.addSource("survey-trace",{type:"geojson",data:traceFeature(currentTrace)});
     map.addLayer({id:"survey-trace",type:"line",source:"survey-trace",paint:{"line-color":"#1769e0","line-width":6,"line-opacity":.9}});
+    map.addSource("survey-connector",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
+    map.addLayer({id:"survey-connector",type:"line",source:"survey-connector",paint:{"line-color":"#1769e0","line-width":3,"line-opacity":.85,"line-dasharray":[1.8,1.8]}});
     map.addSource("survey-position",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
     map.addLayer({id:"survey-position",type:"circle",source:"survey-position",paint:{"circle-color":"#1769e0","circle-radius":8,"circle-stroke-color":"#fff","circle-stroke-width":3}});
     const coordinates=network.features.flatMap((feature)=>feature.geometry.coordinates);
@@ -119,9 +121,20 @@ export function createFieldMap({maplibregl, element, statusElement, network, tra
     if(currentPosition)map.getSource("survey-position").setData({type:"Feature",properties:{accuracy:currentPosition.coords.accuracy},geometry:{type:"Point",coordinates:[currentPosition.coords.longitude,currentPosition.coords.latitude]}});
     setStatus("Field map ready. Existing paths and synchronized usable evidence are shown."); map.resize();
   });
+  function updateSurveyConnector(){
+    const source=map.getSource("survey-connector");
+    if(!source)return;
+    if(currentPosition&&currentTrace&&currentTrace.length>0){
+      const last=currentTrace[currentTrace.length-1];
+      const user=[currentPosition.coords.longitude,currentPosition.coords.latitude];
+      source.setData({type:"FeatureCollection",features:[{type:"Feature",geometry:{type:"LineString",coordinates:[last,user]},properties:{}}]});
+    }else{
+      source.setData({type:"FeatureCollection",features:[]});
+    }
+  }
   return {
-    updateTrace(coordinates){currentTrace=coordinates;const source=map.getSource("survey-trace");if(source)source.setData(traceFeature(coordinates));},
-    updatePosition(position){currentPosition=position;const source=map.getSource("survey-position");if(source)source.setData({type:"Feature",properties:{accuracy:position.coords.accuracy},geometry:{type:"Point",coordinates:[position.coords.longitude,position.coords.latitude]}});},
+    updateTrace(coordinates){currentTrace=coordinates;const source=map.getSource("survey-trace");if(source)source.setData(traceFeature(coordinates));updateSurveyConnector();},
+    updatePosition(position){currentPosition=position;const source=map.getSource("survey-position");if(source)source.setData({type:"Feature",properties:{accuracy:position.coords.accuracy},geometry:{type:"Point",coordinates:[position.coords.longitude,position.coords.latitude]}});updateSurveyConnector();},
   };
 }
 

@@ -1,6 +1,6 @@
 import { createLiveRouteTracker, distanceMetres,
-  formatEta } from "./live-route-progress.js?v=system-closeout-3";
-import { createOffRouteDetector } from "./off-route.js?v=system-closeout-3";
+  formatEta } from "./live-route-progress.js?v=system-closeout-4";
+import { createOffRouteDetector } from "./off-route.js?v=system-closeout-4";
 
 export const MAX_LIVE_POSITION_AGE_MS = 30_000;
 export const NEARBY_MAPPED_START_MAX_METRES = 350;
@@ -286,10 +286,10 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       } else {
         routeNotice.hidden = false;
         routeNotice.textContent = mappedJoin
-          ? `Your live position could not be matched safely to a path. Walk to ${originArrival}; no route from your dot to that entrance is claimed.`
+          ? `Walk to ${originArrival} to join the mapped route; no route from your dot to that entrance is claimed.`
           : routeState === "DEMO"
           ? "Synthetic information for product demonstration only."
-          : "OSM-derived route geometry is UNVERIFIED and is not field-verified campus navigation.";
+          : "Campus route guidance.";
       }
     }
     formState.hidden = true;

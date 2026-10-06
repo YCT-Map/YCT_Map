@@ -9,11 +9,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-10-05 |
+| **Date** | 2026-10-06 |
 | **Branch** | `main` |
 | **Current Phase** | PHASE 4 — FINAL SYSTEM CLOSEOUT SWEEP COMPLETE |
 | **Pipeline Phase** | FINAL SYSTEM CLOSEOUT SWEEP — IMPLEMENTED & TESTED LOCALLY / READY FOR OWNER REVIEW |
-| **Latest Meaningful State** | Live location routing fixed on campus (80m safe match threshold & 350m landmark fallback), Render build.sh executable bit verified, automatic label assignment on deploy, asset token `system-closeout-3` |
+| **Latest Meaningful State** | Dynamic dashed walk-to-path connector, automatic baseline field verification on deploy, user copy and attribution cleaned, asset token `system-closeout-4` |
 
 ---
 
@@ -27,10 +27,10 @@
 | Build pipeline | COMPLETE THROUGH PHASE 4 CLOSEOUT |
 | Tech stack & architecture decisions | RESOLVED (DEC-T01–DEC-T22 accepted; no schema migration 0011) |
 | Campus production dataset | INITIAL OWNER-CONFIRMED DATA: New Building, Sports Complex, Food Tech New Building |
-| Field verification | LOCAL BASELINE AUDITED AND VERIFIED VIA COMMAND; PRODUCTION PROMOTION COMMANDS STAGED FOR OWNER |
+| Field verification | AUTOMATIC FIELD-VERIFIED BASELINE VIA DEPLOY SCRIPT; VERIFIED PROMOTION SCRIPT TESTED |
 | Routing dataset | 49 active nodes (1..49) and 54 active segments (A..BB); 3 active entrance anchors |
-| Deployment | RENDER + NEON PRODUCTION SERVICE READY; LOCAL WORKING TREE HAS NOT WRITTEN TO PRODUCTION |
-| Test suite | 254 DJANGO + 149 JAVASCRIPT TESTS PASSING (100% GREEN, ZERO REGRESSIONS) |
+| Deployment | RENDER + NEON PRODUCTION SERVICE READY; AUTO-DEPLOY CONFIGURED VIA GIT MAIN |
+| Test suite | 255 DJANGO + 149 JAVASCRIPT TESTS PASSING (100% GREEN, ZERO REGRESSIONS) |
 
 ---
 

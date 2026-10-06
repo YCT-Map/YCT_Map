@@ -64,7 +64,7 @@ class ManagementCommandsTests(TestCase):
             latitude=Decimal("6.5185"),
             longitude=Decimal("3.3742"),
             label="node_legacy_99",
-            source_reference="osm_node_1001",
+            source_reference="node_ref_1",
             source_type="osm",
             verification_state=VerificationState.UNVERIFIED,
         )
@@ -72,7 +72,7 @@ class ManagementCommandsTests(TestCase):
             latitude=Decimal("6.5186"),
             longitude=Decimal("3.3743"),
             label="custom_node",
-            source_reference="QA Node A",
+            source_reference="node_ref_2",
             source_type="manual",
             verification_state=VerificationState.UNVERIFIED,
         )
@@ -128,8 +128,8 @@ class ManagementCommandsTests(TestCase):
         self.assertEqual(self.node2.label, "2")
         self.assertEqual(self.segment1.label, "A")
         # Provenance source_reference is preserved
-        self.assertEqual(self.node1.source_reference, "osm_node_1001")
-        self.assertEqual(self.node2.source_reference, "QA Node A")
+        self.assertEqual(self.node1.source_reference, "node_ref_1")
+        self.assertEqual(self.node2.source_reference, "node_ref_2")
         self.assertEqual(self.segment1.source_reference, "osm_way_2001")
 
         # Test display_label helper property
