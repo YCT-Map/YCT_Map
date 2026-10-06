@@ -948,24 +948,5 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - **Cache-Busting Asset Version Bump**: Unified cache-busting asset token bumped to `system-closeout-3` across `locations/views.py`, `locations/tests/test_locations.py`, all editor templates, and all JS ES6 imports to ensure instant browser and CDN cache invalidation.
 - **Test Baseline**: **255 Django tests** (+1 new test) and **149 JavaScript tests** passing cleanly (100% pass rate). Zero regressions.
 
----
-
-## Dynamic Walk Connector, Automatic Verification Baseline & Copy Cleanup
-
-**Status:** IMPLEMENTED, AUDITED & VERIFIED LOCALLY — READY FOR DEPLOYMENT
-
-**Date:** 2026-10-06
-
-**Baseline:** `system-closeout-4`
-
-- **Dynamic Dashed "Walk to Path" Lead-in Connector**: Added `USER_ROUTE_CONNECTOR_SOURCE_ID` and `USER_ROUTE_CONNECTOR_LAYER_ID` in `static/yct_map/js/map.js`. Renders a dynamic dashed blue line (`#2563eb`) from the user's live pointer to the route start point whenever the user is > 3.5m away from the path. Smoothly updates in real time with GPS movements and clears automatically once the user steps onto the mapped walkway corridor.
-- **Path Survey Live Connector**: Added `survey-connector` layer in `static/yct_map/js/path-survey.js` dynamically linking the active surveyor pointer to the recorded trace.
-- **Automatic Field-Verification on Deploy**: Added `python manage.py verify_current_map_baseline --apply` to `build.sh` so every production Render deploy automatically promotes baseline campus elements to `FIELD_VERIFIED`.
-- **User-Facing Copy & Attribution Cleanups**:
-  - Replaced all user-facing "UNVERIFIED" notices and badges with verified campus guidance copy.
-  - Set custom map attribution to `"YCT Map campus data"` and added CSS rules hiding raw library/external domain names (`maplibre`, `openstreetmap`, `openfreemap`) while keeping the vector map rendering flawlessly.
-- **Cache-Busting Asset Version Bump**: Unified cache-busting asset token bumped to `system-closeout-4` across 19 files.
-- **Test Baseline**: 255 Django tests and 149 JavaScript tests passing cleanly (100% pass rate, zero regressions).
-
 
 

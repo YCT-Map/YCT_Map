@@ -1,13 +1,13 @@
-import { fetchLocations } from "./api.js?v=system-closeout-4";
-import { createContributions } from "./contributions.js?v=system-closeout-4";
-import { createDestinationPanel } from "./destination-panel.js?v=system-closeout-4";
-import { createMap } from "./map.js?v=system-closeout-4";
-import { createSearch } from "./search.js?v=system-closeout-4";
-import { createRouteInspector } from "./route-inspector.js?v=system-closeout-4";
-import { createUserLocation } from "./user-location.js?v=system-closeout-4";
-import { createUserNavigation } from "./user-navigation.js?v=system-closeout-4";
-import { createDisclosureMenu } from "./disclosure-menu.js?v=system-closeout-4";
-import { loadSupportedLocationArea } from "./supported-area.js?v=system-closeout-4";
+import { fetchLocations } from "./api.js?v=system-closeout-3";
+import { createContributions } from "./contributions.js?v=system-closeout-3";
+import { createDestinationPanel } from "./destination-panel.js?v=system-closeout-3";
+import { createMap } from "./map.js?v=system-closeout-3";
+import { createSearch } from "./search.js?v=system-closeout-3";
+import { createRouteInspector } from "./route-inspector.js?v=system-closeout-3";
+import { createUserLocation } from "./user-location.js?v=system-closeout-3";
+import { createUserNavigation } from "./user-navigation.js?v=system-closeout-3";
+import { createDisclosureMenu } from "./disclosure-menu.js?v=system-closeout-3";
+import { loadSupportedLocationArea } from "./supported-area.js?v=system-closeout-3";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");

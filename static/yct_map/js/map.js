@@ -1,5 +1,5 @@
-import { distanceMetres, sliceRouteAtDistance } from "./live-route-progress.js?v=system-closeout-4";
-import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=system-closeout-4";
+import { sliceRouteAtDistance } from "./live-route-progress.js?v=system-closeout-3";
+import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=system-closeout-3";
 
 export const DESTINATION_SOURCE_ID = "demo-destinations";
 export const DESTINATION_CLUSTER_LAYER_ID = "destination-clusters";
@@ -34,8 +34,6 @@ const USER_ROUTE_COMPLETED_SOURCE_ID = "user-completed-route";
 const USER_ROUTE_COMPLETED_LAYER_ID = "user-completed-route-line";
 const USER_ROUTE_CASING_LAYER_ID = "user-demo-route-casing";
 const USER_ROUTE_LAYER_ID = "user-demo-route-line";
-export const USER_ROUTE_CONNECTOR_SOURCE_ID = "user-route-connector";
-export const USER_ROUTE_CONNECTOR_LAYER_ID = "user-route-connector-line";
 const USER_ENDPOINT_SOURCE_ID = "user-route-endpoints";
 const USER_ENDPOINT_CIRCLE_LAYER_ID = "user-route-endpoint-circles";
 const USER_ENDPOINT_LABEL_LAYER_ID = "user-route-endpoint-labels";
@@ -73,7 +71,6 @@ export const NAVIGATION_FOREGROUND_LAYER_ORDER = Object.freeze([
   USER_ROUTE_COMPLETED_LAYER_ID,
   USER_ROUTE_CASING_LAYER_ID,
   USER_ROUTE_LAYER_ID,
-  USER_ROUTE_CONNECTOR_LAYER_ID,
   USER_ENDPOINT_CIRCLE_LAYER_ID,
   USER_ENDPOINT_LABEL_LAYER_ID,
   USER_LOCATION_DOT_LAYER_ID,
@@ -553,7 +550,7 @@ export async function createMap({ container, config, features, onSelect, onReady
   map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
   map.addControl(new CampusFocusControl(() => focusCampusCore({ resetNavigation: true })), "bottom-right");
   map.addControl(
-    new maplibregl.AttributionControl({ compact: true, customAttribution: "YCT Map campus data" }),
+    new maplibregl.AttributionControl({ compact: true, customAttribution: "YCT Map campus data · OSM-derived route data" }),
     "bottom-right",
   );
 
@@ -686,10 +683,6 @@ export async function createMap({ container, config, features, onSelect, onReady
       paint: { "line-color": "rgba(255,255,255,.92)", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 8, 18, 12] } });
     map.addLayer({ id: USER_ROUTE_LAYER_ID, type: "line", source: USER_ROUTE_SOURCE_ID,
       paint: { "line-color": "#2563eb", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 5, 18, 8], "line-opacity": .96 } });
-    map.addSource(USER_ROUTE_CONNECTOR_SOURCE_ID, { type: "geojson", data: featureCollection() });
-    map.addLayer({ id: USER_ROUTE_CONNECTOR_LAYER_ID, type: "line", source: USER_ROUTE_CONNECTOR_SOURCE_ID,
-      paint: { "line-color": "#2563eb", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 3.5, 18, 5.5],
-        "line-dasharray": [1.8, 1.8], "line-opacity": 0.88 } });
     map.addSource(USER_ENDPOINT_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     map.addLayer({ id: USER_ENDPOINT_CIRCLE_LAYER_ID, type: "circle", source: USER_ENDPOINT_SOURCE_ID,
       paint: { "circle-radius": ["match", ["get", "role"], "destination", 12, "matched", 8, 10],
@@ -821,31 +814,6 @@ export async function createMap({ container, config, features, onSelect, onReady
     if (!replacement) {
       map.fitBounds(bounds, { padding: routePadding(), maxZoom: 17.5, duration: 700, essential: false });
     }
-    updateRouteConnector();
-  }
-
-  function updateRouteConnector() {
-    if (!loaded || !map.getSource(USER_ROUTE_CONNECTOR_SOURCE_ID)) return;
-    if (!liveRouteActive || !latestUserPosition || activeUserRouteCoordinates.length < 1) {
-      map.getSource(USER_ROUTE_CONNECTOR_SOURCE_ID).setData(featureCollection());
-      return;
-    }
-    const userPoint = [latestUserPosition.longitude, latestUserPosition.latitude];
-    const targetPoint = activeUserRouteCoordinates[0];
-    const dist = distanceMetres(userPoint, targetPoint);
-    if (dist > 3.5) {
-      const connectorLine = {
-        type: "Feature",
-        geometry: {
-          type: "LineString",
-          coordinates: [userPoint, targetPoint],
-        },
-        properties: { role: "lead-in", distance_metres: dist },
-      };
-      map.getSource(USER_ROUTE_CONNECTOR_SOURCE_ID).setData(featureCollection([connectorLine]));
-    } else {
-      map.getSource(USER_ROUTE_CONNECTOR_SOURCE_ID).setData(featureCollection());
-    }
   }
 
   function clearUserRoute() {
@@ -854,7 +822,6 @@ export async function createMap({ container, config, features, onSelect, onReady
     lastRenderedProgressMetres = 0;
     map.getSource(USER_ROUTE_COMPLETED_SOURCE_ID)?.setData(featureCollection());
     map.getSource(USER_ROUTE_SOURCE_ID)?.setData(featureCollection());
-    map.getSource(USER_ROUTE_CONNECTOR_SOURCE_ID)?.setData(featureCollection());
     map.getSource(USER_ENDPOINT_SOURCE_ID)?.setData(featureCollection());
   }
 
@@ -874,10 +841,6 @@ export async function createMap({ container, config, features, onSelect, onReady
     map.getSource(USER_ROUTE_COMPLETED_SOURCE_ID).setData(featureCollection(completed ? [completed] : []));
     map.getSource(USER_ROUTE_SOURCE_ID).setData(featureCollection(remaining ? [remaining] : []));
     lastRenderedProgressMetres = slice.progressMetres;
-    if (slice.remainingCoordinates.length >= 1) {
-      activeUserRouteCoordinates = slice.remainingCoordinates.map((c) => [...c]);
-    }
-    updateRouteConnector();
     return true;
   }
 
@@ -903,7 +866,6 @@ export async function createMap({ container, config, features, onSelect, onReady
     if (!loaded) return;
     renderUserLocation();
     map.getSource(USER_ACCURACY_SOURCE_ID).setData({ type: "FeatureCollection", features: [accuracyPolygon(position)] });
-    updateRouteConnector();
     if (shouldFocus) recenterUserLocation();
   }
 

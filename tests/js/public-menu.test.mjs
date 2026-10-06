@@ -28,7 +28,7 @@ test("open public menu owns an intentional layer above ordinary HUD contexts", (
   assert.match(css, /\.team-menu-backdrop\s*\{[^}]*position:\s*fixed[^}]*inset:\s*0/s);
   assert.match(template, /data-menu-dismiss/);
   assert.match(template, /Data status/);
-  assert.match(template, /Verified campus navigation and locations\./);
+  assert.match(template, /Some campus locations and walking paths may still be undergoing field verification\./);
   assert.doesNotMatch(template, /dataset-badge/);
 });
 
