@@ -1,7 +1,7 @@
-import { createEntrancePointSelector } from "./entrance-point-selector.js?v=system-closeout-2";
-import { createEntranceRoutingConnection } from "./entrance-routing-connection.js?v=system-closeout-2";
-import { bindLocationCapture } from "./location-capture.js?v=system-closeout-2";
-import { loadSupportedLocationArea } from "./supported-area.js?v=system-closeout-2";
+import { createEntrancePointSelector } from "./entrance-point-selector.js?v=system-closeout-3";
+import { createEntranceRoutingConnection } from "./entrance-routing-connection.js?v=system-closeout-3";
+import { bindLocationCapture } from "./location-capture.js?v=system-closeout-3";
+import { loadSupportedLocationArea } from "./supported-area.js?v=system-closeout-3";
 
 const element = document.querySelector("#entrance-map");
 const latitudeInput = document.querySelector("#id_latitude");

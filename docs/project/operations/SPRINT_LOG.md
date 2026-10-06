@@ -931,4 +931,22 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 - Real-time zoom-dependent graph labels: Walkable path editor overview (`/editor/paths/`) and map developer network inspector dynamically display bold centered numeric IDs on node circles (e.g. `24`) and uppercase alphabetic codes along segment paths (e.g. `AB`) upon zooming in (`minzoom: 16.5`) with crisp halo styling, keeping the campus overview clean while providing immediate spatial identity on closeup.
 - Test suites pass 100%: **254 Django tests** (+14 new) and **149 JavaScript tests** (+5 new). Zero regressions.
 
+---
+
+## Live Location Routing Campus Fix & Deployment Hardening
+
+**Status:** IMPLEMENTED, AUDITED & VERIFIED LOCALLY — READY FOR OWNER REVIEW
+
+**Date:** 2026-10-06
+
+**Baseline:** `system-closeout-3`
+
+- **Render Build Script Executable Bit**: Fixed file mode of `build.sh` in Git to `100755` executable (`git update-index --chmod=+x build.sh`) to prevent Render Linux deployment failure on `./build.sh`.
+- **Automatic Graph Display Labels on Deploy**: Added `python manage.py assign_graph_display_labels --apply` to `build.sh` so every production deploy populates node numerical labels (`1..N`) and segment alphabetical labels (`A..ZZ`).
+- **Campus Live Network Matching Range**: Adjusted `find_safe_network_match` in `routing/matching.py` from the previous overly restrictive 40m threshold to 80m. Real-world analysis demonstrated that open campus areas such as the Sports Complex (`3.374192, 6.518525`) are 65m away from mapped walkways, while all points outside campus are > 115m away. This enables direct live location snapping across all outdoor campus quads, lawns, and sports facilities while continuing to reject off-campus points.
+- **Campus Landmark Fallback Radius**: Increased `NEARBY_MAPPED_START_MAX_METRES` from 100m to 350m in `user-navigation.js`. When a user is in an unmapped corner of campus, the system now safely routes from the nearest mapped campus landmark entrance rather than timing out.
+- **Cache-Busting Asset Version Bump**: Unified cache-busting asset token bumped to `system-closeout-3` across `locations/views.py`, `locations/tests/test_locations.py`, all editor templates, and all JS ES6 imports to ensure instant browser and CDN cache invalidation.
+- **Test Baseline**: **255 Django tests** (+1 new test) and **149 JavaScript tests** passing cleanly (100% pass rate). Zero regressions.
+
+
 

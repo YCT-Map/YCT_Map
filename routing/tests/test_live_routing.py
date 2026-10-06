@@ -43,6 +43,11 @@ class LiveRouteServiceTests(TestCase):
         self.assertGreater(caution.distance_metres, 25)
         self.assertLessEqual(caution.distance_metres, 40)
 
+    def test_safe_match_accepts_open_campus_area_like_sports_complex(self):
+        match = find_safe_network_match(3.37425, 6.51950, 25)
+        self.assertGreater(match.distance_metres, 40)
+        self.assertLessEqual(match.distance_metres, 80)
+
     def test_safe_match_rejects_bad_accuracy_and_distant_position(self):
         with self.assertRaises(InsufficientAccuracyError):
             find_safe_network_match(3.37378, 6.51830, 41)

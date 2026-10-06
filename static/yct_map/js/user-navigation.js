@@ -1,9 +1,9 @@
 import { createLiveRouteTracker, distanceMetres,
-  formatEta } from "./live-route-progress.js?v=system-closeout-2";
-import { createOffRouteDetector } from "./off-route.js?v=system-closeout-2";
+  formatEta } from "./live-route-progress.js?v=system-closeout-3";
+import { createOffRouteDetector } from "./off-route.js?v=system-closeout-3";
 
 export const MAX_LIVE_POSITION_AGE_MS = 30_000;
-export const NEARBY_MAPPED_START_MAX_METRES = 100;
+export const NEARBY_MAPPED_START_MAX_METRES = 350;
 export const MAX_LIVE_ROUTE_ATTEMPTS = 3;
 export const LIVE_ROUTE_RECOVERY_WINDOW_MS = 10_000;
 const TRANSIENT_LIVE_ROUTE_CODES = new Set(["NO_SAFE_NETWORK_MATCH", "INSUFFICIENT_ACCURACY"]);

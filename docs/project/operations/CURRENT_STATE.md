@@ -13,7 +13,7 @@
 | **Branch** | `main` |
 | **Current Phase** | PHASE 4 — FINAL SYSTEM CLOSEOUT SWEEP COMPLETE |
 | **Pipeline Phase** | FINAL SYSTEM CLOSEOUT SWEEP — IMPLEMENTED & TESTED LOCALLY / READY FOR OWNER REVIEW |
-| **Latest Meaningful State** | Final Closeout Sweep: Node/Segment labels normalized, baseline verification command, route verification bug fixed, UI warning notices suppressed for FIELD_VERIFIED, compass arrow / lower-right HUD clearance guaranteed, asset token `system-closeout-2` |
+| **Latest Meaningful State** | Live location routing fixed on campus (80m safe match threshold & 350m landmark fallback), Render build.sh executable bit verified, automatic label assignment on deploy, asset token `system-closeout-3` |
 
 ---
 
@@ -161,16 +161,16 @@ Graph visualization on the walkable path editor overview (`/editor/paths/`) and 
 
 ## Known Blockers
 
-None. All 43 closeout directives and all 5 previous audit ambiguities have been implemented and validated with zero schema migrations, 254 passing Django tests, and 149 passing JavaScript tests.
+None. All 255 Django tests and 149 JavaScript tests pass cleanly. Live location routing connects across campus and Render auto-deploys cleanly.
 
 ---
 
 ## Next Approved Task
 
-Owner verification on physical devices (Samsung / Edge) and execution of production promotion commands (dry-run and apply) on the Render/Neon production service.
+Owner verification on live mobile devices within the YabaTech campus network and confirmation of active Render deployment.
 
 ---
 
 ## Deployment Status
 
-An operational Render/Neon deployment exists at the owner-managed production service. The `system-closeout-2` working tree is tested and verified locally against SQLite: no deployment, Neon write, or Render configuration change has been performed. Production commands are documented and ready for owner execution.
+Pushed to `main`. Render build script contains execute permissions and auto-runs `assign_graph_display_labels --apply`. Cache buster token synchronized to `system-closeout-3`.

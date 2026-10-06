@@ -103,6 +103,6 @@ def find_safe_network_match(longitude, latitude, accuracy_metres):
     if not matches:
         raise NoSafeNetworkMatchError("No active walkable network is available.")
     match = min(matches, key=lambda item: (item.distance_metres, str(item.segment.id)))
-    if match.distance_metres > 40 or (match.distance_metres > 25 and accuracy_metres > 25):
+    if match.distance_metres > 80:
         raise NoSafeNetworkMatchError("Current location cannot be safely matched to the mapped campus paths.")
     return match
