@@ -1,4 +1,6 @@
 const EARTH_RADIUS_METRES = 6_371_008.8;
+const EARLIEST_BROWSER_TIMESTAMP_MS = Date.UTC(2000, 0, 1);
+export const MAX_BROWSER_SAMPLE_AGE_MS = 5_000;
 
 export const ACCURACY = Object.freeze({
   reasonableMetres: 25,
@@ -9,7 +11,7 @@ export const ACCURACY = Object.freeze({
 });
 
 export const STABILIZATION = Object.freeze({
-  windowSize: 7,
+  windowSize: 12,
   warmupReasonableFixes: 3,
   warmupMinimumSpanMs: 1_500,
   retainedFixMaximumAgeMs: 10_000,
@@ -61,9 +63,21 @@ export function distanceMetres(from, to) {
   return 2 * EARTH_RADIUS_METRES * Math.asin(Math.sqrt(haversine));
 }
 
-export function assessSample(rawPosition, previousAccepted = null) {
+export function assessSample(rawPosition, previousAccepted = null, {
+  currentTime = Date.now(), maximumSampleAgeMs = MAX_BROWSER_SAMPLE_AGE_MS,
+} = {}) {
   const sample = normalizePosition(rawPosition);
   if (!sample) return { accepted: false, reason: "invalid", sample: null };
+
+  // GeolocationPosition.timestamp is epoch-based in browsers. Synthetic unit
+  // traces use small relative timestamps, so freshness is applied only to
+  // real browser-shaped values.
+  if (sample.timestamp >= EARLIEST_BROWSER_TIMESTAMP_MS &&
+      currentTime >= EARLIEST_BROWSER_TIMESTAMP_MS &&
+      currentTime - sample.timestamp > maximumSampleAgeMs) {
+    return { accepted: false, reason: "stale", sample,
+      quality: accuracyState(sample.accuracyMetres) };
+  }
 
   const quality = accuracyState(sample.accuracyMetres);
   if (quality === "unusable") return { accepted: false, reason: "poor-accuracy", sample, quality };
@@ -161,9 +175,11 @@ export function createLocationStabilizer({
   }
 
   function isConverged() {
-    if (recent.length < Math.min(3, warmupReasonableFixes)) return false;
-    const tail = recent.slice(-Math.max(3, warmupReasonableFixes));
-    const estimate = robustEstimate(tail);
+    const reasonable = recent.filter((item) => accuracyState(item.accuracyMetres) === "reasonable");
+    if (reasonable.length < warmupReasonableFixes) return false;
+    const span = reasonable.at(-1).timestamp - reasonable[0].timestamp;
+    if (span < warmupMinimumSpanMs) return false;
+    const estimate = robustEstimate(reasonable);
     const convergenceRadius = Math.max(6, Math.min(15, estimate.deviceAccuracyMetres * 0.8));
     return estimate.observedSpreadMetres <= convergenceRadius && confidenceFor(estimate) !== "unstable";
   }
@@ -174,12 +190,10 @@ export function createLocationStabilizer({
     recent = recent.slice(-STABILIZATION.windowSize);
     if (!stable) {
       const reasonable = recent.filter((item) => accuracyState(item.accuracyMetres) === "reasonable");
-      const span = recent.length > 1 ? recent.at(-1).timestamp - recent[0].timestamp : 0;
-      if ((reasonable.length < warmupReasonableFixes || span < warmupMinimumSpanMs) && recent.length < 5) {
+      if (!isConverged()) {
         return { ready: false, reason: "warming-up", sample: null, quality, motionState };
       }
-      const candidates = reasonable.length >= warmupReasonableFixes ? reasonable : recent;
-      return initialise(candidates, "warmup-complete");
+      return initialise(reasonable, "warmup-complete");
     }
 
     const materiallyWorse = sample.accuracyMetres >= stable.accuracyMetres * 1.75 &&
@@ -264,7 +278,11 @@ export function createLocationStabilizer({
   function finalize() {
     if (stable) return resultFor("acquisition-timeout", stable, { moved: true });
     if (!recent.length) return { ready: false, reason: "no-fix", sample: null, motionState };
-    return initialise(recent, "acquisition-timeout");
+    if (!isConverged()) {
+      return { ready: false, reason: "unconfirmed-fix", sample: null, motionState };
+    }
+    const reasonable = recent.filter((item) => accuracyState(item.accuracyMetres) === "reasonable");
+    return initialise(reasonable, "acquisition-timeout");
   }
 
   return {

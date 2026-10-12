@@ -130,12 +130,15 @@ test("stable accuracy-qualified live arrival announces the entrance and exposes 
     onRoute() {}, onClear() {}, now: () => 1_000,
     requestRoute: async () => ({ ok: true, json: async () => payload() }),
   });
-  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 8, timestamp: 1_000 });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 8,
+    timestamp: 1_000, navigationReady: true });
   controller.begin(internal);
   chooseLiveOrigin(state);
   await state.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
-  controller.updateLivePosition({ longitude: 3.3746, latitude: 6.518, accuracyMetres: 8, timestamp: 5_000 });
-  controller.updateLivePosition({ longitude: 3.3746, latitude: 6.518, accuracyMetres: 8, timestamp: 9_000 });
+  controller.updateLivePosition({ longitude: 3.3746, latitude: 6.518, accuracyMetres: 8,
+    timestamp: 5_000, navigationReady: true });
+  controller.updateLivePosition({ longitude: 3.3746, latitude: 6.518, accuracyMetres: 8,
+    timestamp: 9_000, navigationReady: true });
   assert.equal(state.panel.dataset.routeState, "arrived");
   assert.match(state.get("#user-route-progress-status").textContent, /reached New Building — Main Entrance/);
   assert.equal(state.get("#user-route-internal-name").textContent, "Lecture Room 3");

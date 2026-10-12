@@ -1,4 +1,4 @@
-import { createEntrancePointSelector } from "./entrance-point-selector.js?v=system-closeout-3";
+import { createEntrancePointSelector } from "./entrance-point-selector.js?v=location-reliability-1";
 const element = document.querySelector("#split-map");
 if (element) import("https://unpkg.com/maplibre-gl@6.10.0/dist/maplibre-gl.mjs").then((maplibregl) => {
   const geometry = JSON.parse(document.querySelector("#split-geometry").textContent);

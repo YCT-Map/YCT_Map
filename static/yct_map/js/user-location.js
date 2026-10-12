@@ -1,10 +1,10 @@
-import { accuracyState, assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=system-closeout-3";
-import { createGeolocationService } from "./geolocation.js?v=system-closeout-3";
+import { accuracyState, assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=location-reliability-1";
+import { createGeolocationService } from "./geolocation.js?v=location-reliability-1";
 import { createDeviceOrientationService, DEVICE_HEADING_STALE_MS,
   createHeadingOppositionDiagnostic, headingDiagnosticSnapshot, screenOrientationDegrees,
-  selectDisplayedHeading } from "./device-orientation.js?v=system-closeout-3";
+  selectDisplayedHeading } from "./device-orientation.js?v=location-reliability-1";
 
-export const INITIAL_LOCATION_ACQUISITION_MAX_MS = 10_000;
+export const INITIAL_LOCATION_ACQUISITION_MAX_MS = 20_000;
 export const LIVE_LOCATION_STALE_AFTER_MS = 30_000;
 export const LIVE_LOCATION_RESUME_REACQUIRE_MS = 30_000;
 
@@ -14,8 +14,10 @@ const COPY = {
   "requesting-permission": "Allow location access to show your position on the map.",
   locating: "Finding your location…",
   "warming-up": "Location quality improving...",
+  retrying: "GPS is temporarily unavailable. Still trying for a fresh position...",
+  "needs-precision": "Precise location is not confirmed yet. Move outdoors or enable Precise location; still trying.",
   active: "Live location active.",
-  "low-accuracy": "Location found with limited accuracy.",
+  "low-accuracy": "Approximate position only. Live routing is waiting for better accuracy.",
   "permission-denied": "Location access was denied. You can still choose a starting point manually.",
   unavailable: "Your location is temporarily unavailable. Try again or use a manual start.",
   "timed-out": "Location is taking too long. Try again or use a manual start.",
@@ -94,7 +96,8 @@ export function createUserLocation({
     state = nextState;
     element.dataset.state = state;
     message.textContent = COPY[state];
-    locateButton.hidden = ["requesting-permission", "locating", "warming-up", "active", "low-accuracy", "retained", "refreshing"].includes(state);
+    locateButton.hidden = ["requesting-permission", "locating", "warming-up", "retrying",
+      "needs-precision", "active", "low-accuracy", "retained", "refreshing"].includes(state);
     locateButton.disabled = state === "unsupported";
     recenterButton.hidden = !acceptedPosition;
     stopButton.hidden = !trackingRequested;
@@ -141,11 +144,23 @@ export function createUserLocation({
       motionState: stabilized.motionState, freshness: stabilized.freshness });
   }
 
+  function navigationReady(stabilized, position = stabilized?.sample) {
+    return Boolean(position) && stabilized?.quality === "reasonable" &&
+      stabilized?.confidence !== "unstable";
+  }
+
+  function resetAcquisitionEvidence() {
+    lastRawAccepted = null;
+    stabilizer.reset();
+    headingOpposition.reset();
+  }
+
   function publishRetained(stabilized) {
     reacquisitionActive = false;
     clearAcquisitionDeadline();
     acceptedPosition = { ...stabilized.sample, freshness: "retained",
-      retainedAgeMs: stabilized.retainedAgeMs };
+      retainedAgeMs: stabilized.retainedAgeMs,
+      navigationReady: stabilized.sample.navigationReady ?? navigationReady(stabilized) };
     notifyPosition(acceptedPosition, stabilized);
     scheduleFreshnessExpiry();
     render("retained");
@@ -170,13 +185,14 @@ export function createUserLocation({
     }
     clearAcquisitionDeadline();
     reacquisitionActive = false;
-    acceptedPosition = { ...stabilized.sample, freshness: "fresh" };
+    acceptedPosition = { ...stabilized.sample, freshness: "fresh",
+      navigationReady: navigationReady(stabilized), supportedAreaValid: true };
     headingOpposition.update({
       deviceHeading,
       movementHeading: acceptedPosition.headingDegrees,
       speedMetresPerSecond: acceptedPosition.speedMetresPerSecond,
     });
-    const shouldFocus = !focusedInitially && stabilized.quality !== "provisional";
+    const shouldFocus = !focusedInitially && acceptedPosition.navigationReady;
     if (shouldFocus) focusedInitially = true;
     notifyPosition(acceptedPosition, stabilized, { focus: shouldFocus });
     scheduleFreshnessExpiry();
@@ -185,7 +201,7 @@ export function createUserLocation({
   }
 
   function receive(rawPosition) {
-    const result = assessSample(rawPosition, lastRawAccepted);
+    const result = assessSample(rawPosition, lastRawAccepted, { currentTime: now() });
     if (!result.accepted) {
       if (acceptedPosition && result.reason === "poor-accuracy") {
         publishRetained({ ready: true, reason: "keep-better-position",
@@ -193,7 +209,9 @@ export function createUserLocation({
           freshness: "retained", retainedAgeMs: Math.max(0, result.sample.timestamp - acceptedPosition.timestamp),
           moved: false, motionState: acceptedPosition.motionState || "stationary" });
       }
-      else if (!acceptedPosition && ["poor-accuracy", "keep-better-position"].includes(result.reason)) render("locating");
+      else if (!acceptedPosition && ["poor-accuracy", "keep-better-position", "stale"].includes(result.reason)) {
+        render(state === "needs-precision" ? "needs-precision" : "warming-up");
+      }
       return result;
     }
     lastRawAccepted = result.sample;
@@ -211,34 +229,49 @@ export function createUserLocation({
     acquisitionDeadline = null;
     if (reacquisitionActive) {
       reacquisitionActive = false;
-      render(acceptedPosition ? "retained" : "unavailable");
+      if (acceptedPosition) {
+        scheduleFreshnessExpiry();
+        render("retained");
+      } else {
+        render("needs-precision");
+      }
       return;
     }
     if (acceptedPosition || !trackingRequested) return;
-    const stabilized = stabilizer.finalize();
-    if (!publishStabilized(stabilized) && state !== "outside-area") render("timed-out");
+    render("needs-precision");
   }
 
-  function restartFreshAcquisition({ preserveDisplayed = true, notifyClear = true } = {}) {
+  function restartFreshAcquisition({ preserveDisplayed = true, hardReset = !preserveDisplayed,
+    notifyClear = true, clearReason = "refreshing" } = {}) {
     if (!trackingRequested) return false;
     if (reacquisitionActive) return true;
     reacquisitionActive = true;
-    focusedInitially = Boolean(acceptedPosition);
-    if (acceptedPosition && preserveDisplayed) {
+    const previousPosition = acceptedPosition;
+    focusedInitially = preserveDisplayed && Boolean(previousPosition);
+    if (hardReset) {
+      acceptedPosition = null;
+      focusedInitially = false;
+      resetAcquisitionEvidence();
+      if (notifyClear) onClear({ reason: clearReason, reacquiring: true });
+    } else if (previousPosition && preserveDisplayed) {
       acceptedPosition = { ...acceptedPosition, freshness: "retained" };
       notifyPosition(acceptedPosition, {
         quality: accuracyState(acceptedPosition.accuracyMetres), moved: false,
         motionState: acceptedPosition.motionState || "stationary", freshness: "retained",
       });
+      scheduleFreshnessExpiry();
     } else if (!preserveDisplayed) {
       acceptedPosition = null;
-      if (notifyClear) onClear({ reason: "refreshing", reacquiring: true });
+      if (notifyClear) onClear({ reason: clearReason, reacquiring: true });
     }
     render("refreshing");
     startAcquisitionDeadline();
     const restarted = service.reacquire?.();
     if (restarted === undefined) service.resume?.();
-    if (restarted === false) reacquisitionActive = false;
+    if (restarted === false) {
+      reacquisitionActive = false;
+      fail("unavailable");
+    }
     return restarted !== false;
   }
 
@@ -253,7 +286,23 @@ export function createUserLocation({
     acceptedPosition = null;
     focusedInitially = false;
     onClear({ reason: "stale", reacquiring: true });
-    if (!restartFreshAcquisition({ preserveDisplayed: false, notifyClear: false })) fail("unavailable");
+    restartFreshAcquisition({ preserveDisplayed: false, hardReset: true,
+      notifyClear: false, clearReason: "stale" });
+  }
+
+  function receiveServiceError(nextState, details = {}) {
+    if (["permission-denied", "unsupported"].includes(nextState) || !details.willRetry) {
+      fail(nextState);
+      return;
+    }
+    if (!trackingRequested) return;
+    if (acceptedPosition) {
+      acceptedPosition = { ...acceptedPosition, freshness: "retained" };
+      scheduleFreshnessExpiry();
+      render("retained");
+    } else {
+      render("retrying");
+    }
   }
 
   function fail(nextState) {
@@ -261,10 +310,9 @@ export function createUserLocation({
       clearAcquisitionDeadline();
       clearFreshnessDeadline();
       reacquisitionActive = false;
-      if (["unsupported", "permission-denied"].includes(nextState)) trackingRequested = false;
-      lastRawAccepted = null;
-      stabilizer.reset();
-      headingOpposition.reset();
+      trackingRequested = false;
+      service.stop?.();
+      resetAcquisitionEvidence();
       focusedInitially = false;
       if (acceptedPosition) {
         acceptedPosition = null;
@@ -281,6 +329,9 @@ export function createUserLocation({
     }
     trackingRequested = true;
     reacquisitionActive = false;
+    acceptedPosition = null;
+    focusedInitially = false;
+    resetAcquisitionEvidence();
     // Called directly from the Locate me gesture so permission-gated browsers
     // may display their orientation prompt. Failure never blocks GPS startup.
     void orientationService.start(receiveOrientation, () => publishHeading());
@@ -288,7 +339,7 @@ export function createUserLocation({
     startAcquisitionDeadline();
     return service.start(
       (position) => { if (!acceptedPosition) render("locating"); receive(position); },
-      fail,
+      receiveServiceError,
     );
   }
 
@@ -320,7 +371,8 @@ export function createUserLocation({
     } else {
       const age = acceptedPosition ? Math.max(0, now() - acceptedPosition.timestamp) : Infinity;
       if (!acceptedPosition || age >= LIVE_LOCATION_RESUME_REACQUIRE_MS) {
-        restartFreshAcquisition();
+        restartFreshAcquisition({ preserveDisplayed: false, hardReset: true,
+          clearReason: "stale" });
       } else {
         service.resume();
         scheduleFreshnessExpiry();
@@ -337,7 +389,7 @@ export function createUserLocation({
 
   return {
     start, stop, receive,
-    refresh: () => restartFreshAcquisition(),
+    refresh: () => restartFreshAcquisition({ preserveDisplayed: false, hardReset: true }),
     getState: () => state,
     getAcceptedPosition: () => acceptedPosition,
     getHeadingDiagnostic() {

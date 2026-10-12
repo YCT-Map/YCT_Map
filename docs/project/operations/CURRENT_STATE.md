@@ -9,11 +9,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-10-05 |
+| **Date** | 2026-10-12 |
 | **Branch** | `main` |
-| **Current Phase** | PHASE 4 — FINAL SYSTEM CLOSEOUT SWEEP COMPLETE |
-| **Pipeline Phase** | FINAL SYSTEM CLOSEOUT SWEEP — IMPLEMENTED & TESTED LOCALLY / READY FOR OWNER REVIEW |
-| **Latest Meaningful State** | Live location routing fixed on campus (80m safe match threshold & 350m landmark fallback), Render build.sh executable bit verified, automatic label assignment on deploy, asset token `system-closeout-3` |
+| **Current Phase** | PHASE 4 — POST-CLOSEOUT LOCATION RELIABILITY CORRECTION |
+| **Pipeline Phase** | LIVE-LOCATION RELIABILITY HARDENING — IMPLEMENTED LOCALLY / OWNER RETEST REQUIRED |
+| **Latest Meaningful State** | Fresh multi-sample public location acquisition, hard-reset reacquisition, explicit navigation readiness and transient GPS recovery; local asset token `location-reliability-1` |
 
 ---
 
@@ -21,16 +21,16 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | FINAL SYSTEM CLOSEOUT SWEEP COMPLETE; ALL V1 FEATURES POLISHED & HARDENED |
+| Application implementation | FINAL SYSTEM CLOSEOUT SWEEP COMPLETE; LIVE-LOCATION RELIABILITY CORRECTION IMPLEMENTED LOCALLY |
 | Product definition | COMPLETE FOR V1 |
-| Documentation / governance | COMPLETE & CURRENT (DEC-T01 through DEC-T22 accepted) |
+| Documentation / governance | CURRENT THROUGH LOCAL LIVE-LOCATION RELIABILITY CORRECTION |
 | Build pipeline | COMPLETE THROUGH PHASE 4 CLOSEOUT |
 | Tech stack & architecture decisions | RESOLVED (DEC-T01–DEC-T22 accepted; no schema migration 0011) |
 | Campus production dataset | INITIAL OWNER-CONFIRMED DATA: New Building, Sports Complex, Food Tech New Building |
 | Field verification | LOCAL BASELINE AUDITED AND VERIFIED VIA COMMAND; PRODUCTION PROMOTION COMMANDS STAGED FOR OWNER |
 | Routing dataset | 49 active nodes (1..49) and 54 active segments (A..BB); 3 active entrance anchors |
-| Deployment | RENDER + NEON PRODUCTION SERVICE READY; LOCAL WORKING TREE HAS NOT WRITTEN TO PRODUCTION |
-| Test suite | 254 DJANGO + 149 JAVASCRIPT TESTS PASSING (100% GREEN, ZERO REGRESSIONS) |
+| Deployment | EXISTING RENDER + NEON SERVICE UNCHANGED; THIS LOCAL CORRECTION IS NOT COMMITTED, PUSHED OR DEPLOYED |
+| Test suite | 255 DJANGO + 153 JAVASCRIPT TESTS PASSING; SYSTEM, MIGRATION, SYNTAX AND WHITESPACE GATES CLEAN |
 
 ---
 
@@ -145,6 +145,10 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ## Active Work
 
+The public live-location reliability correction is **IMPLEMENTED LOCALLY / OWNER RETEST REQUIRED** on top of commit `bda6992`. Cold starts and reacquisition now request uncached browser fixes (`maximumAge: 0`) and reject epoch-based callbacks older than five seconds. The public marker is not published, focused or made route-eligible until at least three reasonable fixes converge across at least three seconds. The 20-second acquisition deadline now changes the guidance state only: it never promotes one callback, and the watcher continues trying.
+
+Manual refresh, stale-position expiry and foreground return after at least 30 seconds clear the displayed point plus all previous-session filter evidence before reacquiring. A lone callback can therefore no longer borrow history from a previous location session. Retryable timeout/unavailable events keep acquisition alive, or retain an existing confirmed estimate with its original evidence timestamp, rather than causing terminal error churn. Live route setup now additionally requires the explicit `navigationReady` signal; accurate-looking but unconfirmed positions cannot become route origins. The marker remains unsnapped, coordinates remain transient, the routing graph and backend matching rules are unchanged, and the production service/database have not been touched. Local browser assets use `location-reliability-1` so an eventual deployment cannot reuse the previous mobile bundle.
+
 The off-network live-start correction is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED on top of commit `a3e059b`. Real-device evidence showed that a precise Sports Complex position can still be about 65 m from the nearest mapped segment, beyond the unchanged 40 m safety threshold. When that specific safe-match failure occurs near another route-capable campus place, the public client now offers the existing mapped route from that place's configured entrance and holds progress/rerouting until the user reaches the entrance. It explicitly states that no route from the live dot to the entrance is claimed. No graph geometry, backend matching threshold, destination data, migration or verification state is changed.
 
 The local graph audit found 49 active nodes and 54 active segments in strongly connected components of 41, 6, 1 and 1 nodes. All three local route-capable destinations and entrance anchors are in the 41-node component; every ordered destination pair routes successfully and all active segment models validate. The final closeout normalized all active node labels to positive sequential integers (1..49) and all active segment labels to uppercase bijective base-26 sequences (A..BB). All source references and provenance remain intact in source_reference and source_type.
@@ -161,16 +165,16 @@ Graph visualization on the walkable path editor overview (`/editor/paths/`) and 
 
 ## Known Blockers
 
-None. All 255 Django tests and 149 JavaScript tests pass cleanly. Live location routing connects across campus and Render auto-deploys cleanly.
+Physical Samsung/Edge retesting is required for cold start, return after more than 30 seconds in the background, temporary GPS timeout/unavailable recovery, stationary use and an actual walking route. Browser geolocation remains limited by phone hardware, radio visibility, OS settings and the browser; this correction prevents stale or weak evidence from being presented as confirmed accuracy but cannot create native/Google-grade sensor fusion.
 
 ---
 
 ## Next Approved Task
 
-Owner verification on live mobile devices within the YabaTech campus network and confirmation of active Render deployment.
+Owner verification of the local corrected build on a live mobile device. Commit, push and deployment require separate owner authorization after that review.
 
 ---
 
 ## Deployment Status
 
-Pushed to `main`. Render build script contains execute permissions and auto-runs `assign_graph_display_labels --apply`. Cache buster token synchronized to `system-closeout-3`.
+The existing production deployment remains on the last pushed baseline. This dirty local build uses cache token `location-reliability-1`; it has not been committed, pushed or deployed. No Neon, Render, migration, graph or verification-state operation was performed.

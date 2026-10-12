@@ -24,7 +24,7 @@ PHASES 1, 2 and 3 are OWNER ACCEPTED / COMPLETE.
 - Approved contributions require explicit authenticated editor action; approval and resolution intentionally do not automatically publish, alter map data or grant `FIELD_VERIFIED`.
 - Sprint 002 implementation remains present and regression-tested, but its dedicated owner acceptance is still explicitly deferred.
 - Path Survey evidence, revision-bound matching, cumulative one-way promotion and explicit verification transitions are implemented. Review-only `SurveySegmentMatch` decisions now store the latest actor and timestamp; pre-migration decisions correctly remain labelled as historical reviews without fabricated audit metadata.
-- Browser geolocation is an uncertainty-bearing estimate, not survey-grade positioning. The closeout filter reduces jitter and stale-fix risk but cannot improve device hardware, radio visibility or browser sensor quality; physical Samsung/Edge validation remains required.
+- Browser geolocation is an uncertainty-bearing estimate, not survey-grade positioning. The local reliability correction rejects cached/old callbacks, requires fresh multi-sample convergence and hard-resets long-idle evidence, but it cannot improve device hardware, radio visibility, OS sensor fusion or browser quality. Physical Samsung/Edge cold-start, long-resume, weak-signal, stationary and walking validation remains required.
 
 ---
 
@@ -89,6 +89,18 @@ Impact:       A precise live position inside Sports Complex can be about 65 m fr
 Workaround:   Choose Sports Complex as a mapped start in the committed build.
 Resolution:   On this specific safe-match failure, offer the existing route from a nearby route-capable place entrance, disclose the unmapped approach and delay live progress/rerouting until the route start is reached.
 Status:       RESOLVED LOCALLY; physical Samsung/Edge owner retest pending.
+```
+
+### KI-005
+
+```
+ID:           KI-005
+Severity:     HIGH
+Type:         BUG / LOCATION FRESHNESS
+Impact:       A cached or lone accurate-looking callback could publish after startup, and a long-idle reacquisition could reuse an earlier session's stabilizer evidence. The map could therefore appear confidently positioned at an old or insufficiently confirmed coordinate.
+Workaround:   In the deployed baseline, stop and restart location outdoors with Precise Location enabled; do not begin live routing until the marker visibly agrees with the user's position.
+Resolution:   Disallow cached initial fixes, reject browser callbacks older than five seconds, require fresh multi-sample convergence, never promote one fix at the acquisition deadline, hard-reset long-idle/manual reacquisition evidence and gate routing on explicit confirmation.
+Status:       RESOLVED LOCALLY; physical Samsung/Edge owner retest pending. Not committed, pushed or deployed.
 ```
 
 ---

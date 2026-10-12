@@ -1,5 +1,5 @@
 export const GEOLOCATION_OPTIONS = Object.freeze({
-  initial: { enableHighAccuracy: true, timeout: 12_000, maximumAge: 15_000 },
+  initial: { enableHighAccuracy: true, timeout: 12_000, maximumAge: 0 },
   watch: { enableHighAccuracy: true, timeout: 20_000, maximumAge: 0 },
 });
 
@@ -26,7 +26,7 @@ export function createGeolocationService({ geolocation = globalThis.navigator?.g
         const state = normalizeGeolocationError(error);
         const onError = callbacks?.onError;
         if (state === "permission-denied") stop();
-        onError?.(state);
+        onError?.(state, { phase: "watch", willRetry: state !== "permission-denied" });
       },
       GEOLOCATION_OPTIONS.watch,
     );
@@ -42,7 +42,10 @@ export function createGeolocationService({ geolocation = globalThis.navigator?.g
       (error) => {
         if (token !== generation) return;
         const state = normalizeGeolocationError(error);
-        callbacks?.onError(state);
+        callbacks?.onError(state, {
+          phase: "initial",
+          willRetry: state !== "permission-denied",
+        });
         if (state !== "permission-denied") startWatch(token);
       },
       GEOLOCATION_OPTIONS.initial,

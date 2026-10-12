@@ -1,7 +1,9 @@
+from datetime import timedelta
 from decimal import Decimal
 from io import StringIO
 from django.core.management import call_command
 from django.test import TestCase
+from django.utils import timezone
 
 from locations.models import Entrance, Location
 from routing.models import (
@@ -75,6 +77,14 @@ class ManagementCommandsTests(TestCase):
             source_reference="QA Node A",
             source_type="manual",
             verification_state=VerificationState.UNVERIFIED,
+        )
+        # The command deliberately falls back to source reference/UUID when
+        # creation timestamps tie. Make this test's intended creation order
+        # independent of filesystem/SQLite clock resolution.
+        node_created_at = timezone.now()
+        WalkableNode.objects.filter(pk=self.node1.pk).update(created_at=node_created_at)
+        WalkableNode.objects.filter(pk=self.node2.pk).update(
+            created_at=node_created_at + timedelta(microseconds=1),
         )
 
         # Segment

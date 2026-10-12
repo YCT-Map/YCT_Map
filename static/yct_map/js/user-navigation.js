@@ -1,6 +1,6 @@
 import { createLiveRouteTracker, distanceMetres,
-  formatEta } from "./live-route-progress.js?v=system-closeout-3";
-import { createOffRouteDetector } from "./off-route.js?v=system-closeout-3";
+  formatEta } from "./live-route-progress.js?v=location-reliability-1";
+import { createOffRouteDetector } from "./off-route.js?v=location-reliability-1";
 
 export const MAX_LIVE_POSITION_AGE_MS = 30_000;
 export const NEARBY_MAPPED_START_MAX_METRES = 350;
@@ -12,6 +12,7 @@ const LIVE_ROUTE_FINAL_MESSAGE = "Your location is clear, but it cannot yet be s
 export function isLivePositionRouteUsable(position, { now = Date.now(),
   maxAgeMs = MAX_LIVE_POSITION_AGE_MS } = {}) {
   if (!position || position.accuracyMetres > 40 || !Number.isFinite(position.timestamp)) return false;
+  if (position.navigationReady !== true) return false;
   if (position.freshness === "stale" || position.supportedAreaValid === false) return false;
   return now - position.timestamp <= maxAgeMs;
 }
@@ -92,11 +93,13 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   function updateLiveOption() {
     const usable = livePositionUsable();
     const stale = Boolean(livePosition) && !usable;
+    const awaitingConfirmation = Boolean(livePosition) && livePosition.navigationReady !== true;
     const retained = usable && livePosition?.freshness === "retained";
     const status = retained
       ? `Recent stable position Â· ~${Math.round(livePosition.accuracyMetres)} m`
       : usable ? `Live location ready Â· ~${Math.round(livePosition.accuracyMetres)} m`
         : livePositionRefreshing ? "Refreshing current location"
+          : awaitingConfirmation ? "Waiting for a confirmed current location"
           : stale || selectedOrigin === "__live__" ? "Current location needs refreshing" : "Locate first";
     const signature = `${usable}:${status}`;
     if (signature !== liveOptionSignature) {

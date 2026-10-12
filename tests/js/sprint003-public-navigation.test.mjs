@@ -2,8 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createDestinationPanel } from "../../static/yct_map/js/destination-panel.js";
-import { createUserNavigation, findNearbyMappedStart, isLivePositionRouteUsable,
+import { createUserNavigation as createUserNavigationImplementation, findNearbyMappedStart, isLivePositionRouteUsable,
   MAX_LIVE_POSITION_AGE_MS, NEARBY_MAPPED_START_MAX_METRES } from "../../static/yct_map/js/user-navigation.js";
+
+function createUserNavigation(options) {
+  const controller = createUserNavigationImplementation(options);
+  const updateLivePosition = controller.updateLivePosition;
+  controller.updateLivePosition = (position) => updateLivePosition({ navigationReady: true, ...position });
+  return controller;
+}
 
 class FakeElement {
   constructor(ownerDocument) {
@@ -242,7 +249,7 @@ test("accepted live position is offered and sent through the protected live rout
 
 test("route usability separates recent retained position from genuinely stale position", () => {
   const retained = { longitude: 3.374, latitude: 6.518, accuracyMetres: 12,
-    timestamp: 1_000, freshness: "retained" };
+    timestamp: 1_000, freshness: "retained", navigationReady: true };
   assert.equal(isLivePositionRouteUsable(retained, { now: 26_000 }), true);
   assert.equal(isLivePositionRouteUsable(retained, {
     now: 1_000 + MAX_LIVE_POSITION_AGE_MS + 1,
@@ -250,6 +257,24 @@ test("route usability separates recent retained position from genuinely stale po
   assert.equal(isLivePositionRouteUsable({ ...retained, freshness: "stale" }, { now: 2_000 }), false);
   assert.equal(isLivePositionRouteUsable({ ...retained, accuracyMetres: 41 }, { now: 2_000 }), false);
   assert.equal(isLivePositionRouteUsable({ ...retained, supportedAreaValid: false }, { now: 2_000 }), false);
+  assert.equal(isLivePositionRouteUsable({ ...retained, navigationReady: false }, { now: 2_000 }), false,
+    "an accurate-looking but unconfirmed fix must not become a route origin");
+});
+
+test("live directions remain disabled until the location controller confirms readiness", async () => {
+  const harness = createHarness(navigationSelectors());
+  let requests = 0;
+  const controller = createUserNavigationImplementation({
+    panel: harness.panel, features: [destination, origin], routeUrl: "/api/routes/",
+    liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {}, now: () => 1_000,
+    requestRoute: async () => { requests += 1; return { ok: true, json: async () => routePayload() }; },
+  });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 5,
+    timestamp: 1_000, navigationReady: false });
+  controller.begin(destination);
+  assert.equal(harness.get("#user-route-origin-live").disabled, true);
+  assert.match(harness.get("#user-route-live-status").textContent, /confirmed|improving/i);
+  assert.equal(requests, 0);
 });
 
 test("nearby mapped start is bounded, routable, and never substitutes the destination itself", () => {
@@ -446,7 +471,8 @@ test("failed reroute retains guidance and exposes a retry action", async () => {
       return { ok: false, json: async () => ({ error: "No safe network match.", code: "NO_SAFE_NETWORK_MATCH" }) };
     },
   });
-  const position = { longitude: 3.374, latitude: 6.518, accuracyMetres: 5, timestamp: 1_000 };
+  const position = { longitude: 3.374, latitude: 6.518, accuracyMetres: 5,
+    timestamp: 1_000, navigationReady: true };
   controller.updateLivePosition(position);
   controller.begin(destination);
   chooseLiveOrigin(harness);

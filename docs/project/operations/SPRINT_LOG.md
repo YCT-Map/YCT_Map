@@ -950,3 +950,23 @@ Owner review and explicit Sprint 001 acceptance. Do not begin Sprint 002 automat
 
 
 
+---
+
+## Public Live-Location Reliability Hardening
+
+**Status:** IMPLEMENTED & VERIFIED LOCALLY — OWNER DEVICE RETEST REQUIRED
+
+**Date:** 2026-10-12
+
+**Baseline:** `bda6992b5f748946793deae310b800213f922d3e`
+
+- Forced fresh browser acquisition on start and reacquisition (`maximumAge: 0`) and rejected epoch-based callbacks older than five seconds so a cached coordinate cannot appear as a new fix.
+- Required at least three reasonable fixes spanning at least three seconds before the public marker can be displayed, focused or marked `navigationReady`. Rapid callback count and one accurate-looking reading are not treated as confirmation.
+- Changed the acquisition deadline to 20 seconds of user guidance only. It does not promote a single sample or stop the watcher; later coherent evidence can still recover without another tap.
+- Hard-reset displayed position, previous raw reference and stabilizer history on manual refresh, stale expiry and foreground return after at least 30 seconds. This deliberately supersedes the earlier single-fix/preserved-history reacquisition contract, which could let old-session evidence confirm a new position.
+- Distinguished retryable timeout/unavailable events from permission/unsupported failures. Retryable errors keep acquisition running or retain a still-valid confirmed coordinate without refreshing its evidence timestamp.
+- Added an explicit route-origin readiness gate. Live directions remain unavailable until the location controller confirms a fresh, stable, supported-area position; map rendering remains unsnapped and routing/network matching algorithms are unchanged.
+- Synchronized browser cache invalidation under `location-reliability-1` and added/updated regression coverage for cold start, stale callbacks, high-frequency callbacks, convergence, transient errors, refresh, background resume, route readiness and editor field capture.
+- Verification passes with **255 Django tests** and **153 JavaScript tests**, plus Django system check, migration-drift check, Python and JavaScript syntax validation and Git whitespace validation. One unrelated graph-label test exposed an existing UUID/order-sensitive assertion on the first full run and passed on isolated and final full rerun; no routing-label implementation was changed.
+- No model, migration, database data, graph geometry, verification state, survey evidence, Neon/Render setting, production resource, commit, push or deployment is included. Browser geolocation still cannot reproduce native/Google sensor fusion; physical Samsung/Edge retesting remains required.
+

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { assessSample, createLocationStabilizer, locationQualityLabel, normalizePosition } from "../../static/yct_map/js/location-filter.js";
-import { createGeolocationService } from "../../static/yct_map/js/geolocation.js";
+import { createGeolocationService, GEOLOCATION_OPTIONS } from "../../static/yct_map/js/geolocation.js";
 import { createUserLocation, LIVE_LOCATION_STALE_AFTER_MS } from "../../static/yct_map/js/user-location.js";
 
 function position({ longitude = 3.374, latitude = 6.519, accuracy = 12, timestamp = 1_000,
@@ -32,6 +32,15 @@ test("filter accepts useful updates while rejecting poor accuracy, stale data an
   assert.equal(update.accepted, true);
 });
 
+test("a cached browser fix older than the fresh-acquisition window is rejected", () => {
+  const clock = Date.UTC(2026, 9, 12, 12, 0, 0);
+  const stale = assessSample(position({ timestamp: clock - 6_000 }), null, { currentTime: clock });
+  assert.equal(stale.accepted, false);
+  assert.equal(stale.reason, "stale");
+  const fresh = assessSample(position({ timestamp: clock - 1_000 }), null, { currentTime: clock });
+  assert.equal(fresh.accepted, true);
+});
+
 test("public stabilizer warms up, suppresses uncertainty-sized jitter and releases walking", () => {
   const stabilizer = createLocationStabilizer();
   const first = normalizePosition(position({ accuracy: 8, timestamp: 1_000 }));
@@ -56,6 +65,19 @@ test("public stabilizer warms up, suppresses uncertainty-sized jitter and releas
   assert.equal(locationQualityLabel(7), "Good");
   assert.equal(locationQualityLabel(40), "Fair");
   assert.equal(locationQualityLabel(80), "Poor");
+});
+
+test("public stabilizer never promotes one fix or rapid callbacks without enough observation time", () => {
+  const stabilizer = createLocationStabilizer();
+  stabilizer.update(normalizePosition(position({ timestamp: 1_000, accuracy: 8 })), "reasonable");
+  assert.equal(stabilizer.finalize().reason, "unconfirmed-fix");
+  for (const [longitude, timestamp] of [[3.374001, 1_200], [3.374002, 1_400], [3.374003, 1_600]]) {
+    const result = stabilizer.update(normalizePosition(position({ longitude, timestamp, accuracy: 8 })), "reasonable");
+    assert.equal(result.ready, false, "callback count alone must not prove location convergence");
+  }
+  const confirmed = stabilizer.update(normalizePosition(position({ longitude: 3.374004,
+    timestamp: 2_600, accuracy: 8 })), "reasonable");
+  assert.equal(confirmed.ready, true);
 });
 
 test("rolling estimate corrects an early biased fix and reports observed instability", () => {
@@ -175,16 +197,22 @@ test("geolocation service reports unsupported and cleans up its watcher", () => 
 
   let initialSuccess;
   let watchSuccess;
+  let initialOptions;
+  let watchOptions;
   const cleared = [];
   const geolocation = {
-    getCurrentPosition(success) { initialSuccess = success; },
-    watchPosition(success) { watchSuccess = success; return 17; },
+    getCurrentPosition(success, _error, options) { initialSuccess = success; initialOptions = options; },
+    watchPosition(success, _error, options) { watchSuccess = success; watchOptions = options; return 17; },
     clearWatch(id) { cleared.push(id); },
   };
   const received = [];
   const service = createGeolocationService({ geolocation });
   assert.equal(service.start((sample) => received.push(sample), () => {}), true);
+  assert.equal(initialOptions.maximumAge, 0);
+  assert.deepEqual(initialOptions, GEOLOCATION_OPTIONS.initial);
   initialSuccess(position());
+  assert.equal(watchOptions.maximumAge, 0);
+  assert.deepEqual(watchOptions, GEOLOCATION_OPTIONS.watch);
   watchSuccess(position({ timestamp: 2_000 }));
   assert.equal(received.length, 2);
   service.stop();
@@ -230,10 +258,11 @@ test("an obsolete initial request cannot restart a watcher or publish a stale po
 
 test("fresh reacquisition replaces the watcher without duplicating it", () => {
   const initialCallbacks = [];
+  const initialOptions = [];
   const cleared = [];
   let watchId = 0;
   const geolocation = {
-    getCurrentPosition(success) { initialCallbacks.push(success); },
+    getCurrentPosition(success, _error, options) { initialCallbacks.push(success); initialOptions.push(options); },
     watchPosition() { watchId += 1; return watchId; },
     clearWatch(id) { cleared.push(id); },
   };
@@ -243,6 +272,7 @@ test("fresh reacquisition replaces the watcher without duplicating it", () => {
   assert.equal(watchId, 1);
   assert.equal(service.reacquire(), true);
   assert.deepEqual(cleared, [1]);
+  assert.deepEqual(initialOptions.map((options) => options.maximumAge), [0, 0]);
   initialCallbacks[1](position({ timestamp: 2_000 }));
   assert.equal(watchId, 2, "reacquisition starts exactly one replacement watcher");
   service.stop();
@@ -340,7 +370,41 @@ test("a location-service failure clears the old route origin instead of retainin
   assert.equal(cleared,1);
 });
 
-test("initial acquisition has a strict ten-second fallback without slowing later updates", () => {
+test("retryable GPS errors keep acquisition alive and do not clear a confirmed position", () => {
+  const harness = locationHarness();
+  let positionCallback;
+  let errorCallback;
+  let cleared = 0;
+  const shown = [];
+  const controller = createUserLocation({
+    element: harness.root,
+    service: {
+      isSupported: true,
+      start(onPosition, onError) { positionCallback = onPosition; errorCallback = onError; return true; },
+      stop() {}, resume() {},
+    },
+    documentObject: { hidden: false, addEventListener() {}, removeEventListener() {} },
+    onPosition: (sample) => shown.push(sample), onClear() { cleared += 1; }, onRecenter() {},
+  });
+  controller.start();
+  errorCallback("timed-out", { phase: "initial", willRetry: true });
+  assert.equal(controller.getState(), "retrying");
+  assert.equal(cleared, 0);
+  for (const [longitude, timestamp] of [
+    [3.374, 1_000], [3.374001, 2_000], [3.374002, 3_000], [3.374003, 4_000],
+  ]) positionCallback(position({ longitude, timestamp, accuracy: 6 }));
+  assert.equal(controller.getState(), "active");
+  const confirmedTimestamp = controller.getAcceptedPosition().timestamp;
+  errorCallback("unavailable", { phase: "watch", willRetry: true });
+  assert.equal(controller.getState(), "retained");
+  assert.equal(controller.getAcceptedPosition().timestamp, confirmedTimestamp,
+    "a transient error must not make retained evidence appear newer");
+  assert.equal(cleared, 0);
+  assert.equal(shown.at(-1).navigationReady, true);
+  controller.destroy();
+});
+
+test("initial acquisition deadline never publishes one unconfirmed fix and keeps trying", () => {
   const harness = locationHarness();
   let positionCallback;
   const deadlines = new Map();
@@ -358,12 +422,17 @@ test("initial acquisition has a strict ten-second fallback without slowing later
   controller.start();
   positionCallback(position({ accuracy: 18, timestamp: 1_000 }));
   assert.equal(shown.length, 0);
-  const acquisition = [...deadlines.values()].find((item) => item.delay === 10_000);
+  const acquisition = [...deadlines.values()].find((item) => item.delay === 20_000);
   acquisition.callback();
-  assert.equal(shown.length, 1, "the best usable fix is published at the strict deadline");
+  assert.equal(shown.length, 0, "one accurate-looking callback is not enough evidence to place the user");
+  assert.equal(controller.getAcceptedPosition(), null);
+  assert.equal(controller.getState(), "needs-precision");
 
-  positionCallback(position({ longitude: 3.37404, accuracy: 8, timestamp: 12_000 }));
-  assert.ok(shown.length >= 2, "rolling live updates do not incur another acquisition delay");
+  for (const [longitude, timestamp] of [[3.37401, 2_000], [3.374012, 3_000], [3.374014, 4_000]]) {
+    positionCallback(position({ longitude, accuracy: 8, timestamp }));
+  }
+  assert.equal(shown.length, 1, "a later coherent cluster can complete the still-running acquisition");
+  assert.equal(shown[0].navigationReady, true);
   controller.destroy();
 });
 
@@ -409,7 +478,7 @@ test("retained position is labelled honestly and expires into fresh reacquisitio
   controller.destroy();
 });
 
-test("ordinary refresh preserves filter history so one good callback restores readiness", () => {
+test("manual refresh discards old evidence and requires a newly confirmed fix", () => {
   const harness = locationHarness();
   let positionCallback;
   let reacquisitions = 0;
@@ -418,11 +487,7 @@ test("ordinary refresh preserves filter history so one good callback restores re
     isSupported: true,
     start(onPosition) { positionCallback = onPosition; return true; },
     stop() {}, resume() {},
-    reacquire() {
-      reacquisitions += 1;
-      positionCallback(position({ longitude: 3.374004, timestamp: 6_000, accuracy: 6 }));
-      return true;
-    },
+    reacquire() { reacquisitions += 1; return true; },
   };
   const controller = createUserLocation({
     element: harness.root, service,
@@ -437,13 +502,18 @@ test("ordinary refresh preserves filter history so one good callback restores re
   const before = shown.length;
   assert.equal(controller.refresh(), true);
   assert.equal(reacquisitions, 1);
-  assert.ok(shown.length > before, "one fresh callback should reuse established history, not restart warmup");
-  assert.equal(controller.getAcceptedPosition().timestamp, 6_000);
-  assert.notEqual(controller.getState(), "warming-up");
+  assert.equal(controller.getAcceptedPosition(), null);
+  positionCallback(position({ longitude: 3.3742, timestamp: 6_000, accuracy: 6 }));
+  assert.equal(shown.length, before, "one callback must not reuse evidence from the previous session");
+  for (const [longitude, timestamp] of [
+    [3.374201, 7_000], [3.374202, 8_000], [3.374203, 9_000],
+  ]) positionCallback(position({ longitude, timestamp, accuracy: 6 }));
+  assert.equal(shown.length, before + 1);
+  assert.equal(controller.getAcceptedPosition().navigationReady, true);
   controller.destroy();
 });
 
-test("visibility resume keeps a recent fix and reacquires only after the route-age window", () => {
+test("visibility resume keeps a recent fix but hard-resets stale session evidence", () => {
   const harness = locationHarness();
   let positionCallback;
   let visibilityCallback;
@@ -479,6 +549,14 @@ test("visibility resume keeps a recent fix and reacquires only after the route-a
   clock = 34_001;
   fakeDocument.hidden = false; visibilityCallback();
   assert.equal(reacquisitions, 1);
+  assert.equal(controller.getAcceptedPosition(), null);
+  positionCallback(position({ longitude: 3.3742, timestamp: 35_000, accuracy: 6 }));
+  assert.equal(controller.getAcceptedPosition(), null,
+    "one resumed callback cannot inherit the pre-background stabilizer history");
+  for (const [longitude, timestamp] of [
+    [3.374201, 36_000], [3.374202, 37_000], [3.374203, 38_000],
+  ]) positionCallback(position({ longitude, timestamp, accuracy: 6 }));
+  assert.equal(controller.getAcceptedPosition().navigationReady, true);
   controller.destroy();
 });
 

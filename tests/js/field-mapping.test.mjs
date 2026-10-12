@@ -97,7 +97,7 @@ test("adaptive capture waits for stabilized evidence and reports elapsed progres
   harness.emit(position({ accuracy: 120 }));
   harness.emit(position({ timestamp: 2000, longitude: 3.37401 }));
   assert.equal(harness.successes.length, 0, "the first acceptable callback is not selected immediately");
-  harness.emit(position({ timestamp: 3000, longitude: 3.37402 }));
+  harness.emit(position({ timestamp: 4000, longitude: 3.37402 }));
   harness.advance(2500);
   harness.advance(4900);
   harness.finish();
@@ -129,7 +129,7 @@ test("capture rejects outside-area results and leaves coordinates untouched", ()
   const harness = captureHarness();
   harness.capture.start();
   harness.emit(position({ longitude: 3.45, latitude: 6.60 }));
-  harness.emit(position({ longitude: 3.45001, latitude: 6.60, timestamp: 2000 }));
+  harness.emit(position({ longitude: 3.45001, latitude: 6.60, timestamp: 3000 }));
   harness.finish();
   assert.equal(harness.successes.length, 0);
   assert.equal(harness.failures[0].reason, "outside-area");
