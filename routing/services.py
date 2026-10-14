@@ -1,13 +1,29 @@
-from .algorithm import find_route
+from dataclasses import dataclass
 from types import SimpleNamespace
 
+from .algorithm import find_route
 from .eta import eta_seconds
-from .geometry import coordinates, length_metres
+from .geometry import coordinates, distance_metres, length_metres
 from .graph import GraphArc, RoutingGraph, build_graph
-from .matching import find_safe_network_match
+from .matching import find_safe_network_match, on_path_corridor_metres, validate_live_position
 from .models import LocationNetworkAnchor, VerificationState
 from .results import MissingAnchorError, RouteResult
 from .destinations import resolve_destination
+
+
+LIVE_ROUTE_ON_NETWORK = "ON_NETWORK"
+LIVE_ROUTE_APPROACH_REQUIRED = "APPROACH_REQUIRED"
+LIVE_ROUTE_ARRIVAL_CANDIDATE = "ARRIVAL_CANDIDATE"
+
+
+@dataclass(frozen=True)
+class LiveRouteOutcome:
+    state: str
+    destination: object
+    result: RouteResult | None = None
+    match: object | None = None
+    arrival_distance_metres: float | None = None
+    on_path_corridor_metres: float | None = None
 
 
 def route_between_nodes(start_node_id, goal_node_id):
@@ -81,13 +97,59 @@ def route_to_destination(origin_location_id, destination_key):
     return compose_route_arrivals(result, origin=origin, destination=destination), origin, destination
 
 
+def _reverse_reachable_node_ids(graph, destination_node_id):
+    """Return nodes that can reach the destination through directed arcs."""
+    destination_node_id = str(destination_node_id)
+    reverse_adjacency = {node_id: [] for node_id in graph.nodes}
+    for node_id, arcs in graph.adjacency.items():
+        for arc in arcs:
+            reverse_adjacency.setdefault(arc.to_node_id, []).append(node_id)
+
+    reachable = {destination_node_id}
+    pending = [destination_node_id]
+    while pending:
+        node_id = pending.pop()
+        for predecessor in reverse_adjacency.get(node_id, ()):
+            if predecessor not in reachable:
+                reachable.add(predecessor)
+                pending.append(predecessor)
+    return reachable
+
+
+def _destination_arrival_coordinate(destination):
+    if destination.entrance is not None:
+        return float(destination.entrance.longitude), float(destination.entrance.latitude)
+    return float(destination.node.longitude), float(destination.node.latitude)
+
+
 def route_from_live_position(longitude, latitude, accuracy_metres, destination_location_id):
     destination = resolve_destination(destination_location_id)
     if not destination.routing_available:
         raise MissingAnchorError(destination.unavailable_reason)
 
-    match = find_safe_network_match(longitude, latitude, accuracy_metres)
+    longitude, latitude, accuracy_metres = validate_live_position(
+        longitude, latitude, accuracy_metres,
+    )
+    corridor = on_path_corridor_metres(accuracy_metres)
+    arrival_distance = distance_metres(
+        (longitude, latitude), _destination_arrival_coordinate(destination),
+    )
+    if arrival_distance <= corridor:
+        return LiveRouteOutcome(
+            state=LIVE_ROUTE_ARRIVAL_CANDIDATE,
+            destination=destination,
+            arrival_distance_metres=arrival_distance,
+            on_path_corridor_metres=corridor,
+        )
+
     graph = build_graph()
+    reachable_node_ids = _reverse_reachable_node_ids(graph, destination.node.id)
+    match = find_safe_network_match(
+        longitude,
+        latitude,
+        accuracy_metres,
+        reachable_node_ids=reachable_node_ids,
+    )
     virtual_id = "live-origin"
     nodes = dict(graph.nodes)
     nodes[virtual_id] = SimpleNamespace(
@@ -104,4 +166,11 @@ def route_from_live_position(longitude, latitude, accuracy_metres, destination_l
     adjacency[virtual_id] = tuple(arcs)
     result = find_route(RoutingGraph(nodes, adjacency), virtual_id, destination.node.id)
     result = compose_route_arrivals(result, destination=destination)
-    return result, match, destination
+    return LiveRouteOutcome(
+        state=(LIVE_ROUTE_APPROACH_REQUIRED if match.distance_metres > corridor else LIVE_ROUTE_ON_NETWORK),
+        destination=destination,
+        result=result,
+        match=match,
+        arrival_distance_metres=arrival_distance,
+        on_path_corridor_metres=corridor,
+    )

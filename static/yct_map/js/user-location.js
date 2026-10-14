@@ -1,8 +1,8 @@
-import { accuracyState, assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=location-reliability-1";
-import { createGeolocationService } from "./geolocation.js?v=location-reliability-1";
+import { accuracyState, assessSample, createLocationStabilizer, locationQualityLabel } from "./location-filter.js?v=live-routing-stability-1";
+import { createGeolocationService } from "./geolocation.js?v=live-routing-stability-1";
 import { createDeviceOrientationService, DEVICE_HEADING_STALE_MS,
   createHeadingOppositionDiagnostic, headingDiagnosticSnapshot, screenOrientationDegrees,
-  selectDisplayedHeading } from "./device-orientation.js?v=location-reliability-1";
+  selectDisplayedHeading } from "./device-orientation.js?v=live-routing-stability-1";
 
 export const INITIAL_LOCATION_ACQUISITION_MAX_MS = 20_000;
 export const LIVE_LOCATION_STALE_AFTER_MS = 30_000;

@@ -9,11 +9,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-10-12 |
+| **Date** | 2026-10-14 |
 | **Branch** | `main` |
-| **Current Phase** | PHASE 4 — POST-CLOSEOUT LOCATION RELIABILITY CORRECTION |
-| **Pipeline Phase** | LIVE-LOCATION RELIABILITY HARDENING — IMPLEMENTED LOCALLY / OWNER RETEST REQUIRED |
-| **Latest Meaningful State** | Fresh multi-sample public location acquisition, hard-reset reacquisition, explicit navigation readiness and transient GPS recovery; local asset token `location-reliability-1` |
+| **Current Phase** | PHASE 4 — POST-CLOSEOUT LIVE-ROUTING STABILITY CORRECTION |
+| **Pipeline Phase** | DESTINATION-AWARE LIVE ROUTING — IMPLEMENTED LOCALLY / OWNER RETEST REQUIRED |
+| **Latest Meaningful State** | Destination-aware graph matching, explicit approach/arrival states, visible route-setup recovery and an owner-attested local `FIELD_VERIFIED` baseline; asset token `live-routing-stability-1` |
 
 ---
 
@@ -21,16 +21,16 @@
 
 | Area | Status |
 |------|--------|
-| Application implementation | FINAL SYSTEM CLOSEOUT SWEEP COMPLETE; LIVE-LOCATION RELIABILITY CORRECTION IMPLEMENTED LOCALLY |
+| Application implementation | FINAL SYSTEM CLOSEOUT SWEEP COMPLETE; LIVE-ROUTING STABILITY CORRECTION IMPLEMENTED LOCALLY |
 | Product definition | COMPLETE FOR V1 |
-| Documentation / governance | CURRENT THROUGH LOCAL LIVE-LOCATION RELIABILITY CORRECTION |
+| Documentation / governance | CURRENT THROUGH LOCAL LIVE-ROUTING STABILITY CORRECTION |
 | Build pipeline | COMPLETE THROUGH PHASE 4 CLOSEOUT |
 | Tech stack & architecture decisions | RESOLVED (DEC-T01–DEC-T22 accepted; no schema migration 0011) |
 | Campus production dataset | INITIAL OWNER-CONFIRMED DATA: New Building, Sports Complex, Food Tech New Building |
-| Field verification | LOCAL BASELINE AUDITED AND VERIFIED VIA COMMAND; PRODUCTION PROMOTION COMMANDS STAGED FOR OWNER |
+| Field verification | CURRENT ELIGIBLE LOCAL BASELINE OWNER-ATTESTED AND PROMOTED TO `FIELD_VERIFIED`; FUTURE, EDITED AND DEMO RECORDS RETAIN NORMAL VERIFICATION RULES |
 | Routing dataset | 49 active nodes (1..49) and 54 active segments (A..BB); 3 active entrance anchors |
 | Deployment | EXISTING RENDER + NEON SERVICE UNCHANGED; THIS LOCAL CORRECTION IS NOT COMMITTED, PUSHED OR DEPLOYED |
-| Test suite | 255 DJANGO + 153 JAVASCRIPT TESTS PASSING; SYSTEM, MIGRATION, SYNTAX AND WHITESPACE GATES CLEAN |
+| Test suite | 264 DJANGO + 162 JAVASCRIPT TESTS PASS; SYSTEM CHECK, MIGRATION DRIFT, SYNTAX AND WHITESPACE GATES CLEAN |
 
 ---
 
@@ -145,19 +145,19 @@ Phase 5 — Real YabaTech Data & Launch          NOT STARTED
 
 ## Active Work
 
-The public live-location reliability correction is **IMPLEMENTED LOCALLY / OWNER RETEST REQUIRED** on top of commit `bda6992`. Cold starts and reacquisition now request uncached browser fixes (`maximumAge: 0`) and reject epoch-based callbacks older than five seconds. The public marker is not published, focused or made route-eligible until at least three reasonable fixes converge across at least three seconds. The 20-second acquisition deadline now changes the guidance state only: it never promotes one callback, and the watcher continues trying.
+The live-routing stability correction is **IMPLEMENTED LOCALLY / OWNER RETEST REQUIRED** on top of commit `bbec57d`. Route setup now validates the confirmed transient position, limits candidate graph segments to those that can reach the selected destination, and returns an explicit state: `ON_NETWORK`, `APPROACH_REQUIRED`, or `ARRIVAL_CANDIDATE`. Ordinary safe matching remains narrow. The wider sparse-campus allowance is available only within the approved campus boundary and never changes the graph.
 
-Manual refresh, stale-position expiry and foreground return after at least 30 seconds clear the displayed point plus all previous-session filter evidence before reacquiring. A lone callback can therefore no longer borrow history from a previous location session. Retryable timeout/unavailable events keep acquisition alive, or retain an existing confirmed estimate with its original evidence timestamp, rather than causing terminal error churn. Live route setup now additionally requires the explicit `navigationReady` signal; accurate-looking but unconfirmed positions cannot become route origins. The marker remains unsnapped, coordinates remain transient, the routing graph and backend matching rules are unchanged, and the production service/database have not been touched. Local browser assets use `location-reliability-1` so an eventual deployment cannot reuse the previous mobile bundle.
+When `APPROACH_REQUIRED` is returned, the UI draws a separate dashed orientation guide from the live position to the matched graph point. It is explicitly not represented as a mapped walkway, is excluded from route distance and ETA, and holds normal progress/rerouting until the mapped route corridor is joined. A destination-arrival proximity reading is only an `ARRIVAL_CANDIDATE`; the client requires repeated evidence over time before displaying Arrived. Route setup failures, malformed responses and render failures now restore a usable form with a visible actionable error instead of leaving the mobile panel stuck or silent. The Directions action remains visible with a specific disabled reason when a destination cannot route.
 
-The off-network live-start correction is IMPLEMENTED LOCALLY / OWNER REVIEW REQUIRED on top of commit `a3e059b`. Real-device evidence showed that a precise Sports Complex position can still be about 65 m from the nearest mapped segment, beyond the unchanged 40 m safety threshold. When that specific safe-match failure occurs near another route-capable campus place, the public client now offers the existing mapped route from that place's configured entrance and holds progress/rerouting until the user reaches the entrance. It explicitly states that no route from the live dot to the entrance is claimed. No graph geometry, backend matching threshold, destination data, migration or verification state is changed.
+Fresh multi-sample acquisition and hard-reset reacquisition from the preceding reliability correction remain intact. Live coordinates remain transient, the public marker remains unsnapped, no location history is created, and the routing graph geometry is unchanged. Browser assets use `live-routing-stability-1` so a later deployment cannot reuse the preceding mobile bundle.
 
 The local graph audit found 49 active nodes and 54 active segments in strongly connected components of 41, 6, 1 and 1 nodes. All three local route-capable destinations and entrance anchors are in the 41-node component; every ordered destination pair routes successfully and all active segment models validate. The final closeout normalized all active node labels to positive sequential integers (1..49) and all active segment labels to uppercase bijective base-26 sequences (A..BB). All source references and provenance remain intact in source_reference and source_type.
 
-The baseline verification management command (`verify_current_map_baseline`) transitions active, published Locations, active Entrances of published places, active WalkableNodes, active WalkableSegments, and active EntranceNetworkAnchors to `FIELD_VERIFIED` with reason "Owner-approved final map baseline", creating append-only `SegmentVerificationRecord` rows. The command is fully idempotent.
+The baseline verification management command (`verify_current_map_baseline`) now transitions only eligible `UNVERIFIED` records in the owner-attested current baseline: published Locations and InternalPlaces, active Entrances under published places, active WalkableNodes and WalkableSegments, and eligible Location/Entrance network anchors. Eligibility is locked to the pre-2026-10-14 data snapshot, so rerunning the command cannot silently verify records created or edited afterward. It never promotes `DEMO`, draft, archived or inactive records, remains idempotent, and creates append-only segment audit records. The current eligible local baseline has been reconciled to `FIELD_VERIFIED`; new records and materially edited records continue to use the normal verification defaults and demotion rules.
 
 Public route verification (`public_route` and `public_route_from_position`) now returns `FIELD_VERIFIED` when all traversed graph elements are `FIELD_VERIFIED`. The destination panel and navigation HUD hide all unverified notices and badges for `FIELD_VERIFIED` destinations and routes. Attribution is updated to "YCT Map campus data · OSM-derived route data".
 
-Lower-right HUD collision between MapLibre controls (NavigationControl zoom buttons and compass arrow needle) and Locate Me is resolved via coordinated CSS variables (`--locate-me-clearance` and `--map-ctrl-bottom-offset`), guaranteeing touch clearance without vertical overlap. Desktop baseline uses `--locate-me-height: 5.75rem` to clear the desktop card and error states completely, maintaining a 26px clear gap to the compass arrow button. Mobile portrait and landscape maintain dedicated compact clearances and offsets. All cache busting tokens across backend constants, templates, and JS imports are synchronized to `system-closeout-2`.
+Lower-right HUD collision between MapLibre controls (NavigationControl zoom buttons and compass arrow needle) and Locate Me remains resolved via coordinated CSS variables (`--locate-me-clearance` and `--map-ctrl-bottom-offset`). All current cache-busting tokens across backend constants, templates and JavaScript imports are synchronized to `live-routing-stability-1`.
 
 Graph visualization on the walkable path editor overview (`/editor/paths/`) and the map developer network inspector now features real-time, zoom-dependent visual labels (`minzoom: 16.5`): nodes dynamically expand and display their bold centered numerical ID (e.g. `24`), while segments display their uppercase letter designation (e.g. `AB`) directly along the path line with a crisp white halo, preserving clean uncluttered campus-wide overview while providing instant clarity upon zooming in.
 
@@ -165,7 +165,7 @@ Graph visualization on the walkable path editor overview (`/editor/paths/`) and 
 
 ## Known Blockers
 
-Physical Samsung/Edge retesting is required for cold start, return after more than 30 seconds in the background, temporary GPS timeout/unavailable recovery, stationary use and an actual walking route. Browser geolocation remains limited by phone hardware, radio visibility, OS settings and the browser; this correction prevents stale or weak evidence from being presented as confirmed accuracy but cannot create native/Google-grade sensor fusion.
+Physical Samsung/Edge retesting is required for cold start, return after more than 30 seconds in the background, temporary GPS timeout/unavailable recovery, stationary use, sparse-campus approach guidance, route-corridor joining and confirmed arrival. Browser geolocation remains limited by phone hardware, radio visibility, OS settings and the browser; these corrections improve safe interpretation and recovery but cannot create native/Google-grade sensor fusion.
 
 ---
 
@@ -177,4 +177,4 @@ Owner verification of the local corrected build on a live mobile device. Commit,
 
 ## Deployment Status
 
-The existing production deployment remains on the last pushed baseline. This dirty local build uses cache token `location-reliability-1`; it has not been committed, pushed or deployed. No Neon, Render, migration, graph or verification-state operation was performed.
+The existing production deployment remains on the last pushed baseline. This dirty local build uses cache token `live-routing-stability-1`; it has not been committed, pushed or deployed. No Neon or Render operation was performed. Verification reconciliation was applied only to the ignored local SQLite database; production data and routing geometry are unchanged.

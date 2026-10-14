@@ -1,11 +1,14 @@
 import { createLiveRouteTracker, distanceMetres,
-  formatEta } from "./live-route-progress.js?v=location-reliability-1";
-import { createOffRouteDetector } from "./off-route.js?v=location-reliability-1";
+  formatEta } from "./live-route-progress.js?v=live-routing-stability-1";
+import { createOffRouteDetector } from "./off-route.js?v=live-routing-stability-1";
 
 export const MAX_LIVE_POSITION_AGE_MS = 30_000;
 export const NEARBY_MAPPED_START_MAX_METRES = 350;
 export const MAX_LIVE_ROUTE_ATTEMPTS = 3;
 export const LIVE_ROUTE_RECOVERY_WINDOW_MS = 10_000;
+export const MIN_LIVE_ROUTE_RETRY_MOVEMENT_METRES = 5;
+export const MIN_LIVE_ROUTE_RETRY_ACCURACY_GAIN_METRES = 3;
+export const LIVE_ARRIVAL_CONFIRMATION_MS = 3_000;
 const TRANSIENT_LIVE_ROUTE_CODES = new Set(["NO_SAFE_NETWORK_MATCH", "INSUFFICIENT_ACCURACY"]);
 const LIVE_ROUTE_FINAL_MESSAGE = "Your location is clear, but it cannot yet be safely connected to the mapped campus paths. Choose a mapped starting point or try live location again after moving closer to a mapped walkway.";
 
@@ -27,13 +30,35 @@ function routeOriginSnapshot(position) {
   });
 }
 
+export function isMeaningfulLiveRouteRetry(candidate, previous) {
+  if (!candidate || !previous || candidate.timestamp <= previous.timestamp) return false;
+  const candidatePoint = [candidate.longitude, candidate.latitude];
+  const previousPoint = [previous.longitude, previous.latitude];
+  if (![...candidatePoint, ...previousPoint].every(Number.isFinite)) return false;
+  const uncertainty = Math.max(
+    Number(candidate.accuracyMetres) || 0,
+    Number(previous.accuracyMetres) || 0,
+  );
+  const movementThreshold = Math.max(
+    MIN_LIVE_ROUTE_RETRY_MOVEMENT_METRES,
+    Math.min(12, uncertainty * 0.5),
+  );
+  const accuracyGain = Number(previous.accuracyMetres) - Number(candidate.accuracyMetres);
+  const accuracyThreshold = Math.max(
+    MIN_LIVE_ROUTE_RETRY_ACCURACY_GAIN_METRES,
+    Number(previous.accuracyMetres) * 0.25,
+  );
+  return distanceMetres(previousPoint, candidatePoint) >= movementThreshold
+    || accuracyGain >= accuracyThreshold;
+}
+
 function featureKey(feature) {
   return feature?.properties?.destination_key || feature?.properties?.id || feature?.id || "";
 }
 
-export function findNearbyMappedStart(features, destination, position,
+export function findNearbyMappedStarts(features, destination, position,
   { maxDistanceMetres = NEARBY_MAPPED_START_MAX_METRES } = {}) {
-  if (!position || !Number.isFinite(position.longitude) || !Number.isFinite(position.latitude)) return null;
+  if (!position || !Number.isFinite(position.longitude) || !Number.isFinite(position.latitude)) return [];
   const destinationKey = featureKey(destination);
   const point = [position.longitude, position.latitude];
   const candidates = features
@@ -45,11 +70,16 @@ export function findNearbyMappedStart(features, destination, position,
       distanceMetres: distanceMetres(point, feature.geometry.coordinates) }))
     .filter((candidate) => candidate.distanceMetres <= maxDistanceMetres)
     .sort((left, right) => left.distanceMetres - right.distanceMetres);
-  return candidates[0] || null;
+  return candidates;
+}
+
+export function findNearbyMappedStart(features, destination, position, options = {}) {
+  return findNearbyMappedStarts(features, destination, position, options)[0] || null;
 }
 
 export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, onRoute, onClear, onBrowse,
-  onCancel, onStateChange, onRouteStale, onRouteProgress = () => {}, requestRoute = fetch, now = Date.now,
+  onCancel, onStateChange, onRouteStale, onRouteProgress = () => {}, onApproachClear = () => {},
+  requestRoute = fetch, now = Date.now,
   setDeadline = globalThis.setTimeout, clearDeadline = globalThis.clearTimeout,
   onFreshLocationRequired = () => false }) {
   const form = panel.querySelector("#user-route-form");
@@ -96,8 +126,8 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     const awaitingConfirmation = Boolean(livePosition) && livePosition.navigationReady !== true;
     const retained = usable && livePosition?.freshness === "retained";
     const status = retained
-      ? `Recent stable position Â· ~${Math.round(livePosition.accuracyMetres)} m`
-      : usable ? `Live location ready Â· ~${Math.round(livePosition.accuracyMetres)} m`
+      ? `Recent stable position · ~${Math.round(livePosition.accuracyMetres)} m`
+      : usable ? `Live location ready · ~${Math.round(livePosition.accuracyMetres)} m`
         : livePositionRefreshing ? "Refreshing current location"
           : awaitingConfirmation ? "Waiting for a confirmed current location"
           : stale || selectedOrigin === "__live__" ? "Current location needs refreshing" : "Locate first";
@@ -115,9 +145,23 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   }
   function resetMessages() {
     error.hidden = true;
+    error.textContent = "";
     result.hidden = true;
     requestStatus.hidden = true;
     requestStatus.textContent = "";
+    resetRouteVerificationPresentation();
+  }
+  function resetRouteVerificationPresentation() {
+    const routeBadge = panel.querySelector("#user-route-badge") || panel.querySelector(".demo-route-label");
+    const routeNotice = panel.querySelector("#user-route-data-notice");
+    if (routeBadge) {
+      routeBadge.hidden = true;
+      routeBadge.textContent = "";
+    }
+    if (routeNotice) {
+      routeNotice.hidden = true;
+      routeNotice.textContent = "";
+    }
   }
   function setRoutePanelState(state, expanded = false) {
     panel.dataset.routeState = state;
@@ -155,7 +199,8 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
   function showSetupActivity(message, state = "loading") {
     requestStatus.textContent = message;
     requestStatus.hidden = false;
-    submitButton.textContent = state === "loading" ? "Calculatingâ€¦" : "Show route";
+    submitButton.textContent = state === "loading" || state === "recovering"
+      ? "Matching location…" : "Show route";
     setRoutePanelState(state);
     updateSubmitState();
   }
@@ -164,9 +209,15 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     requestStatus.textContent = "";
     error.textContent = message;
     error.hidden = false;
+    formState.hidden = false;
+    result.hidden = true;
     submitButton.textContent = "Show route";
     setRoutePanelState("error", true);
     updateSubmitState();
+    panel.scrollTop = 0;
+    if (!error.hasAttribute?.("tabindex")) error.setAttribute?.("tabindex", "-1");
+    error.focus?.({ preventScroll: true });
+    error.scrollIntoView?.({ block: "nearest" });
   }
   function routeResponseError(payload, fallback) {
     const routeError = new Error(payload?.error || fallback);
@@ -231,6 +282,83 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       || "No indoor direction note has been recorded.";
   }
 
+  function updateRouteVerificationPresentation(routeState, contextualNotice = "") {
+    const state = routeState || "UNVERIFIED";
+    const routeBadge = panel.querySelector("#user-route-badge") || panel.querySelector(".demo-route-label");
+    const routeNotice = panel.querySelector("#user-route-data-notice");
+    if (routeBadge) {
+      routeBadge.hidden = state === "FIELD_VERIFIED";
+      routeBadge.textContent = state === "DEMO" ? "DEMO ROUTE"
+        : state === "FIELD_VERIFIED" ? "" : "UNVERIFIED ROUTE";
+    }
+    if (routeNotice) {
+      const stateNotice = state === "DEMO"
+        ? "Synthetic information for product demonstration only."
+        : state === "FIELD_VERIFIED" ? ""
+          : "This route includes walking geometry that has not yet been field verified.";
+      routeNotice.textContent = contextualNotice || stateNotice;
+      routeNotice.hidden = !routeNotice.textContent;
+    }
+  }
+
+  function liveApproachFromPayload(payload) {
+    if (payload?.navigation_state !== "APPROACH_REQUIRED") return null;
+    const coordinate = payload?.summary?.live_start?.network_match_coordinate;
+    if (!Array.isArray(coordinate) || coordinate.length !== 2 || !coordinate.every(Number.isFinite)) return null;
+    return {
+      coordinate: [...coordinate],
+      distanceMetres: Number(payload.summary.live_start.network_match_distance_metres) || 0,
+      label: "the mapped path",
+      isApproachGuide: true,
+    };
+  }
+
+  function validateLiveRoutePayload(payload) {
+    if (!payload || typeof payload !== "object") {
+      throw routeResponseError(payload, "The route service returned an invalid response.");
+    }
+    if (payload.navigation_state === "ARRIVAL_CANDIDATE") return;
+    const coordinates = payload?.route?.geometry?.coordinates;
+    if (!Array.isArray(coordinates) || coordinates.length < 2
+        || coordinates.some((coordinate) => !Array.isArray(coordinate)
+          || coordinate.length !== 2 || !coordinate.every(Number.isFinite))) {
+      throw routeResponseError(payload, "The route service returned invalid route geometry.");
+    }
+    if (payload.navigation_state === "APPROACH_REQUIRED" && !liveApproachFromPayload(payload)) {
+      throw routeResponseError(payload, "The route service returned an incomplete approach route.");
+    }
+  }
+
+  function activateArrival(payload) {
+    const summary = payload.summary;
+    activeTracker = null;
+    offRouteDetector = null;
+    activeMappedJoin = null;
+    activeDestinationSummary = summary.destination;
+    onClear();
+    onApproachClear();
+    panel.querySelector("#user-route-from").textContent = summary.origin?.name || "Your location";
+    renderDestinationSummary(summary.destination);
+    panel.querySelector("#user-route-distance").textContent = "0 m";
+    panel.querySelector("#user-route-eta").textContent = "Arrived";
+    panel.querySelector("#user-route-progress-status").hidden = false;
+    panel.querySelector("#user-route-progress-status").textContent =
+      `You have reached ${summary.destination.outdoor_arrival?.label || summary.destination.name}.`;
+    panel.querySelector("#user-route-eta-source").textContent =
+      "Arrival confirmed by repeated current-location readings.";
+    const guidance = panel.querySelector("#user-route-guidance");
+    if (guidance) guidance.textContent = "You are at the mapped arrival point";
+    updateRouteVerificationPresentation(summary.verification_state);
+    formState.hidden = true;
+    result.hidden = false;
+    requestStatus.hidden = true;
+    requestStatus.textContent = "";
+    setRoutePanelState("arrived", true);
+    retryButton.hidden = true;
+    onRouteStale?.(false);
+    onStateChange?.("route-available");
+  }
+
   function begin(feature) {
     if (feature?.properties?.routing_available !== true) return false;
     cancelPendingSetup();
@@ -256,13 +384,15 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     return true;
   }
 
-  function activateRoute(payload, { useLive, origin, mappedJoin = null }) {
+  function activateRoute(payload, { useLive, origin, mappedJoin = null, replacement = false }) {
     const totalDistance = payload.summary.total_distance_metres ?? payload.summary.distance_metres;
     const originArrival = payload.summary.origin.outdoor_arrival?.label || payload.summary.origin.name;
     panel.querySelector("#user-route-from").textContent = originArrival;
     renderDestinationSummary(payload.summary.destination);
     panel.querySelector("#user-route-distance").textContent = `${Math.round(totalDistance)} m`;
     panel.querySelector("#user-route-eta").textContent = payload.summary.eta_label;
+    const guidance = panel.querySelector("#user-route-guidance");
+    if (guidance) guidance.textContent = "Follow the highlighted route";
     panel.querySelector("#user-route-progress-status").hidden = !useLive;
     panel.querySelector("#user-route-progress-status").textContent = mappedJoin
       ? `Walk to ${originArrival} to join the mapped route`
@@ -270,6 +400,12 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     panel.querySelector("#user-route-eta-source").textContent = mappedJoin
       ? `Distance and ETA begin at ${originArrival}`
       : useLive ? "Approximate ETA at 1.35 m/s" : "";
+    if (mappedJoin?.isApproachGuide) {
+      panel.querySelector("#user-route-progress-status").textContent =
+        `Mapped route begins ~${Math.round(mappedJoin.distanceMetres)} m away · use known walkways to reach it`;
+      panel.querySelector("#user-route-eta-source").textContent =
+        "The dashed approach guide is orientation only; route distance starts on the mapped path.";
+    }
     const routeState = payload.summary?.verification_state
       || payload.route?.properties?.route_state
       || "UNVERIFIED";
@@ -295,6 +431,11 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
           : "OSM-derived route geometry is UNVERIFIED and is not field-verified campus navigation.";
       }
     }
+    const contextualNotice = mappedJoin?.isApproachGuide
+      ? "The dashed line only points toward the mapped route. It is not claimed as a mapped walkway."
+      : mappedJoin
+        ? `Walk to ${originArrival}; no route from your dot to that entrance is claimed.` : "";
+    updateRouteVerificationPresentation(routeState, contextualNotice);
     formState.hidden = true;
     result.hidden = false;
     requestStatus.hidden = true;
@@ -302,12 +443,15 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     setRoutePanelState("active", false);
     activeTracker = useLive ? createLiveRouteTracker(payload.route.geometry.coordinates, totalDistance) : null;
     offRouteDetector = useLive ? createOffRouteDetector() : null;
-    activeMappedJoin = mappedJoin ? { ...mappedJoin, label: originArrival,
-      coordinate: [...payload.route.geometry.coordinates[0]] } : null;
+    activeMappedJoin = mappedJoin ? { ...mappedJoin, label: mappedJoin.label || originArrival,
+      coordinate: [...(mappedJoin.coordinate || payload.route.geometry.coordinates[0])] } : null;
     retryButton.hidden = true;
     onRouteStale?.(false);
     onRoute(payload.route, origin, destination, {
-      originType: mappedJoin ? "live-mapped-start" : useLive ? "live" : "manual",
+      originType: mappedJoin?.isApproachGuide ? "live-approach"
+        : mappedJoin ? "live-mapped-start" : useLive ? "live" : "manual",
+      replacement,
+      approachCoordinate: mappedJoin?.isApproachGuide ? mappedJoin.coordinate : null,
       startName: originArrival,
       arrivalName: payload.summary.destination.outdoor_arrival?.label || payload.summary.destination.name,
     });
@@ -321,36 +465,74 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
     setupAbortController?.abort();
     setupAbortController = null;
     setupRequestActive = false;
+    activeTracker = null;
+    offRouteDetector = null;
+    activeMappedJoin = null;
+    onClear();
+    onApproachClear();
     showSetupError(message);
   }
 
-  async function tryNearbyMappedStart(position, recovery) {
-    const nearby = findNearbyMappedStart(features, destination, position);
-    if (!nearby || liveRecovery !== recovery) return false;
-    const origin = nearby.feature;
-    const parameters = new URLSearchParams({ origin: featureKey(origin), destination: featureKey(destination) });
-    requestStatus.textContent =
-      `Your position is away from mapped paths. Starting at ${origin.properties.name}'s entrance…`;
-    requestStatus.hidden = false;
-    try {
-      const response = await requestRoute(`${routeUrl}?${parameters}`, {
-        headers: { Accept: "application/json" }, signal: setupAbortController.signal,
-      });
-      const payload = await response.json();
-      if (!response.ok || liveRecovery !== recovery) return false;
-      clearRecoveryTimer(recovery);
-      liveRecovery = null;
-      setupRequestActive = false;
-      setupAbortController = null;
-      activateRoute(payload, { useLive: true, origin, mappedJoin: {
-        placeName: origin.properties.name,
-        representativeDistanceMetres: nearby.distanceMetres,
-      } });
-      return true;
-    } catch (fallbackError) {
-      if (fallbackError.name === "AbortError") return false;
+  async function exhaustLiveRecovery(recovery, message = LIVE_ROUTE_FINAL_MESSAGE) {
+    if (liveRecovery !== recovery) return false;
+    setupAbortController?.abort();
+    setupAbortController = null;
+    setupRequestActive = false;
+    if (recovery.arrivalCandidateAt !== null) {
+      finishLiveRecovery(
+        recovery,
+        "You appear close to the destination, but arrival could not be confirmed. Keep location active and try again.",
+      );
       return false;
     }
+    const lastPosition = recovery.lastAttemptPosition;
+    if (lastPosition && await tryNearbyMappedStart(lastPosition, recovery)) return true;
+    const fallbackDetail = recovery.fallbackError
+      ? `${message} Nearby mapped-start fallback also failed: ${recovery.fallbackError}` : message;
+    finishLiveRecovery(recovery, fallbackDetail);
+    return false;
+  }
+
+  async function tryNearbyMappedStart(position, recovery) {
+    const candidates = findNearbyMappedStarts(features, destination, position);
+    if (!candidates.length || liveRecovery !== recovery) return false;
+    for (const nearby of candidates) {
+      if (liveRecovery !== recovery) return false;
+      const origin = nearby.feature;
+      const parameters = new URLSearchParams({ origin: featureKey(origin), destination: featureKey(destination) });
+      requestStatus.textContent = `Checking ${origin.properties.name} as a nearby mapped start…`;
+      requestStatus.hidden = false;
+      setupAbortController = new AbortController();
+      try {
+        const response = await requestRoute(`${routeUrl}?${parameters}`, {
+          headers: { Accept: "application/json" }, signal: setupAbortController.signal,
+        });
+        const payload = await response.json();
+        if (liveRecovery !== recovery) return false;
+        if (!response.ok) {
+          recovery.fallbackError = payload?.error || "No connected mapped start was found.";
+          continue;
+        }
+        validateLiveRoutePayload(payload);
+        activateRoute(payload, { useLive: true, origin, mappedJoin: {
+          placeName: origin.properties.name,
+          representativeDistanceMetres: nearby.distanceMetres,
+        } });
+        clearRecoveryTimer(recovery);
+        liveRecovery = null;
+        setupRequestActive = false;
+        setupAbortController = null;
+        updateSubmitState();
+        return true;
+      } catch (fallbackError) {
+        if (fallbackError.name === "AbortError") return false;
+        recovery.fallbackError = fallbackError.message || "The nearby mapped-start request failed.";
+        break;
+      } finally {
+        if (liveRecovery === recovery) setupAbortController = null;
+      }
+    }
+    return false;
   }
 
   async function attemptLiveRoute(position, recovery) {
@@ -358,12 +540,13 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
         || position.timestamp <= recovery.lastAttemptTimestamp) return false;
     if (recovery.attempts >= MAX_LIVE_ROUTE_ATTEMPTS
         || now() - recovery.startedAt > LIVE_ROUTE_RECOVERY_WINDOW_MS) {
-      finishLiveRecovery(recovery);
+      await exhaustLiveRecovery(recovery);
       return false;
     }
     const originSnapshot = routeOriginSnapshot(position);
     recovery.pendingPosition = null;
     recovery.lastAttemptTimestamp = originSnapshot.timestamp;
+    recovery.lastAttemptPosition = originSnapshot;
     recovery.attempts += 1;
     setupRequestActive = true;
     setupAbortController = new AbortController();
@@ -374,16 +557,37 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       const payload = await response.json();
       if (!response.ok) throw routeResponseError(payload, "No route is available.");
       if (liveRecovery !== recovery) return false;
+      validateLiveRoutePayload(payload);
+      if (payload.navigation_state === "ARRIVAL_CANDIDATE") {
+        recovery.arrivalCandidateAt ??= originSnapshot.timestamp;
+        recovery.arrivalCandidateCount += 1;
+        setupRequestActive = false;
+        setupAbortController = null;
+        if (recovery.arrivalCandidateCount >= 2
+            && originSnapshot.timestamp - recovery.arrivalCandidateAt >= LIVE_ARRIVAL_CONFIRMATION_MS) {
+          activateArrival(payload);
+          clearRecoveryTimer(recovery);
+          liveRecovery = null;
+          updateSubmitState();
+          return true;
+        }
+        showSetupActivity("You appear close to the destination. Confirming arrival…", "recovering");
+        return false;
+      }
+      const approach = liveApproachFromPayload(payload);
+      activateRoute(payload, {
+        useLive: true,
+        origin: null,
+        mappedJoin: approach,
+      });
       clearRecoveryTimer(recovery);
       liveRecovery = null;
       setupRequestActive = false;
       setupAbortController = null;
-      activateRoute(payload, { useLive: true, origin: null });
+      updateSubmitState();
       return true;
     } catch (routeError) {
       if (liveRecovery !== recovery || routeError.name === "AbortError") return false;
-      if (routeError.code === "NO_SAFE_NETWORK_MATCH"
-          && await tryNearbyMappedStart(originSnapshot, recovery)) return true;
       const retryable = TRANSIENT_LIVE_ROUTE_CODES.has(routeError.code);
       const withinWindow = now() - recovery.startedAt <= LIVE_ROUTE_RECOVERY_WINDOW_MS;
       if (!retryable) {
@@ -391,13 +595,17 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
         return false;
       }
       if (recovery.attempts >= MAX_LIVE_ROUTE_ATTEMPTS || !withinWindow) {
-        finishLiveRecovery(recovery);
+        await exhaustLiveRecovery(recovery);
         return false;
       }
       requestStatus.textContent = "Checking a newer live position…";
       requestStatus.hidden = false;
       submitButton.textContent = "Show route";
       setRoutePanelState("recovering");
+      showSetupActivity(
+        `Waiting for a meaningfully improved GPS fix (${recovery.attempts}/${MAX_LIVE_ROUTE_ATTEMPTS})…`,
+        "recovering",
+      );
       return false;
     } finally {
       if (liveRecovery === recovery) {
@@ -405,7 +613,13 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
         setupAbortController = null;
         updateSubmitState();
         const pending = recovery.pendingPosition;
-        if (pending && pending.timestamp > recovery.lastAttemptTimestamp) void attemptLiveRoute(pending, recovery);
+        const arrivalConfirmationDue = recovery.arrivalCandidateAt !== null && pending
+          && pending.timestamp - recovery.arrivalCandidateAt >= LIVE_ARRIVAL_CONFIRMATION_MS;
+        if (pending && (arrivalConfirmationDue
+            || (recovery.arrivalCandidateAt === null
+              && isMeaningfulLiveRouteRetry(pending, recovery.lastAttemptPosition)))) {
+          void attemptLiveRoute(pending, recovery);
+        }
       }
     }
   }
@@ -415,11 +629,18 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       attempts: 0,
       startedAt: now(),
       lastAttemptTimestamp: -Infinity,
+      lastAttemptPosition: null,
       pendingPosition: null,
+      fallbackError: "",
+      arrivalCandidateAt: null,
+      arrivalCandidateCount: 0,
       deadlineId: null,
     };
     liveRecovery = recovery;
-    recovery.deadlineId = setDeadline(() => finishLiveRecovery(recovery), LIVE_ROUTE_RECOVERY_WINDOW_MS);
+    recovery.deadlineId = setDeadline(
+      () => void exhaustLiveRecovery(recovery),
+      LIVE_ROUTE_RECOVERY_WINDOW_MS,
+    );
     updateSubmitState();
     return attemptLiveRoute(position, recovery);
   }
@@ -536,6 +757,23 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       const response = await requestLiveRoute(originSnapshot);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Unable to calculate a replacement route.");
+      validateLiveRoutePayload(payload);
+      if (payload.navigation_state === "ARRIVAL_CANDIDATE") {
+        panel.querySelector("#user-route-progress-status").textContent =
+          "You appear close to the destination · confirming with another reading";
+        return false;
+      }
+      const replacementApproach = liveApproachFromPayload(payload);
+      if (replacementApproach) {
+        offRouteDetector.markSuccess(originSnapshot.timestamp);
+        activateRoute(payload, {
+          useLive: true,
+          origin: null,
+          mappedJoin: replacementApproach,
+          replacement: true,
+        });
+        return true;
+      }
       const totalDistance = payload.summary.total_distance_metres;
       renderDestinationSummary(payload.summary.destination);
       activeTracker.replaceRoute(payload.route.geometry.coordinates, totalDistance);
@@ -571,7 +809,13 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       void startLiveRouteRecovery(position);
       return;
     }
-    if (liveRecovery && position.timestamp > liveRecovery.lastAttemptTimestamp) {
+    if (liveRecovery && liveRecovery.arrivalCandidateAt !== null) {
+      if (position.timestamp > liveRecovery.lastAttemptTimestamp
+          && position.timestamp - liveRecovery.arrivalCandidateAt >= LIVE_ARRIVAL_CONFIRMATION_MS) {
+        if (setupRequestActive) liveRecovery.pendingPosition = position;
+        else void attemptLiveRoute(position, liveRecovery);
+      }
+    } else if (liveRecovery && isMeaningfulLiveRouteRetry(position, liveRecovery.lastAttemptPosition)) {
       if (setupRequestActive) liveRecovery.pendingPosition = position;
       else void attemptLiveRoute(position, liveRecovery);
     }
@@ -586,10 +830,16 @@ export function createUserNavigation({ panel, features, routeUrl, liveRouteUrl, 
       const joinThreshold = position.accuracyMetres <= 25
         ? Math.min(25, Math.max(12, position.accuracyMetres + 8)) : -1;
       if (joinDistance > joinThreshold) {
+        if (activeMappedJoin.isApproachGuide) {
+          panel.querySelector("#user-route-progress-status").textContent =
+            `Mapped route begins ~${Math.round(joinDistance)} m away · use known walkways (dashed guide is orientation only)`;
+          return;
+        }
         panel.querySelector("#user-route-progress-status").textContent =
           `Walk to ${activeMappedJoin.label} to join the mapped route · ~${Math.round(joinDistance)} m`;
         return;
       }
+      if (activeMappedJoin.isApproachGuide) onApproachClear();
       activeMappedJoin = null;
       panel.querySelector("#user-route-progress-status").textContent = "Mapped route joined · following route";
     }

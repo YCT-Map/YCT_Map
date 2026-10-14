@@ -107,7 +107,8 @@ test("initial load and Home use core framing while overview remains independentl
 test("route and destination cameras remain separate while live navigation leaves camera control to the user", () => {
   const source = readFileSync(new URL("../../static/yct_map/js/map.js", import.meta.url), "utf8");
   assert.match(source, /focusDestination\(map, feature\)/);
-  assert.match(source, /map\.fitBounds\(bounds, \{ padding: routePadding\(\), maxZoom: 17\.5/);
+  assert.match(source, /map\.fitBounds\(routeBounds\(fitCoordinates\), \{/);
+  assert.match(source, /padding: routePadding\(\), maxZoom: 17\.5/);
   assert.match(source, /if \(!replacement\)/);
   assert.match(source, /recenterCameraOptions\(latestUserPosition, map\.getZoom\(\), reducedMotion\)/);
   assert.doesNotMatch(source, /scheduleFollowCamera|applyFollowCamera/);

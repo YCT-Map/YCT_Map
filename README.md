@@ -8,12 +8,12 @@ The map is the primary interface. Students, staff and visitors can search campus
 
 ## Project Status
 
-**Phase:** PHASE 4 — EDITOR & MAPPING TOOLS (IN PROGRESS)
+**Phase:** PHASE 4 — POST-CLOSEOUT LIVE-ROUTING STABILITY REVIEW
 **Application implementation:** PHASES 1–3 OWNER ACCEPTED; PHASE 4 SPRINTS 001–003 OWNER ACCEPTED; SPRINT 004 PHYSICAL ACCEPTANCE PENDING
 **Product definition:** SUBSTANTIALLY COMPLETE
-**Documentation / governance:** CURRENT THROUGH PHASE 4 PRE-DEPLOYMENT PREPARATION
-**Campus production dataset:** INITIAL OWNER-CONFIRMED LOCATIONS PRESENT; ALL REMAIN UNVERIFIED
-**Deployment:** CONFIGURATION PREPARED; NOT DEPLOYED
+**Documentation / governance:** CURRENT THROUGH LOCAL LIVE-ROUTING STABILITY CORRECTION
+**Campus dataset:** CURRENT ELIGIBLE LOCAL BASELINE OWNER-ATTESTED AND `FIELD_VERIFIED`; FUTURE/EDITED/DEMO RECORDS RETAIN NORMAL VERIFICATION RULES
+**Deployment:** EXISTING PRODUCTION SERVICE UNCHANGED; CURRENT CORRECTION IS LOCAL AND AWAITS OWNER RETEST
 
 ---
 
@@ -34,9 +34,9 @@ Open `http://127.0.0.1:8000/`.
 
 Trusted editors use `http://127.0.0.1:8000/editor/login/`. Accounts are administrator-provisioned; there is no public registration. Sprint 001 supports metadata-only Draft places, controlled physical types, multiple functional categories and typed aliases. Draft and Archived records do not appear on the public map.
 
-The map uses pinned MapLibre GL JS assets and OpenFreeMap Liberty over the network. The working dataset contains owner-confirmed campus Locations that remain explicitly `UNVERIFIED`. The routing graph is YCT Map-owned, OSM-derived and also `UNVERIFIED`; it is not field-verified campus guidance. DEMO fixtures remain isolated for deterministic automated tests and must not be loaded into a production database.
+The map uses pinned MapLibre GL JS assets and OpenFreeMap Liberty over the network. The current eligible retained local campus baseline—published Locations/InternalPlaces, active Entrances, active graph records and eligible anchors—has been owner-attested and reconciled to `FIELD_VERIFIED`. This does not weaken the verification model: new/imported records default to `UNVERIFIED`, material edits can demote the affected record, and DEMO fixtures remain explicitly DEMO and isolated for deterministic automated tests.
 
-Live location is optional and transient. The public map waits for a fresh, coherent set of browser fixes before displaying a route-ready position; one cached or accurate-looking callback is not enough. Temporary GPS failures can retain a recent confirmed estimate while the browser keeps trying, and a long return from the background starts a genuinely fresh acquisition. Initial matching and confirmed rerouting use a narrow no-store Django request; coordinates are not persisted, logged as history or used for analytics. Normal progress and off-route evidence stay client-side. Browser accuracy still depends on the device, OS, radio visibility and browser, so physical-phone GPS/navigation/rerouting remains an owner field-test concern.
+Live location is optional and transient. The public map waits for a fresh, coherent set of browser fixes before displaying a route-ready position; one cached or accurate-looking callback is not enough. Live-route matching is destination-aware and reports `ON_NETWORK`, `APPROACH_REQUIRED` or `ARRIVAL_CANDIDATE`. A campus-scoped dashed approach line is orientation-only—not a mapped walkway—and is excluded from route distance and ETA. Arrival requires repeated position evidence. Temporary GPS failures retain bounded recovery behavior, coordinates are not persisted or logged as history, and route-setup failures return the mobile UI to an actionable state. Browser accuracy still depends on the device, OS, radio visibility and browser, so physical-phone GPS/navigation/rerouting remains an owner field-test concern.
 
 Anonymous map suggestions are stored as pending moderation records. They require no account or contact details and never alter the public location dataset automatically. Staff review is available through Django admin; approval is not field verification.
 

@@ -1,5 +1,5 @@
-import { sliceRouteAtDistance } from "./live-route-progress.js?v=location-reliability-1";
-import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=location-reliability-1";
+import { sliceRouteAtDistance } from "./live-route-progress.js?v=live-routing-stability-1";
+import { boundsForGeoJSON, bufferBoundsMetres } from "./supported-area.js?v=live-routing-stability-1";
 
 export const DESTINATION_SOURCE_ID = "demo-destinations";
 export const DESTINATION_CLUSTER_LAYER_ID = "destination-clusters";
@@ -32,6 +32,9 @@ const ROUTE_LAYER_ID = "calculated-demo-route-line";
 const USER_ROUTE_SOURCE_ID = "user-demo-route";
 const USER_ROUTE_COMPLETED_SOURCE_ID = "user-completed-route";
 const USER_ROUTE_COMPLETED_LAYER_ID = "user-completed-route-line";
+export const USER_APPROACH_SOURCE_ID = "user-route-approach";
+export const USER_APPROACH_CASING_LAYER_ID = "user-route-approach-casing";
+export const USER_APPROACH_LAYER_ID = "user-route-approach-line";
 const USER_ROUTE_CASING_LAYER_ID = "user-demo-route-casing";
 const USER_ROUTE_LAYER_ID = "user-demo-route-line";
 const USER_ENDPOINT_SOURCE_ID = "user-route-endpoints";
@@ -40,7 +43,7 @@ const USER_ENDPOINT_LABEL_LAYER_ID = "user-route-endpoint-labels";
 const USER_LOCATION_SOURCE_ID = "live-user-location";
 const USER_ACCURACY_SOURCE_ID = "live-user-accuracy";
 const USER_ACCURACY_LAYER_ID = "live-user-accuracy-fill";
-const USER_LOCATION_DOT_LAYER_ID = "live-user-location-dot";
+export const USER_LOCATION_DOT_LAYER_ID = "live-user-location-dot";
 const USER_LOCATION_SHADOW_LAYER_ID = "live-user-location-arrow-shadow";
 const USER_LOCATION_EDGE_LAYER_ID = "live-user-location-arrow-edge";
 const USER_LOCATION_CHEVRON_LAYER_ID = "live-user-location-chevron";
@@ -68,6 +71,8 @@ export const NAVIGATION_FOREGROUND_LAYER_ORDER = Object.freeze([
   USER_ACCURACY_LAYER_ID,
   SELECTED_DESTINATION_HALO_LAYER_ID,
   SELECTED_DESTINATION_MARKER_LAYER_ID,
+  USER_APPROACH_CASING_LAYER_ID,
+  USER_APPROACH_LAYER_ID,
   USER_ROUTE_COMPLETED_LAYER_ID,
   USER_ROUTE_CASING_LAYER_ID,
   USER_ROUTE_LAYER_ID,
@@ -178,7 +183,7 @@ export function userLocationArrowTipVector(headingDegrees) {
 }
 
 export function userLocationArrowLayerDefinitions() {
-  const arrowLayout = { "text-field": "▲", "text-rotate": ["get", "heading"],
+  const arrowLayout = { "text-field": "\u25b2", "text-rotate": ["get", "heading"],
     "text-rotation-alignment": "map", "text-pitch-alignment": "map",
     "text-allow-overlap": true, "text-ignore-placement": true };
   return [
@@ -194,6 +199,33 @@ export function userLocationArrowLayerDefinitions() {
       paint: { "text-color": "#1267d6", "text-halo-color": "rgba(111,190,255,.75)",
         "text-halo-width": 0.8 } },
   ];
+}
+
+export function userLocationDotLayerDefinition() {
+  return { id: USER_LOCATION_DOT_LAYER_ID, type: "circle", source: USER_LOCATION_SOURCE_ID,
+    paint: { "circle-radius": 9, "circle-color": "#1677ff",
+      "circle-stroke-color": "#fff", "circle-stroke-width": 3 } };
+}
+
+export function routeApproachLayerDefinitions() {
+  return [
+    { id: USER_APPROACH_CASING_LAYER_ID, type: "line", source: USER_APPROACH_SOURCE_ID,
+      paint: { "line-color": "rgba(255,255,255,.94)",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 14, 6, 18, 9],
+        "line-opacity": 0.92 } },
+    { id: USER_APPROACH_LAYER_ID, type: "line", source: USER_APPROACH_SOURCE_ID,
+      paint: { "line-color": "#2f6fed",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 14, 3, 18, 5],
+        "line-dasharray": [1.5, 1.5], "line-opacity": 0.82 } },
+  ];
+}
+
+export function routeApproachFeature(position, coordinate) {
+  if (!position || !Array.isArray(coordinate) || coordinate.length !== 2) return null;
+  const from = [position.longitude, position.latitude];
+  if (![...from, ...coordinate].every(Number.isFinite)) return null;
+  return { type: "Feature", geometry: { type: "LineString",
+    coordinates: [from, [...coordinate]] }, properties: { role: "orientation-only" } };
 }
 
 export function destinationSourceDefinition(features = []) {
@@ -535,6 +567,7 @@ export async function createMap({ container, config, features, onSelect, onReady
   let displayedHeadingSource = null;
   let liveRouteActive = false;
   let activeUserRouteCoordinates = [];
+  let activeApproachCoordinate = null;
   let lastRenderedProgressMetres = 0;
 
   const map = new maplibregl.Map({
@@ -672,6 +705,7 @@ export async function createMap({ container, config, features, onSelect, onReady
     }
 
     map.addSource(USER_ROUTE_COMPLETED_SOURCE_ID, { type: "geojson", data: featureCollection() });
+    map.addSource(USER_APPROACH_SOURCE_ID, { type: "geojson", data: featureCollection() });
     map.addSource(USER_ROUTE_SOURCE_ID, { type: "geojson", data: featureCollection() });
     map.addSource(CONTRIBUTION_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     map.addLayer({ id: CONTRIBUTION_LAYER_ID, type: "circle", source: CONTRIBUTION_SOURCE_ID,
@@ -679,6 +713,7 @@ export async function createMap({ container, config, features, onSelect, onReady
     map.addLayer({ id: USER_ROUTE_COMPLETED_LAYER_ID, type: "line", source: USER_ROUTE_COMPLETED_SOURCE_ID,
       paint: { "line-color": "#71849b", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 3, 18, 5],
         "line-opacity": 0.34 } });
+    for (const layer of routeApproachLayerDefinitions()) map.addLayer(layer);
     map.addLayer({ id: USER_ROUTE_CASING_LAYER_ID, type: "line", source: USER_ROUTE_SOURCE_ID,
       paint: { "line-color": "rgba(255,255,255,.92)", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 8, 18, 12] } });
     map.addLayer({ id: USER_ROUTE_LAYER_ID, type: "line", source: USER_ROUTE_SOURCE_ID,
@@ -696,9 +731,7 @@ export async function createMap({ container, config, features, onSelect, onReady
     map.addLayer({ id: USER_ACCURACY_LAYER_ID, type: "fill", source: USER_ACCURACY_SOURCE_ID,
       paint: { "fill-color": "#1677ff", "fill-opacity": 0.12, "fill-outline-color": "rgba(22,119,255,.42)" } });
     map.addSource(USER_LOCATION_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-    map.addLayer({ id: USER_LOCATION_DOT_LAYER_ID, type: "circle", source: USER_LOCATION_SOURCE_ID,
-      filter: ["!", ["has", "heading"]],
-      paint: { "circle-radius": 9, "circle-color": "#1677ff", "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
+    map.addLayer(userLocationDotLayerDefinition());
     for (const layer of userLocationArrowLayerDefinitions()) map.addLayer(layer);
 
     map.addSource(DESTINATION_SOURCE_ID, destinationSourceDefinition(visibleFeatures));
@@ -784,8 +817,23 @@ export async function createMap({ container, config, features, onSelect, onReady
     );
   }
 
+  function approachLineFeature() {
+    return routeApproachFeature(latestUserPosition, activeApproachCoordinate);
+  }
+
+  function renderRouteApproach() {
+    if (!loaded) return;
+    const feature = approachLineFeature();
+    map.getSource(USER_APPROACH_SOURCE_ID)?.setData(featureCollection(feature ? [feature] : []));
+  }
+
+  function clearRouteApproach() {
+    activeApproachCoordinate = null;
+    if (loaded) map.getSource(USER_APPROACH_SOURCE_ID)?.setData(featureCollection());
+  }
+
   function showUserRoute(routeFeature, origin, destination, { originType = "manual", replacement = false,
-    arrivalName = "", startName = "" } = {}) {
+    arrivalName = "", startName = "", approachCoordinate = null } = {}) {
     if (!loaded || routeFeature.geometry.type !== "LineString") return;
     const coordinates = routeFeature.geometry.coordinates;
     let bounds;
@@ -796,33 +844,44 @@ export async function createMap({ container, config, features, onSelect, onReady
       throw error;
     }
     activeUserRouteCoordinates = coordinates.map((coordinate) => [...coordinate]);
+    activeApproachCoordinate = Array.isArray(approachCoordinate)
+      && approachCoordinate.length === 2 && approachCoordinate.every(Number.isFinite)
+      ? [...approachCoordinate] : null;
     lastRenderedProgressMetres = 0;
     map.getSource(USER_ROUTE_COMPLETED_SOURCE_ID).setData(featureCollection());
     map.getSource(USER_ROUTE_SOURCE_ID).setData(featureCollection([routeFeature]));
-    const usesLiveProgress = originType === "live" || originType === "live-mapped-start";
+    renderRouteApproach();
+    const usesLiveProgress = ["live", "live-approach", "live-mapped-start"].includes(originType);
     liveRouteActive = usesLiveProgress;
     setUserRouteStale(false);
     map.getSource(USER_ENDPOINT_SOURCE_ID).setData({ type: "FeatureCollection", features: [
       { type: "Feature", geometry: { type: "Point", coordinates: coordinates[0] }, properties: {
-        role: originType === "live" ? "matched" : "start",
-        name: startName || (originType === "live" ? "Matched route start" : origin?.properties?.name || "Route start"),
+        role: ["live", "live-approach"].includes(originType) ? "matched" : "start",
+        name: startName || (["live", "live-approach"].includes(originType)
+          ? "Matched route start" : origin?.properties?.name || "Route start"),
       } },
       { type: "Feature", geometry: { type: "Point", coordinates: coordinates.at(-1) }, properties: {
         role: "destination", name: arrivalName || destination.properties.name,
       } },
     ] });
     if (!replacement) {
-      map.fitBounds(bounds, { padding: routePadding(), maxZoom: 17.5, duration: 700, essential: false });
+      const fitCoordinates = activeApproachCoordinate && latestUserPosition
+        ? [...coordinates, [latestUserPosition.longitude, latestUserPosition.latitude]] : coordinates;
+      map.fitBounds(routeBounds(fitCoordinates), {
+        padding: routePadding(), maxZoom: 17.5, duration: 700, essential: false,
+      });
     }
   }
 
   function clearUserRoute() {
     liveRouteActive = false;
     activeUserRouteCoordinates = [];
+    activeApproachCoordinate = null;
     lastRenderedProgressMetres = 0;
     map.getSource(USER_ROUTE_COMPLETED_SOURCE_ID)?.setData(featureCollection());
     map.getSource(USER_ROUTE_SOURCE_ID)?.setData(featureCollection());
     map.getSource(USER_ENDPOINT_SOURCE_ID)?.setData(featureCollection());
+    map.getSource(USER_APPROACH_SOURCE_ID)?.setData(featureCollection());
   }
 
   function routeLineFeature(coordinates) {
@@ -865,6 +924,7 @@ export async function createMap({ container, config, features, onSelect, onReady
     displayedHeadingSource = position.displayedHeadingSource || (displayedHeading !== null ? "movement" : null);
     if (!loaded) return;
     renderUserLocation();
+    renderRouteApproach();
     map.getSource(USER_ACCURACY_SOURCE_ID).setData({ type: "FeatureCollection", features: [accuracyPolygon(position)] });
     if (shouldFocus) recenterUserLocation();
   }
@@ -888,6 +948,7 @@ export async function createMap({ container, config, features, onSelect, onReady
     latestUserPosition = null;
     map.getSource(USER_LOCATION_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
     map.getSource(USER_ACCURACY_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
+    renderRouteApproach();
   }
 
   function clearContributionPoint() {
@@ -909,7 +970,8 @@ export async function createMap({ container, config, features, onSelect, onReady
   }
 
   return { focus, focusCampus: focusCampusCore, focusCampusCore, focusCampusOverview,
-    setVisibleFeatures, showRoute, showUserRoute, updateUserRouteProgress, clearUserRoute, setUserRouteStale,
+    setVisibleFeatures, showRoute, showUserRoute, updateUserRouteProgress, clearUserRoute,
+    clearRouteApproach, setUserRouteStale,
     showUserLocation, updateUserHeading, recenterUserLocation, clearUserLocation,
     pickContributionPoint, clearContributionPoint, getBearing: () => Number(map.getBearing?.() || 0), map };
 }

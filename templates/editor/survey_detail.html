@@ -165,9 +165,9 @@
       {% if match.reviewer_note %}<p class="survey-review-note"><strong>Reviewer note:</strong> {{ match.reviewer_note }}</p>{% endif %}
       {% if match.disposition != 'PENDING' %}
         {% if match.reviewed_by and match.reviewed_at %}
-          <p class="editor-muted">Reviewed by {{ match.reviewed_by.get_username }} Â· {{ match.reviewed_at|date:"j M Y, H:i" }}</p>
+          <p class="editor-muted">Reviewed by {{ match.reviewed_by.get_username }} · {{ match.reviewed_at|date:"j M Y, H:i" }}</p>
         {% else %}
-          <p class="editor-muted">Historical review Â· reviewer not recorded</p>
+          <p class="editor-muted">Historical review · reviewer not recorded</p>
         {% endif %}
       {% endif %}
       <details class="survey-technical-details"><summary>Show technical evidence</summary><p>Mean offset {{ match.mean_distance_metres }} m · geometry revision {{ match.segment_revision }} · fingerprint {{ match.segment_fingerprint }}</p></details>
@@ -217,4 +217,4 @@
 </section>
 {% endif %}
 {% endblock %}
-{% block scripts %}<script type="module" src="{% static 'yct_map/js/path-survey.js' %}?v=location-reliability-1"></script>{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'yct_map/js/path-survey.js' %}?v=live-routing-stability-1"></script>{% endblock %}

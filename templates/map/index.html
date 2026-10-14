@@ -36,7 +36,7 @@
           <a href="{% url 'editor:login' %}">Team access</a>
           <p class="data-status-disclosure">
             <strong>Data status</strong>
-            <span>Some campus locations and walking paths may still be undergoing field verification.</span>
+            <span>Published campus information is reviewed before release. Any record still awaiting field verification is identified in context.</span>
           </p>
         </div>
       </details>
@@ -109,7 +109,7 @@
     <aside id="network-inspector" class="network-inspector" aria-label="Demonstration network inspection" hidden>
       <button id="toggle-demo-network" type="button" aria-pressed="false">
         <span class="network-swatch" aria-hidden="true"></span>
-        UNVERIFIED walkable network
+        Walkable network
       </button>
       <small>Inspection only — no route calculated</small>
     </aside>
@@ -168,11 +168,13 @@
     <section id="user-route-panel" class="user-route-panel" aria-labelledby="user-route-title" hidden>
       <div class="panel-handle" aria-hidden="true"></div>
       <button id="close-user-route" class="panel-close" type="button" aria-label="Close route">×</button>
-      <div class="destination-meta"><span id="user-route-badge" class="demo-route-label">UNVERIFIED ROUTE</span></div>
+      <div class="destination-meta"><span id="user-route-badge" class="demo-route-label" hidden></span></div>
       <h2 id="user-route-title">Walking directions</h2>
+      <p id="user-route-error" class="route-error" role="alert" tabindex="-1" hidden></p>
       <div id="user-route-form-state">
         <p class="route-destination-copy">To <strong id="user-route-destination"></strong></p>
         <form id="user-route-form">
+          <p id="user-route-request-status" class="route-request-status" role="status" aria-live="polite" hidden></p>
           <fieldset id="user-route-origin-options" class="route-origin-options">
             <legend>Choose a starting point</legend>
             <label class="route-origin-option route-origin-live" for="user-route-origin-live">
@@ -184,12 +186,10 @@
             </label>
             <div id="user-route-mapped-origins" class="route-origin-mapped"></div>
           </fieldset>
-          <p id="user-route-request-status" class="route-request-status" role="status" aria-live="polite" hidden></p>
           <button id="show-user-route" class="primary-action" type="submit">Show route</button>
           <button id="cancel-user-route" class="secondary-action" type="button">Cancel</button>
         </form>
       </div>
-      <p id="user-route-error" class="route-error" role="alert" hidden></p>
       <div id="user-route-result" aria-live="polite" hidden>
         <div class="active-route-summary">
           <button id="toggle-route-details" class="route-summary-toggle" type="button" aria-expanded="false">
@@ -203,7 +203,7 @@
         <p id="user-route-progress-status" class="route-progress-status" hidden></p>
         <div id="route-expanded-content" class="route-expanded-content">
         <div class="route-place"><span class="start-key">S</span><span>Start at <strong id="user-route-from"></strong></span></div>
-        <div class="route-guidance">Follow the highlighted route</div>
+        <div id="user-route-guidance" class="route-guidance">Follow the highlighted route</div>
         <div class="route-place"><span class="destination-key">D</span><span><span id="user-route-arrival-prefix">Arrive at</span> <strong id="user-route-to"></strong></span></div>
         <section id="user-route-internal-handoff" class="route-internal-handoff" hidden>
           <span class="route-handoff-label">Inside</span>
@@ -219,7 +219,7 @@
         </div>
         </div>
       </div>
-      <p id="user-route-data-notice" class="demo-notice">OSM-derived route geometry is UNVERIFIED and is not field-verified campus navigation.</p>
+      <p id="user-route-data-notice" class="demo-notice" hidden></p>
     </section>
 
     <section id="contribution-panel" class="contribution-panel" aria-labelledby="contribution-title" hidden>

@@ -9,7 +9,8 @@ import {
   normalizeHeading,
   selectDisplayedHeading,
 } from "../../static/yct_map/js/device-orientation.js";
-import { recenterCameraOptions, userLocationArrowLayerDefinitions,
+import { recenterCameraOptions, routeApproachFeature, routeApproachLayerDefinitions,
+  userLocationArrowLayerDefinitions, userLocationDotLayerDefinition,
   userLocationArrowTipVector, userLocationFeature } from "../../static/yct_map/js/map.js";
 
 test("heading normalization handles wrap and rejects relative orientation", () => {
@@ -161,6 +162,29 @@ test("marker heading changes presentation without changing GPS position", () => 
   assert.equal(device.properties.heading_source, "device");
   assert.equal(movement.properties.heading_source, "movement");
   assert.equal("heading" in dot.properties, false);
+});
+
+test("heading overlays never replace the persistent live-location dot", () => {
+  const dot = userLocationDotLayerDefinition();
+  assert.equal(dot.type, "circle");
+  assert.equal("filter" in dot, false,
+    "the base dot must remain visible whether or not heading metadata exists");
+  assert.ok(userLocationArrowLayerDefinitions().every((layer) =>
+    JSON.stringify(layer.filter) === JSON.stringify(["has", "heading"])));
+});
+
+test("off-network approach is a separate dashed orientation-only overlay", () => {
+  const feature = routeApproachFeature(
+    { longitude: 3.374, latitude: 6.518 },
+    [3.3744, 6.5182],
+  );
+  assert.deepEqual(feature.geometry.coordinates, [[3.374, 6.518], [3.3744, 6.5182]]);
+  assert.equal(feature.properties.role, "orientation-only");
+  const layers = routeApproachLayerDefinitions();
+  assert.equal(layers.length, 2);
+  assert.deepEqual(layers.at(-1).paint["line-dasharray"], [1.5, 1.5]);
+  assert.equal(routeApproachFeature(null, [3.374, 6.518]), null);
+  assert.equal(routeApproachFeature({ longitude: NaN, latitude: 6.518 }, [3.374, 6.518]), null);
 });
 
 test("recenter is a one-shot camera move that preserves user bearing", () => {

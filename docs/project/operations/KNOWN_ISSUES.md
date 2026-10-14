@@ -12,15 +12,15 @@ PHASES 1, 2 and 3 are OWNER ACCEPTED / COMPLETE.
 
 ## Active Limitations
 
-- The 47-node/54-segment OSM-derived development network is `UNVERIFIED`; service-road walkability and physical access are not guaranteed.
-- Exact entrances and exits are not comprehensively field verified; legacy node-only anchors and approximate connectors remain possible.
+- The current 49-node/54-segment local graph and eligible retained campus records are owner-attested and `FIELD_VERIFIED`. Verification does not make the graph denser: 41 nodes form the destination-reachable component, while one six-node component and two isolated nodes remain disconnected. Some valid in-campus live positions are therefore separated from a destination-reachable mapped segment by an unmapped gap.
+- A campus-scoped sparse-graph match may therefore return `APPROACH_REQUIRED`. Its dashed line is an orientation-only guide, not a claimed walkway, and its gap is excluded from route distance and ETA.
 - The closeout orientation correction has deterministic cardinal and landscape coverage but still requires a physical Samsung/Edge N/E/S/W walking retest.
-- Live-origin routing, progress, dynamic ETA, off-route detection and controlled rerouting retain deterministic regression coverage; field accuracy depends on browser/device sensor quality and the unverified graph.
+- Live-origin routing, progress, dynamic ETA, off-route detection and controlled rerouting retain deterministic regression coverage. Destination-aware matching prevents an origin from attaching to graph geometry that cannot reach the selected destination, but physical behavior still depends on browser/device sensor quality and available graph coverage.
 - Rerouting is campus-graph only. It does not provide city routing or complete outside-campus recovery.
 - ETA uses a filtered personal pace only after sufficient reliable movement; otherwise it intentionally falls back to approximately `1.35 m/s`.
 - Phase 3 Sprint 004 moderation uses Django admin. Phase 4 Sprint 003 adds explicit, repeatable resolution records, but detailed owner QA of that custom resolution workflow is deferred.
 - Anonymous throttling uses process-local cache in local development. A shared production cache must be selected before multi-instance deployment.
-- Live public records are distinct from test-only DEMO fixtures. Retained legitimate campus and routing records remain `UNVERIFIED` until explicit evidence supports promotion.
+- Live public records are distinct from test-only DEMO fixtures. The current eligible retained baseline is owner-attested and promoted locally to `FIELD_VERIFIED`; new, imported or materially edited records retain the normal `UNVERIFIED` default/demotion rules, and DEMO records remain DEMO.
 - Approved contributions require explicit authenticated editor action; approval and resolution intentionally do not automatically publish, alter map data or grant `FIELD_VERIFIED`.
 - Sprint 002 implementation remains present and regression-tested, but its dedicated owner acceptance is still explicitly deferred.
 - Path Survey evidence, revision-bound matching, cumulative one-way promotion and explicit verification transitions are implemented. Review-only `SurveySegmentMatch` decisions now store the latest actor and timestamp; pre-migration decisions correctly remain labelled as historical reviews without fabricated audit metadata.
@@ -85,9 +85,9 @@ Status:       RESOLVED LOCALLY in the Final Project Closeout Sweep; owner browse
 ID:           KI-004
 Severity:     HIGH
 Type:         BUG / NAVIGATION RECOVERY
-Impact:       A precise live position inside Sports Complex can be about 65 m from the explicit routing graph. The safe 40 m match correctly rejects it, but the previous UI repeatedly retried and appeared to do nothing.
-Workaround:   Choose Sports Complex as a mapped start in the committed build.
-Resolution:   On this specific safe-match failure, offer the existing route from a nearby route-capable place entrance, disclose the unmapped approach and delay live progress/rerouting until the route start is reached.
+Impact:       A precise in-campus live position can be separated from the sparse explicit graph. The former nearest-segment flow could repeatedly reject it, attach to a component that could not reach the selected destination, or appear to do nothing while retrying.
+Workaround:   Use a static mapped start in the currently deployed build if live route setup cannot connect safely.
+Resolution:   Match only against graph segments that can reach the selected destination. Return explicit `ON_NETWORK`, `APPROACH_REQUIRED` or `ARRIVAL_CANDIDATE` states; constrain the wider sparse-campus allowance to the approved campus boundary; render any gap as an orientation-only guide excluded from route distance/ETA; and surface bounded setup/recovery errors. Arrival requires repeated evidence.
 Status:       RESOLVED LOCALLY; physical Samsung/Edge owner retest pending.
 ```
 

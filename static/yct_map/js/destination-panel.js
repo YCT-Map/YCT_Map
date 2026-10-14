@@ -44,9 +44,10 @@ export function createDestinationPanel(panel, { onDirections } = {}) {
     panel.hidden = false;
     panel.classList.add("is-visible");
     const routingAvailable = properties.routing_available === true;
-    directionsButton.hidden = !routingAvailable;
+    directionsButton.hidden = false;
     directionsButton.disabled = !routingAvailable;
-    directionsButton.setAttribute("aria-hidden", String(!routingAvailable));
+    directionsButton.textContent = routingAvailable ? "Directions" : "Directions unavailable";
+    directionsButton.setAttribute("aria-hidden", "false");
     if (routingReason) {
       routingReason.hidden = routingAvailable;
       routingReason.textContent = routingAvailable ? "" : (properties.routing_unavailable_reason || "Directions are not available for this destination yet.");

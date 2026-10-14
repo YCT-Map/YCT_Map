@@ -1,13 +1,13 @@
-import { fetchLocations } from "./api.js?v=location-reliability-1";
-import { createContributions } from "./contributions.js?v=location-reliability-1";
-import { createDestinationPanel } from "./destination-panel.js?v=location-reliability-1";
-import { createMap } from "./map.js?v=location-reliability-1";
-import { createSearch } from "./search.js?v=location-reliability-1";
-import { createRouteInspector } from "./route-inspector.js?v=location-reliability-1";
-import { createUserLocation } from "./user-location.js?v=location-reliability-1";
-import { createUserNavigation } from "./user-navigation.js?v=location-reliability-1";
-import { createDisclosureMenu } from "./disclosure-menu.js?v=location-reliability-1";
-import { loadSupportedLocationArea } from "./supported-area.js?v=location-reliability-1";
+import { fetchLocations } from "./api.js?v=live-routing-stability-1";
+import { createContributions } from "./contributions.js?v=live-routing-stability-1";
+import { createDestinationPanel } from "./destination-panel.js?v=live-routing-stability-1";
+import { createMap } from "./map.js?v=live-routing-stability-1";
+import { createSearch } from "./search.js?v=live-routing-stability-1";
+import { createRouteInspector } from "./route-inspector.js?v=live-routing-stability-1";
+import { createUserLocation } from "./user-location.js?v=live-routing-stability-1";
+import { createUserNavigation } from "./user-navigation.js?v=live-routing-stability-1";
+import { createDisclosureMenu } from "./disclosure-menu.js?v=live-routing-stability-1";
+import { loadSupportedLocationArea } from "./supported-area.js?v=live-routing-stability-1";
 
 const shell = document.querySelector(".map-shell");
 const status = document.querySelector("#map-status");
@@ -79,6 +79,7 @@ async function start() {
       liveRouteUrl: config.liveRouteUrl,
       onRoute: (route, origin, destination, options) => mapController?.showUserRoute(route, origin, destination, options),
       onRouteProgress: (progress) => mapController?.updateUserRouteProgress(progress),
+      onApproachClear: () => mapController?.clearRouteApproach(),
       onClear: () => mapController?.clearUserRoute(),
       onRouteStale: (stale) => mapController?.setUserRouteStale(stale),
       onFreshLocationRequired: () => userLocationController?.refresh?.() ?? false,

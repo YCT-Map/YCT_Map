@@ -11,7 +11,12 @@ from .models import LocationNetworkAnchor, VerificationState, WalkableNode, Walk
 from .matching import InsufficientAccuracyError, LivePositionError, NoSafeNetworkMatchError
 from .results import InvalidNodeError, MissingAnchorError, NoRouteError
 from .route_contract import InvalidRouteGeometryError, route_geojson_geometry
-from .services import route_between_locations, route_from_live_position, route_to_destination
+from .services import (
+    LIVE_ROUTE_ARRIVAL_CANDIDATE,
+    route_between_locations,
+    route_from_live_position,
+    route_to_destination,
+)
 from .destinations import destination_summary
 from locations.models import Location
 
@@ -40,6 +45,18 @@ def _require_debug():
 
 def _already_at_arrival(result):
     return len(result.geometry) < 2
+
+
+def _arrival_verification_state(destination):
+    states = [
+        destination.location.verification_state,
+        destination.node.verification_state,
+    ]
+    if destination.entrance is not None:
+        states.append(destination.entrance.verification_state)
+    if destination.anchor is not None:
+        states.append(destination.anchor.verification_state)
+    return classify_route_verification(states)
 
 
 @require_GET
@@ -157,7 +174,7 @@ def public_route_from_position(request):
     except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
         return JsonResponse({"error": "A valid destination and live position are required.", "code": "INVALID_POSITION"}, status=400)
     try:
-        result, match, destination = route_from_live_position(
+        outcome = route_from_live_position(
             longitude, latitude, accuracy_metres, destination_id,
         )
     except InsufficientAccuracyError as error:
@@ -174,11 +191,32 @@ def public_route_from_position(request):
     except NoRouteError:
         return JsonResponse({"error": "No walkable route is available from this position.", "code": "NO_ROUTE"}, status=404)
 
-    if _already_at_arrival(result):
-        return JsonResponse({
-            "error": "You are already at the destination's mapped arrival point.",
-            "code": "ALREADY_AT_ARRIVAL",
-        }, status=409)
+    destination = outcome.destination
+    if outcome.state == LIVE_ROUTE_ARRIVAL_CANDIDATE:
+        route_state = _arrival_verification_state(destination)
+        response = JsonResponse({
+            "navigation_state": LIVE_ROUTE_ARRIVAL_CANDIDATE,
+            "summary": {
+                "origin": {"name": "Your location", "type": "live"},
+                "destination": destination_summary(destination),
+                "total_distance_metres": 0,
+                "remaining_distance_metres": 0,
+                "eta_label": "Checking arrival",
+                "eta_is_approximate": False,
+                "eta_source": "arrival_candidate",
+                "verification_state": route_state,
+                "arrival_distance_metres": round(outcome.arrival_distance_metres, 2),
+                "live_start": {
+                    "state": LIVE_ROUTE_ARRIVAL_CANDIDATE,
+                    "on_path_corridor_metres": round(outcome.on_path_corridor_metres, 2),
+                },
+            },
+        })
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    result = outcome.result
+    match = outcome.match
 
     try:
         geometry = route_geojson_geometry(result.geometry)
@@ -186,6 +224,7 @@ def public_route_from_position(request):
         return JsonResponse({"error": str(error), "code": "INVALID_ROUTE_GEOMETRY"}, status=422)
     route_state = classify_route_verification(result.verification_states)
     response = JsonResponse({
+        "navigation_state": outcome.state,
         "route": {"type": "Feature", "geometry": geometry, "properties": {"route_state": route_state, "origin_type": "live"}},
         "summary": {
             "origin": {"name": "Your location", "type": "live"},
@@ -197,6 +236,15 @@ def public_route_from_position(request):
             "eta_source": "fallback",
             "verification_state": route_state,
             "network_match_distance_metres": round(match.distance_metres, 2),
+            "live_start": {
+                "state": outcome.state,
+                "network_match_distance_metres": round(match.distance_metres, 2),
+                "network_match_coordinate": [
+                    round(match.coordinate[0], 7),
+                    round(match.coordinate[1], 7),
+                ],
+                "on_path_corridor_metres": round(outcome.on_path_corridor_metres, 2),
+            },
         },
     })
     response.headers["Cache-Control"] = "no-store"

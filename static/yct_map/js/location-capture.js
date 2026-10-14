@@ -1,4 +1,4 @@
-import { assessSample, createLocationStabilizer } from "./location-filter.js?v=location-reliability-1";
+import { assessSample, createLocationStabilizer } from "./location-filter.js?v=live-routing-stability-1";
 
 export const FIELD_CAPTURE_MIN_DURATION_MS = 6_000;
 export const FIELD_CAPTURE_MAX_DURATION_MS = 10_000;

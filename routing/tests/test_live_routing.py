@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from django.test import Client, SimpleTestCase, TestCase
 
+from locations.models import Entrance
 from routing.geometry import distance_metres
 from routing.matching import (
     InsufficientAccuracyError,
@@ -10,8 +11,20 @@ from routing.matching import (
     find_safe_network_match,
     project_onto_segment,
 )
-from routing.models import LocationNetworkAnchor, WalkableSegment
-from routing.services import route_from_live_position
+from routing.models import (
+    EntranceNetworkAnchor,
+    LocationNetworkAnchor,
+    SourceType,
+    VerificationState,
+    WalkableNode,
+    WalkableSegment,
+)
+from routing.services import (
+    LIVE_ROUTE_APPROACH_REQUIRED,
+    LIVE_ROUTE_ARRIVAL_CANDIDATE,
+    LIVE_ROUTE_ON_NETWORK,
+    route_from_live_position,
+)
 
 
 class ProjectionTests(SimpleTestCase):
@@ -57,8 +70,10 @@ class LiveRouteServiceTests(TestCase):
     def test_live_route_uses_ephemeral_origin_and_partial_segment_geometry(self):
         destination = LocationNetworkAnchor.objects.order_by("location__name").first()
         before_nodes = destination.node.__class__.objects.count()
-        result, match, _ = route_from_live_position(3.37378, 6.51828, 12, destination.location_id)
+        outcome = route_from_live_position(3.37378, 6.51828, 12, destination.location_id)
+        result, match = outcome.result, outcome.match
 
+        self.assertEqual(outcome.state, LIVE_ROUTE_ON_NETWORK)
         self.assertEqual(result.origin_node_id, "live-origin")
         self.assertEqual(result.geometry[0], match.coordinate)
         self.assertGreater(result.distance_metres, 0)
@@ -69,8 +84,122 @@ class LiveRouteServiceTests(TestCase):
         segment.is_bidirectional = False
         segment.save()
         destination = LocationNetworkAnchor.objects.get(node=segment.end_node)
-        result, _, _ = route_from_live_position(3.37378, 6.51828, 12, destination.location_id)
-        self.assertEqual(result.destination_node_id, str(segment.end_node_id))
+        outcome = route_from_live_position(3.37378, 6.51828, 12, destination.location_id)
+        self.assertEqual(outcome.result.destination_node_id, str(segment.end_node_id))
+
+    def test_destination_aware_match_skips_closer_disconnected_segment(self):
+        destination = LocationNetworkAnchor.objects.get(
+            node_id="10000000-0000-0000-0000-000000000003",
+        )
+        isolated_start = WalkableNode.objects.create(
+            longitude="3.373750", latitude="6.518350",
+            verification_state=VerificationState.UNVERIFIED, source_type=SourceType.MANUAL,
+        )
+        isolated_end = WalkableNode.objects.create(
+            longitude="3.373810", latitude="6.518350",
+            verification_state=VerificationState.UNVERIFIED, source_type=SourceType.MANUAL,
+        )
+        disconnected = WalkableSegment.objects.create(
+            start_node=isolated_start, end_node=isolated_end,
+            geometry={"type": "LineString", "coordinates": [[3.37375, 6.51835], [3.37381, 6.51835]]},
+            is_bidirectional=True, verification_state=VerificationState.UNVERIFIED,
+            source_type=SourceType.MANUAL,
+        )
+
+        outcome = route_from_live_position(3.37378, 6.51835, 8, destination.location_id)
+
+        self.assertNotEqual(outcome.match.segment.id, disconnected.id)
+        self.assertIn(str(destination.node_id), outcome.result.node_ids)
+        self.assertNotIn(str(disconnected.id), outcome.result.segment_ids)
+
+    def test_destination_aware_match_respects_one_way_direction(self):
+        destination = LocationNetworkAnchor.objects.get(
+            node_id="10000000-0000-0000-0000-000000000003",
+        )
+        reachable_start = WalkableNode.objects.get(pk="10000000-0000-0000-0000-000000000001")
+        dead_end = WalkableNode.objects.create(
+            longitude="3.373250", latitude="6.518100",
+            verification_state=VerificationState.UNVERIFIED, source_type=SourceType.MANUAL,
+        )
+        wrong_way = WalkableSegment.objects.create(
+            start_node=reachable_start, end_node=dead_end,
+            geometry={"type": "LineString", "coordinates": [[3.3735, 6.5181], [3.37325, 6.5181]]},
+            is_bidirectional=False, verification_state=VerificationState.UNVERIFIED,
+            source_type=SourceType.MANUAL,
+        )
+
+        outcome = route_from_live_position(3.37330, 6.51810, 8, destination.location_id)
+
+        self.assertNotEqual(outcome.match.segment.id, wrong_way.id)
+        self.assertNotIn(str(wrong_way.id), outcome.result.segment_ids)
+
+    def test_match_outside_accuracy_aware_corridor_requires_explicit_approach(self):
+        destination = LocationNetworkAnchor.objects.get(
+            node_id="10000000-0000-0000-0000-000000000003",
+        )
+
+        outcome = route_from_live_position(3.37425, 6.51950, 10, destination.location_id)
+
+        self.assertEqual(outcome.state, LIVE_ROUTE_APPROACH_REQUIRED)
+        self.assertGreater(outcome.match.distance_metres, outcome.on_path_corridor_metres)
+        self.assertLessEqual(outcome.match.distance_metres, 80)
+        self.assertEqual(outcome.result.geometry[0], outcome.match.coordinate)
+
+    def test_sparse_northern_campus_area_still_returns_an_explicit_approach(self):
+        destination = LocationNetworkAnchor.objects.get(
+            node_id="10000000-0000-0000-0000-000000000003",
+        )
+
+        outcome = route_from_live_position(3.374700, 6.520300, 10, destination.location_id)
+
+        self.assertEqual(outcome.state, LIVE_ROUTE_APPROACH_REQUIRED)
+        self.assertGreater(outcome.match.distance_metres, 80)
+        self.assertLessEqual(outcome.match.distance_metres, 175)
+        self.assertEqual(outcome.result.geometry[0], outcome.match.coordinate)
+
+    def test_extended_approach_is_rejected_outside_the_campus_boundary(self):
+        destination = LocationNetworkAnchor.objects.get(
+            node_id="10000000-0000-0000-0000-000000000003",
+        )
+
+        with self.assertRaises(NoSafeNetworkMatchError):
+            route_from_live_position(3.374300, 6.516350, 5, destination.location_id)
+
+    def test_physical_arrival_candidate_is_detected_before_graph_matching_without_writes(self):
+        destination = LocationNetworkAnchor.objects.select_related("location", "node").first()
+        entrance = Entrance.objects.create(
+            location=destination.location, name="TEST — Physical entrance",
+            latitude="6.519350", longitude="3.374250", is_primary=True, is_active=True,
+            verification_state=destination.location.verification_state,
+        )
+        EntranceNetworkAnchor.objects.create(
+            entrance=entrance, node=destination.node,
+            connector_geometry={"type": "LineString", "coordinates": [
+                [float(destination.node.longitude), float(destination.node.latitude)],
+                [float(entrance.longitude), float(entrance.latitude)],
+            ]},
+            verification_state=VerificationState.DEMO, is_active=True,
+        )
+        WalkableSegment.objects.update(is_active=False)
+        before = {
+            "nodes": WalkableNode.objects.count(),
+            "segments": WalkableSegment.objects.count(),
+            "anchors": EntranceNetworkAnchor.objects.count(),
+        }
+
+        outcome = route_from_live_position(
+            float(entrance.longitude), float(entrance.latitude), 5, destination.location_id,
+        )
+
+        self.assertEqual(outcome.state, LIVE_ROUTE_ARRIVAL_CANDIDATE)
+        self.assertIsNone(outcome.result)
+        self.assertIsNone(outcome.match)
+        self.assertLess(outcome.arrival_distance_metres, 0.01)
+        self.assertEqual(before, {
+            "nodes": WalkableNode.objects.count(),
+            "segments": WalkableSegment.objects.count(),
+            "anchors": EntranceNetworkAnchor.objects.count(),
+        })
 
 
 class LiveRouteEndpointTests(TestCase):
@@ -90,7 +219,8 @@ class LiveRouteEndpointTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(set(payload), {"route", "summary"})
+        self.assertEqual(set(payload), {"navigation_state", "route", "summary"})
+        self.assertEqual(payload["navigation_state"], LIVE_ROUTE_ON_NETWORK)
         self.assertEqual(payload["summary"]["origin"], {"name": "Your location", "type": "live"})
         self.assertNotIn("node_ids", str(payload))
         self.assertNotIn("segment_ids", str(payload))
@@ -109,14 +239,43 @@ class LiveRouteEndpointTests(TestCase):
         self.assertEqual((distant.status_code, distant.json()["code"]), (422, "NO_SAFE_NETWORK_MATCH"))
         self.assertEqual((invalid.status_code, invalid.json()["code"]), (400, "INVALID_POSITION"))
 
-    def test_position_at_destination_arrival_returns_explicit_state_not_unrenderable_point(self):
+    def test_position_at_destination_returns_arrival_candidate_before_matching(self):
         anchor = LocationNetworkAnchor.objects.select_related("node").get(location=self.destination)
+        WalkableSegment.objects.update(is_active=False)
         response = self.client.post("/api/routes/from-position/", data=json.dumps({
             "destination": str(self.destination.id),
             "position": {"longitude": float(anchor.node.longitude), "latitude": float(anchor.node.latitude),
                          "accuracy_metres": 5},
         }), content_type="application/json")
-        self.assertEqual((response.status_code, response.json()["code"]), (409, "ALREADY_AT_ARRIVAL"))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["navigation_state"], LIVE_ROUTE_ARRIVAL_CANDIDATE)
+        self.assertEqual(payload["summary"]["eta_label"], "Checking arrival")
+        self.assertNotIn("route", payload)
+        self.assertEqual(payload["summary"]["remaining_distance_metres"], 0)
+
+    def test_approach_response_is_explicit_without_echoing_raw_position(self):
+        destination = LocationNetworkAnchor.objects.get(
+            node_id="10000000-0000-0000-0000-000000000003",
+        ).location
+        raw_position = {"longitude": 3.37425, "latitude": 6.51950, "accuracy_metres": 10}
+
+        response = self.client.post("/api/routes/from-position/", data=json.dumps({
+            "destination": str(destination.id), "position": raw_position,
+        }), content_type="application/json")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["navigation_state"], LIVE_ROUTE_APPROACH_REQUIRED)
+        self.assertEqual(payload["summary"]["live_start"]["state"], LIVE_ROUTE_APPROACH_REQUIRED)
+        self.assertGreater(payload["summary"]["network_match_distance_metres"], 0)
+        self.assertEqual(
+            payload["summary"]["live_start"]["network_match_coordinate"],
+            payload["route"]["geometry"]["coordinates"][0],
+        )
+        self.assertNotIn("latitude", str(payload))
+        self.assertNotIn("longitude", str(payload))
+        self.assertNotIn("position", payload)
 
     def test_endpoint_requires_csrf_and_does_not_accept_get(self):
         client = Client(enforce_csrf_checks=True)

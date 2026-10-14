@@ -1,4 +1,4 @@
-import { distanceMetres, projectOntoRoute } from "./live-route-progress.js?v=location-reliability-1";
+import { distanceMetres, projectOntoRoute } from "./live-route-progress.js?v=live-routing-stability-1";
 
 export function routeThresholds(accuracyMetres) {
   return {

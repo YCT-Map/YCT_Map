@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createDestinationPanel } from "../../static/yct_map/js/destination-panel.js";
-import { createUserNavigation as createUserNavigationImplementation, findNearbyMappedStart, isLivePositionRouteUsable,
+import { createUserNavigation as createUserNavigationImplementation, findNearbyMappedStart,
+  isLivePositionRouteUsable, isMeaningfulLiveRouteRetry,
   MAX_LIVE_POSITION_AGE_MS, NEARBY_MAPPED_START_MAX_METRES } from "../../static/yct_map/js/user-navigation.js";
 
 function createUserNavigation(options) {
@@ -126,6 +127,26 @@ test("anchored destination exposes Directions and emits the selected feature", (
   assert.equal(emitted, destination);
 });
 
+test("unanchored destination keeps a visible disabled Directions action with the exact reason", () => {
+  const harness = createHarness([
+    "#destination-name", "#destination-category", "#destination-description", "#close-panel",
+    "#destination-directions", "#destination-routing-reason",
+  ]);
+  const unavailable = { ...destination, properties: { ...destination.properties,
+    routing_available: false,
+    routing_unavailable_reason: "The primary entrance is not connected to the walking network.",
+  } };
+  const controller = createDestinationPanel(harness.panel);
+
+  controller.show(unavailable);
+
+  assert.equal(harness.get("#destination-directions").hidden, false);
+  assert.equal(harness.get("#destination-directions").disabled, true);
+  assert.equal(harness.get("#destination-directions").textContent, "Directions unavailable");
+  assert.equal(harness.get("#destination-routing-reason").hidden, false);
+  assert.match(harness.get("#destination-routing-reason").textContent, /primary entrance/i);
+});
+
 test("public navigation opens, excludes destination, renders result, and clears", async () => {
   const harness = createHarness(navigationSelectors());
   const states = [];
@@ -247,6 +268,139 @@ test("accepted live position is offered and sent through the protected live rout
   assert.deepEqual(JSON.parse(request.options.body).position, { latitude: 6.518, longitude: 3.374, accuracy_metres: 10 });
 });
 
+test("approach-required live route renders an explicit orientation guide and waits to join", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  const routeCalls = [];
+  let approachClears = 0;
+  const projection = [3.3744, 6.5182];
+  const payload = {
+    navigation_state: "APPROACH_REQUIRED",
+    route: { type: "Feature", geometry: { type: "LineString",
+      coordinates: [projection, [3.375, 6.518]] } },
+    summary: {
+      origin: { name: "Your location" }, destination: { name: destination.properties.name },
+      total_distance_metres: 90, eta_label: "~1 min", verification_state: "FIELD_VERIFIED",
+      live_start: { state: "APPROACH_REQUIRED", network_match_distance_metres: 42,
+        network_match_coordinate: projection, on_path_corridor_metres: 16 },
+    },
+  };
+  const controller = createUserNavigation({
+    panel: harness.panel, features: [destination, origin], routeUrl: "/api/routes/",
+    liveRouteUrl: "/api/routes/from-position/", onRoute: (...args) => routeCalls.push(args),
+    onClear() {}, onApproachClear: () => { approachClears += 1; }, now: () => 1_000,
+    requestRoute: async () => ({ ok: true, json: async () => payload }),
+  });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 8, timestamp: 1_000 });
+  controller.begin(destination); chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+
+  assert.equal(routeCalls.length, 1);
+  assert.equal(routeCalls[0][3].originType, "live-approach");
+  assert.deepEqual(routeCalls[0][3].approachCoordinate, projection);
+  assert.match(harness.get("#user-route-progress-status").textContent, /Mapped route begins/);
+  assert.match(harness.get("#user-route-eta-source").textContent, /orientation only/);
+  assert.match(harness.get("#user-route-data-notice").textContent, /not claimed as a mapped walkway/);
+
+  controller.updateLivePosition({ longitude: projection[0], latitude: projection[1],
+    accuracyMetres: 5, timestamp: 5_000 });
+  assert.equal(approachClears, 1);
+  assert.match(harness.get("#user-route-progress-status").textContent, /Mapped route joined|Following route/);
+});
+
+test("malformed approach response fails visibly instead of pretending the route is active", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  const controller = createUserNavigation({
+    panel: harness.panel, features: [destination, origin], routeUrl: "/api/routes/",
+    liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {}, now: () => 1_000,
+    requestRoute: async () => ({ ok: true, json: async () => ({
+      navigation_state: "APPROACH_REQUIRED",
+      route: { type: "Feature", geometry: { type: "LineString",
+        coordinates: [[3.374, 6.518], [3.375, 6.519]] } },
+      summary: { origin: { name: "Your location" }, destination: { name: destination.properties.name },
+        total_distance_metres: 100, eta_label: "~2 min", verification_state: "FIELD_VERIFIED",
+        live_start: { state: "APPROACH_REQUIRED", network_match_distance_metres: 42 } },
+    }) }),
+  });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518,
+    accuracyMetres: 5, timestamp: 1_000 });
+  controller.begin(destination); chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+
+  assert.equal(harness.get("#user-route-error").hidden, false);
+  assert.match(harness.get("#user-route-error").textContent, /incomplete approach route/);
+  assert.equal(harness.get("#user-route-form-state").hidden, false);
+  assert.equal(harness.get("#user-route-result").hidden, true);
+  assert.equal(harness.get("#show-user-route").disabled, false);
+});
+
+test("map rendering failure restores route setup with an actionable error", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  let clears = 0;
+  const controller = createUserNavigation({
+    panel: harness.panel, features: [destination, origin], routeUrl: "/api/routes/",
+    liveRouteUrl: "/api/routes/from-position/", now: () => 1_000,
+    onRoute() { throw new Error("Map renderer unavailable."); },
+    onClear() { clears += 1; },
+    requestRoute: async () => ({ ok: true, json: async () => routePayload() }),
+  });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518,
+    accuracyMetres: 5, timestamp: 1_000 });
+  controller.begin(destination); chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+
+  assert.equal(harness.get("#user-route-error").hidden, false);
+  assert.match(harness.get("#user-route-error").textContent, /Map renderer unavailable/);
+  assert.equal(harness.get("#user-route-form-state").hidden, false);
+  assert.equal(harness.get("#user-route-result").hidden, true);
+  assert.equal(harness.get("#show-user-route").disabled, false);
+  assert.ok(clears >= 1);
+});
+
+test("arrival needs two stable live responses separated by three seconds", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  let routeCalls = 0;
+  let clears = 0;
+  let requests = 0;
+  const controller = createUserNavigation({
+    panel: harness.panel, features: [destination, origin], routeUrl: "/api/routes/",
+    liveRouteUrl: "/api/routes/from-position/", onRoute: () => { routeCalls += 1; },
+    onClear: () => { clears += 1; }, now: () => 1_000,
+    requestRoute: async () => { requests += 1; return ({ ok: true, json: async () => ({
+      navigation_state: "ARRIVAL_CANDIDATE",
+      summary: { origin: { name: "Your location", type: "live" },
+        destination: { name: destination.properties.name,
+          outdoor_arrival: { label: "Library main entrance" } },
+        total_distance_metres: 0, remaining_distance_metres: 0,
+        eta_label: "Checking arrival", verification_state: "FIELD_VERIFIED" },
+    }) }); },
+  });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 5, timestamp: 1_000 });
+  controller.begin(destination); chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+
+  assert.equal(requests, 1);
+  assert.equal(harness.panel.dataset.routeState, "recovering");
+  assert.equal(harness.get("#user-route-result").hidden, true);
+  assert.match(harness.get("#user-route-request-status").textContent, /Confirming arrival/);
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518,
+    accuracyMetres: 5, timestamp: 4_000 });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(requests, 2);
+  assert.equal(routeCalls, 0, "arrival does not fabricate an unrenderable route geometry");
+  assert.equal(clears, 1);
+  assert.equal(harness.panel.dataset.routeState, "arrived");
+  assert.equal(harness.get("#user-route-result").hidden, false);
+  assert.equal(harness.get("#user-route-distance").textContent, "0 m");
+  assert.equal(harness.get("#user-route-eta").textContent, "Arrived");
+  assert.match(harness.get("#user-route-progress-status").textContent, /Library main entrance/);
+  assert.match(harness.get("#user-route-eta-source").textContent, /repeated/);
+});
+
 test("route usability separates recent retained position from genuinely stale position", () => {
   const retained = { longitude: 3.374, latitude: 6.518, accuracyMetres: 12,
     timestamp: 1_000, freshness: "retained", navigationReady: true };
@@ -259,6 +413,20 @@ test("route usability separates recent retained position from genuinely stale po
   assert.equal(isLivePositionRouteUsable({ ...retained, supportedAreaValid: false }, { now: 2_000 }), false);
   assert.equal(isLivePositionRouteUsable({ ...retained, navigationReady: false }, { now: 2_000 }), false,
     "an accurate-looking but unconfirmed fix must not become a route origin");
+});
+
+test("live-route retries require meaningful movement or a material accuracy improvement", () => {
+  const previous = { longitude: 3.374, latitude: 6.518, accuracyMetres: 12, timestamp: 1_000 };
+  assert.equal(isMeaningfulLiveRouteRetry({
+    longitude: 3.374001, latitude: 6.518001, accuracyMetres: 12, timestamp: 1_500,
+  }, previous), false, "rapid stationary jitter must not spend an attempt");
+  assert.equal(isMeaningfulLiveRouteRetry({
+    longitude: 3.37408, latitude: 6.518, accuracyMetres: 12, timestamp: 2_000,
+  }, previous), true, "real movement should trigger a new destination-aware match");
+  assert.equal(isMeaningfulLiveRouteRetry({
+    longitude: 3.374001, latitude: 6.518001, accuracyMetres: 7, timestamp: 2_000,
+  }, previous), true, "a materially better fix should trigger a retry even without movement");
+  assert.equal(isMeaningfulLiveRouteRetry({ ...previous, timestamp: 1_000 }, previous), false);
 });
 
 test("live directions remain disabled until the location controller confirms readiness", async () => {
@@ -306,6 +474,7 @@ test("unsafe live match falls back to a nearby place entrance and waits there be
       routing_available: true } };
   const routeCalls = [];
   const requested = [];
+  let deadline;
   const gate = [3.373512, 6.518877];
   const responsePayload = {
     route: { type: "Feature", geometry: { type: "LineString", coordinates: [gate, [3.374, 6.518], [3.375772, 6.517637]] } },
@@ -316,7 +485,7 @@ test("unsafe live match falls back to a nearby place entrance and waits there be
   const controller = createUserNavigation({ panel: harness.panel, features: [target, sports],
     routeUrl: "/api/routes/", liveRouteUrl: "/api/routes/from-position/",
     onRoute: (...args) => routeCalls.push(args), onClear() {}, now: () => 2_000,
-    setDeadline: () => 1, clearDeadline() {}, requestRoute: async (url) => {
+    setDeadline: (callback) => { deadline = callback; return 1; }, clearDeadline() {}, requestRoute: async (url) => {
       requested.push(url);
       return requested.length === 1
         ? { ok: false, json: async () => ({ code: "NO_SAFE_NETWORK_MATCH", error: "Unsafe match." }) }
@@ -326,6 +495,10 @@ test("unsafe live match falls back to a nearby place entrance and waits there be
     accuracyMetres: 3, timestamp: 1_000, freshness: "fresh" });
   controller.begin(target); chooseLiveOrigin(harness);
   await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+  assert.equal(requested.length, 1, "fallback waits for the bounded live-match window");
+  deadline();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(requested.length, 2);
   assert.equal(requested[0], "/api/routes/from-position/");
@@ -344,6 +517,49 @@ test("unsafe live match falls back to a nearby place entrance and waits there be
   controller.updateLivePosition({ longitude: gate[0], latitude: gate[1],
     accuracyMetres: 3, timestamp: 7_000, freshness: "fresh" });
   assert.doesNotMatch(harness.get("#user-route-progress-status").textContent, /join the mapped route/);
+});
+
+test("mapped-start fallback tries the next nearby connected destination", async () => {
+  globalThis.document = { cookie: "csrftoken=test-token" };
+  const harness = createHarness(navigationSelectors());
+  const target = { type: "Feature", geometry: { type: "Point", coordinates: [3.3758, 6.5176] },
+    properties: { id: "target", destination_key: "location:target", name: "Target", routing_available: true } };
+  const closest = { type: "Feature", geometry: { type: "Point", coordinates: [3.37401, 6.518] },
+    properties: { id: "closest", destination_key: "location:closest", name: "Closest", routing_available: true } };
+  const connected = { type: "Feature", geometry: { type: "Point", coordinates: [3.3742, 6.518] },
+    properties: { id: "connected", destination_key: "location:connected", name: "Connected", routing_available: true } };
+  let deadline;
+  const requested = [];
+  const controller = createUserNavigation({ panel: harness.panel,
+    features: [target, closest, connected], routeUrl: "/api/routes/",
+    liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {}, now: () => 2_000,
+    setDeadline: (callback) => { deadline = callback; return 1; }, clearDeadline() {},
+    requestRoute: async (url) => {
+      requested.push(url);
+      if (requested.length === 1) return { ok: false,
+        json: async () => ({ code: "NO_SAFE_NETWORK_MATCH", error: "Unsafe match." }) };
+      if (requested.length === 2) return { ok: false,
+        json: async () => ({ code: "NO_ROUTE", error: "Closest is disconnected." }) };
+      return { ok: true, json: async () => ({
+        route: { type: "Feature", geometry: { type: "LineString",
+          coordinates: [[3.3742, 6.518], [3.3758, 6.5176]] } },
+        summary: { origin: { name: "Connected" }, destination: { name: "Target" },
+          total_distance_metres: 180, eta_label: "~3 min", verification_state: "FIELD_VERIFIED" },
+      }) };
+    } });
+  controller.updateLivePosition({ longitude: 3.374, latitude: 6.518,
+    accuracyMetres: 5, timestamp: 1_000 });
+  controller.begin(target); chooseLiveOrigin(harness);
+  await harness.get("#user-route-form").listeners.get("submit")({ preventDefault() {} });
+  deadline();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(requested.length, 3);
+  assert.match(requested[1], /origin=location%3Aclosest/);
+  assert.match(requested[2], /origin=location%3Aconnected/);
+  assert.equal(harness.get("#user-route-result").hidden, false);
+  assert.equal(harness.get("#user-route-from").textContent, "Connected");
 });
 
 test("passive location expiry cannot abort an active route-origin snapshot", async () => {
@@ -418,7 +634,7 @@ function navigationSelectors() {
     "#user-route-distance", "#user-route-eta", "#user-route-data-notice", "#user-route-progress-status",
     "#user-route-eta-source", "#change-route-origin", "#change-route-destination", "#clear-user-route",
     "#close-user-route", "#cancel-user-route", "#retry-reroute", "#toggle-route-details",
-    "#user-route-summary-destination"];
+    "#user-route-summary-destination", "#user-route-guidance"];
 }
 
 function routePayload(coordinates = [[3.374, 6.518], [3.375, 6.518]], distance = 110) {
@@ -599,13 +815,14 @@ test("transient live-start failure waits for a newer accepted position and then 
   assert.equal(harness.get("#user-route-result").hidden, false);
 });
 
-test("live-start recovery is bounded at three attempts with an honest fallback", async () => {
+test("stationary high-frequency fixes do not exhaust live-route attempts and end honestly", async () => {
   globalThis.document = { cookie: "csrftoken=test-token" };
   const harness = createHarness(navigationSelectors());
   let calls = 0;
+  let deadline;
   const controller = createUserNavigation({ panel: harness.panel, features: [destination, origin],
     routeUrl: "/api/routes/", liveRouteUrl: "/api/routes/from-position/", onRoute() {}, onClear() {},
-    now: () => 2_000, setDeadline: () => 1, clearDeadline() {},
+    now: () => 2_000, setDeadline: (callback) => { deadline = callback; return 1; }, clearDeadline() {},
     requestRoute: async () => { calls += 1; return { ok: false,
       json: async () => ({ code: "INSUFFICIENT_ACCURACY", error: "Try again." }) }; } });
   controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 10, timestamp: 1_000 });
@@ -615,7 +832,13 @@ test("live-start recovery is bounded at three attempts with an honest fallback",
     controller.updateLivePosition({ longitude: 3.374, latitude: 6.518, accuracyMetres: 10, timestamp });
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
-  assert.equal(calls, 3);
+  assert.equal(calls, 1, "timestamp-only stationary jitter must not trigger route requests");
+  assert.equal(harness.get("#show-user-route").disabled, true);
+  assert.equal(harness.get("#show-user-route").textContent, "Matching location…");
+  deadline();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(calls, 1, "without a valid nearby mapped start, timeout must not invent another request");
   assert.match(harness.get("#user-route-error").textContent, /cannot yet be safely connected/);
   assert.equal(harness.get("#show-user-route").disabled, false);
   assert.equal(harness.get("#show-user-route").textContent, "Show route");
